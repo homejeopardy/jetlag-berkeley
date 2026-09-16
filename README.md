@@ -23,7 +23,7 @@ stops, six stations. Bigger, and it brings Rockridge and MacArthur BART
 into play.
 
 With GitHub Pages turned on they are live at
-`https://.github.io/jetlag-berkeley/`, which is the easy way
+`https://homejeopardy.github.io/jetlag-berkeley/`, which is the easy way
 to open one on a phone mid-game.
 
 Both are single self-contained HTML files. Open one in a browser and it
@@ -108,7 +108,7 @@ another city.
 The maps are static files, so GitHub Pages serves them as-is: in the
 repository settings, under Pages, deploy from the `main` branch at the
 repository root. The landing page is then at
-`https://.github.io/jetlag-berkeley/` and the maps under
+`https://homejeopardy.github.io/jetlag-berkeley/` and the maps under
 `/maps/`. The companion is not served from there — it needs a datastore.
 
 ```
