@@ -181,8 +181,166 @@ table.sb th{font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;l
 </nav>
 <div id="toast" class="toast" hidden></div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/5.10.1/mqtt.min.js"></script>
+
 <script>
 (function(){
+// ---------- store ----------
+// The companion needs one thing from a backend: a handful of small JSON
+// documents that every player's phone sees. Three backends provide it, tried
+// in order, all behind the same doc/collection API:
+//
+//   artifact  the claude.ai artifact runtime's db — private and durable
+//   mqtt      a public MQTT broker over WebSockets, using retained messages
+//             as the document store; no signup, works from static hosting
+//   local     this device only, so the timers, cards, rules and map still
+//             work when neither of the above is reachable
+const Store=(function(){
+const TOPIC='jlhs/v1/';
+const BROKERS=['wss://broker.emqx.io:8084/mqtt','wss://broker.hivemq.com:8884/mqtt'];
+const mkid=()=>Math.random().toString(36).slice(2,9)+Date.now().toString(36).slice(-3);
+
+// A document store over a path -> object map. `io` supplies persistence and
+// delivery; everything else — queries, snapshots, change lists — is here.
+function build(io){
+  const cache=new Map(), listeners=[], pending=new Set();
+
+  function snapDoc(path){ const d=cache.get(path);
+    return {id:path.split('/').pop(),exists:d!==undefined,data:()=>d,
+            metadata:{fromCache:false,hasPendingWrites:false}}; }
+  function depth(p){ return p.split('/').length; }
+  function isChild(base,path){ return path.startsWith(base+'/')&&depth(path)===depth(base)+1; }
+
+  function colSnap(L){
+    let ids=[...cache.keys()].filter(p=>isChild(L.path,p));
+    const o=L.opts;
+    if(o.order) ids.sort((a,b)=>{ const x=(cache.get(a)||{})[o.order], y=(cache.get(b)||{})[o.order];
+      if(x===undefined) return 1; if(y===undefined) return -1;
+      return (x<y?-1:x>y?1:0)*(o.dir==='desc'?-1:1); });
+    else ids.sort();
+    if(o.lim) ids=ids.slice(0,o.lim);
+    const docs=ids.map(snapDoc);
+    const prev=L.prev||[], now=docs.map(d=>d.id);
+    const changes=[];
+    docs.forEach((d,i)=>{ const j=prev.indexOf(d.id);
+      if(j<0) changes.push({type:'added',doc:d,oldIndex:-1,newIndex:i});
+      else if(L.seen[d.id]!==JSON.stringify(d.data())) changes.push({type:'modified',doc:d,oldIndex:j,newIndex:i}); });
+    prev.forEach(id=>{ if(now.indexOf(id)<0) changes.push({type:'removed',doc:{id,exists:true,data:()=>undefined,metadata:{}},oldIndex:0,newIndex:-1}); });
+    L.prev=now; L.seen={}; docs.forEach(d=>{ L.seen[d.id]=JSON.stringify(d.data()); });
+    const local=docs.some(d=>pending.has(L.path+'/'+d.id));
+    return {docs,size:docs.length,empty:!docs.length,docChanges:()=>changes,
+            metadata:{fromCache:false,hasPendingWrites:local}};
+  }
+
+  // Called for every change, local or remote.
+  function apply(path,value){
+    if(value===null||value===undefined) cache.delete(path); else cache.set(path,value);
+    const local=pending.delete(path);
+    for(const L of listeners.slice()){
+      if(L.kind==='doc'&&L.path===path){ const s=snapDoc(path); s.metadata.hasPendingWrites=local; L.fn(s); }
+      else if(L.kind==='col'&&isChild(L.path,path)) L.fn(colSnap(L));
+    }
+  }
+  io.attach(apply);
+
+  function drop(L){ const i=listeners.indexOf(L); if(i>=0) listeners.splice(i,1); }
+
+  function docRef(path){
+    if(depth(path)%2) throw new TypeError('document paths have an even number of segments: '+path);
+    return {
+      id:path.split('/').pop(), path,
+      get(){ io.watchDoc(path); return io.settle().then(()=>snapDoc(path)); },
+      set(d){ pending.add(path); io.publish(path,d); return Promise.resolve(); },
+      update(d){ pending.add(path); io.publish(path,Object.assign({},cache.get(path)||{},d)); return Promise.resolve(); },
+      delete(){ pending.add(path); io.publish(path,null); return Promise.resolve(); },
+      acquire(){ return Promise.resolve({acquired:true}); },
+      onSnapshot(next){ io.watchDoc(path); const L={kind:'doc',path,fn:next};
+        listeners.push(L); io.settle().then(()=>next(snapDoc(path))); return ()=>drop(L); },
+      collection(sub){ return colRef(path+'/'+sub); }
+    };
+  }
+  function colRef(base,opts){
+    opts=opts||{order:null,dir:'asc',lim:0};
+    const q={
+      path:base,
+      orderBy(f,d){ return colRef(base,Object.assign({},opts,{order:f,dir:d||'asc'})); },
+      limit(n){ return colRef(base,Object.assign({},opts,{lim:n})); },
+      where(){ return q; },
+      get(){ io.watchCollection(base); const L={kind:'col',path:base,opts,prev:[],seen:{}};
+             return io.settle().then(()=>colSnap(L)); },
+      onSnapshot(next){ io.watchCollection(base);
+        const L={kind:'col',path:base,opts,prev:[],seen:{},fn:next};
+        listeners.push(L); io.settle().then(()=>next(colSnap(L))); return ()=>drop(L); },
+      add(d){ const id=mkid(); const p=base+'/'+id; pending.add(p); io.publish(p,d); return Promise.resolve({id}); },
+      doc(id){ return docRef(base+'/'+(id||mkid())); }
+    };
+    return q;
+  }
+  return {doc:docRef, collection:colRef};
+}
+
+// --- MQTT: one retained message per document -----------------------------
+function mqttIO(client){
+  const subs=new Set(); let apply=null;
+  client.on('message',(topic,payload)=>{
+    if(!apply||topic.indexOf(TOPIC)!==0) return;
+    let v=null;
+    if(payload&&payload.length){ try{ v=JSON.parse(payload.toString()); }catch(e){ return; } }
+    apply(topic.slice(TOPIC.length),v);
+  });
+  const sub=t=>{ if(!subs.has(t)){ subs.add(t); client.subscribe(t,{qos:0}); } };
+  return {
+    attach(fn){ apply=fn; },
+    // Retained messages arrive right after SUBSCRIBE; a short grace period
+    // lets the first batch land before the first snapshot goes out.
+    settle(){ return new Promise(r=>setTimeout(r,400)); },
+    publish(path,value){ client.publish(TOPIC+path, value===null?'':JSON.stringify(value), {retain:true,qos:0}); },
+    watchDoc(path){ sub(TOPIC+path); },
+    watchCollection(base){ sub(TOPIC+base+'/+'); }
+  };
+}
+
+// --- local: this device only ---------------------------------------------
+function localIO(){
+  const KEY='hs-local-db'; let data={}, apply=null;
+  try{ data=JSON.parse(localStorage.getItem(KEY)||'{}'); }catch(e){}
+  const save=()=>{ try{ localStorage.setItem(KEY,JSON.stringify(data)); }catch(e){} };
+  return {
+    attach(fn){ apply=fn; for(const k in data) fn(k,data[k]); },
+    settle(){ return Promise.resolve(); },
+    publish(path,value){ if(value===null) delete data[path]; else data[path]=value; save(); apply(path,value); },
+    watchDoc(){}, watchCollection(){}
+  };
+}
+
+function connectMqtt(){
+  return new Promise(resolve=>{
+    if(!window.mqtt){ resolve(null); return; }
+    let i=0;
+    const tryNext=()=>{
+      if(i>=BROKERS.length){ resolve(null); return; }
+      const url=BROKERS[i++];
+      let done=false;
+      const c=mqtt.connect(url,{clientId:'hs_'+mkid(),clean:true,connectTimeout:6000,reconnectPeriod:3000,keepalive:30});
+      const fail=()=>{ if(done) return; done=true; try{c.end(true);}catch(e){} tryNext(); };
+      const timer=setTimeout(fail,7000);
+      c.on('connect',()=>{ if(done) return; done=true; clearTimeout(timer); c.__url=url; resolve(c); });
+      c.on('error',fail);
+    };
+    tryNext();
+  });
+}
+
+return { async open(){
+  if(window.claude&&claude.use){
+    try{ const d=await claude.use('db'); if(d) return {kind:'artifact',db:d}; }catch(e){}
+  }
+  const c=await connectMqtt();
+  if(c) return {kind:'mqtt',db:build(mqttIO(c)),detail:c.__url.split('/')[2]};
+  return {kind:'local',db:build(localIO())};
+}};
+})();
+
 // ---------- rules data ----------
 const SIZES={S:{name:'Small',hide:30,zone:'¼ mile (400 m)',photo:10},M:{name:'Medium',hide:60,zone:'¼ mile (400 m)',photo:10},L:{name:'Large',hide:180,zone:'½ mile (800 m)',photo:20}};
 const CATS=[
@@ -207,7 +365,7 @@ const DEFAULT_ZONE='berkeley';
 const HIDE_RADIUS={S:402,M:402,L:805};
 
 // ---------- state ----------
-let db=null, assets=null, dbReady=false;
+let db=null, assets=null, dbReady=false, backend=null, backendDetail='';
 let me=load('hs-me')||{name:'',role:'seeker'};
 let code=load('hs-code')||null;
 let tab=load('hs-tab')||'feed';
@@ -232,9 +390,11 @@ function sizeOk(min){ return !min || SIZE_RANK[(game&&game.size)||'S']>=SIZE_RAN
 
 // ---------- capability boot ----------
 (async()=>{
-  db = window.claude && claude.use ? await claude.use('db') : null;
+  const opened = await Store.open();
+  db = opened.db; backend = opened.kind; backendDetail = opened.detail||'';
+  if(backend==='artifact'){ try{ assets = await claude.use('assets'); }catch(e){} }
   dbReady=true;
-  if(db){ assets = await claude.use('assets'); subscribeLobby(); if(code) join(code,true); }
+  if(db){ subscribeLobby(); if(code) join(code,true); }
   render();
 })();
 
@@ -299,7 +459,7 @@ function render(){
   $('#hdr-role').textContent=me.name?(me.name+' · '+me.role):'—';
   $('#hdr-role').className='pill '+(me.name?me.role:'');
   if(!dbReady){ m.innerHTML='<div class="card"><h2>Connecting…</h2><p class="muted">Setting up the shared game store.</p></div>'; return; }
-  if(!db){ $('#hdr-sub').textContent='Offline'; m.innerHTML='<div class="card"><h2>Shared play needs the claude.ai viewer</h2><p>This companion relays questions between the hider and the seekers through a shared store, so everyone must open it signed in to the same claude.ai account (the one this page was published from). Open this page in the Claude app or at claude.ai on each phone.</p></div>'+rulesCard(); return; }
+  if(!db){ $('#hdr-sub').textContent='Offline'; m.innerHTML='<div class="card"><h2>No store available</h2><p>The companion could not reach any way to share a game between phones, and local storage is unavailable too.</p></div>'+rulesCard(); return; }
   if(!game){ $('#hdr-sub').textContent='Lobby'; $('#tabs').hidden=true; m.innerHTML=lobby(); wire(); return; }
   $('#hdr-sub').textContent=game.name+' · '+code;
   $('#tabs').hidden=false;
@@ -321,6 +481,11 @@ function render(){
   }
   if(!tick) tick=setInterval(()=>{ const t=$('#timer'); if(t) t.textContent=timerText(); const t2=$('#timer2'); if(t2) t2.textContent=timerText2(); },1000);
 }
+function backendNote(){
+  if(backend==='artifact') return `<div class="card flat"><h3>Sync</h3><p class="small">Through Claude, private to your account. Everyone needs to open this page signed in to the same account.</p></div>`;
+  if(backend==='mqtt') return `<div class="card flat"><h3>Sync</h3><p class="small">Through a public message broker (${esc(backendDetail)}). Nothing to sign in to, but the four-letter code is the only thing keeping a stranger out — so keep pins and notes non-sensitive, and expect the odd dropped message.</p></div>`;
+  return `<div class="card flat"><h3>Sync</h3><p class="small"><b>This device only.</b> No broker was reachable, so a game you start here will not appear on anyone else's phone. The timers, cards, rules and map still work.</p></div>`;
+}
 function rulesCard(){
   return `<div class="card flat"><h3>Game sizes</h3><table class="sb"><tr><th>Size</th><th>Hiding period</th><th>Hiding zone</th></tr>${Object.entries(SIZES).map(([k,s])=>`<tr><td>${s.name}</td><td>${s.hide} min</td><td>${s.zone}</td></tr>`).join('')}</table></div>`;
 }
@@ -330,6 +495,7 @@ function lobby(){
     <label class="f">Role this round</label>
     <div class="seg"><button type="button" data-role="hider" class="${me.role==='hider'?'on':''}">Hider</button><button type="button" data-role="seeker" class="${me.role==='seeker'?'on':''}">Seeker</button></div>
   </div>
+  ${backendNote()}
   <div class="card"><h2>Join a game</h2>
     <div class="row"><input type="text" id="join-code" class="grow" placeholder="4-letter code" maxlength="4" style="text-transform:uppercase;font-family:'Barlow Condensed';font-weight:800;font-size:22px;letter-spacing:.2em" autocomplete="off"><button class="btn primary" id="btn-join">Join</button></div>
     ${lobbyGames.length?`<h3>Recent games</h3><div class="games">${lobbyGames.map(g=>`<button data-join="${g.id}"><span><span class="code">${g.id}</span> &nbsp;${esc(g.name)}</span><span class="small muted">${SIZES[g.size]?SIZES[g.size].name:''} · ${g.phase}${g.hider?' · hider '+esc(g.hider):''}</span></button>`).join('')}</div>`:''}
