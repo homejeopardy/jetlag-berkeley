@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Hide + Seek — Berkeley</title>
+<meta name="description" content="Maps and a phone companion for playing Jet Lag: The Game's Hide + Seek in Berkeley and North Oakland.">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;800&family=Barlow:wght@400;500&display=swap">
+<style>
+:root{
+  --ink:#15171B; --ink-2:#3C4048; --ink-3:#6E737C;
+  --bg:#EDEAE1; --card:#FFFFFF; --yellow:#F5C400; --line:#D9D5CB;
+}
+@media (prefers-color-scheme:dark){:root{
+  --ink:#F2EFE6; --ink-2:#C9C5BA; --ink-3:#8E9299;
+  --bg:#17181C; --card:#23252B; --line:#3A3D44;
+}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font-family:'Barlow',system-ui,-apple-system,'Segoe UI',sans-serif;
+  font-size:16px;line-height:1.5;-webkit-font-smoothing:antialiased}
+.wrap{max-width:660px;margin:0 auto;padding:40px 16px 64px}
+h1{font-family:'Barlow Condensed','Arial Narrow',sans-serif;font-weight:800;
+  text-transform:uppercase;font-size:44px;line-height:.95;margin:0 0 6px;text-wrap:balance}
+h1 span{display:block;background:var(--yellow);color:#15171B;width:max-content;
+  max-width:100%;padding:2px 8px 0;margin:0 -8px 8px}
+.lede{color:var(--ink-2);margin:0 0 28px;max-width:52ch}
+h2{font-family:'Barlow Condensed',sans-serif;font-weight:800;text-transform:uppercase;
+  font-size:14px;letter-spacing:.14em;color:var(--ink-3);margin:32px 0 10px}
+a.card{display:block;background:var(--card);border:1.5px solid var(--ink);
+  box-shadow:4px 4px 0 var(--ink);padding:14px 16px;margin-bottom:14px;
+  text-decoration:none;color:inherit;transition:transform .06s}
+a.card:hover{transform:translate(-1px,-1px);box-shadow:5px 5px 0 var(--ink)}
+a.card:active{transform:translate(2px,2px);box-shadow:2px 2px 0 var(--ink)}
+a.card b{font-family:'Barlow Condensed',sans-serif;font-weight:800;text-transform:uppercase;
+  font-size:22px;display:block;line-height:1.1}
+a.card span{color:var(--ink-2);font-size:15px}
+a.card em{display:block;margin-top:6px;font-style:normal;font-size:13px;
+  text-transform:uppercase;letter-spacing:.08em;color:var(--ink-3);
+  font-family:'Barlow Condensed',sans-serif;font-weight:600}
+p{max-width:58ch}
+footer{margin-top:40px;padding-top:16px;border-top:1px solid var(--line);
+  font-size:13px;color:var(--ink-3)}
+footer a{color:inherit}
+a:focus-visible{outline:3px solid var(--yellow);outline-offset:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1><span>Hide + Seek</span>Berkeley</h1>
+  <p class="lede">Maps and a phone companion for playing Jet Lag: The Game's
+  Hide + Seek around the East Bay. Every bus stop and rail station in the
+  zone, drawn to be read at a glance from a train platform.</p>
+
+  <h2>During a round</h2>
+  <a class="card" href="https://claude.ai/artifact/6a7ASMt6h4KUE1W2E6b9nC" target="_blank" rel="noopener">
+    <b>Companion</b>
+    <span>Everyone opens it on their own phone. Seekers send from the real
+    question deck, the hider answers, and the timers, cards, feed and map
+    stay in sync.</span>
+    <em>Opens on claude.ai · needs a sign-in</em>
+  </a>
+
+  <h2>Maps</h2>
+  <a class="card" href="maps/berkeley.html">
+    <b>Berkeley</b>
+    <span>The city limits, shoreline to the Tilden ridge. Fits a small
+    game: 30-minute hiding period, quarter-mile zone.</span>
+    <em>585 stops · 4 stations · 15 lines</em>
+  </a>
+  <a class="card" href="maps/berkeley-north-oakland.html">
+    <b>Berkeley &amp; North Oakland</b>
+    <span>Everything above, plus Oakland north of Highway 24. Brings
+    Rockridge and MacArthur BART into play.</span>
+    <em>714 stops · 6 stations · 16 lines</em>
+  </a>
+  <p>The companion carries both of these as a Map tab, so during a round you
+  only need the one app. These full-screen versions are better for planning
+  on a laptop.</p>
+
+  <footer>
+  Map data © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap
+  contributors</a>, under the ODbL. An unofficial fan-made tool, not
+  affiliated with <a href="https://jetlagthegame.com/">Jet Lag: The
+  Game</a>.
+  </footer>
+</div>
+</body>
+</html>

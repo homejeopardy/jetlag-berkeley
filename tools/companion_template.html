@@ -1,0 +1,700 @@
+<title>Hide + Seek Relay</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;800&family=Barlow:wght@400;500;600;700&display=swap">
+<style>
+:root{
+  --ink:#15171B; --ink-2:#3C4048; --ink-3:#6E737C; --line:#D9D5CB;
+  --bg:#EDEAE1; --card:#FFFFFF; --card-2:#F6F4EE;
+  --yellow:#F5C400; --yellow-2:#FFE27A; --red:#D62828; --green:#1F8A5B; --blue:#0077B6;
+  --hider:#8338EC; --seeker:#0077B6;
+  --shadow:4px 4px 0 var(--ink);
+}
+@media (prefers-color-scheme:dark){ :root:not([data-theme="light"]){
+  --ink:#F2EFE6; --ink-2:#C9C5BA; --ink-3:#8E9299; --line:#3A3D44;
+  --bg:#17181C; --card:#23252B; --card-2:#2B2E35; --yellow:#F5C400; --yellow-2:#5A4A00; --shadow:4px 4px 0 #000;
+}}
+:root[data-theme="dark"]{
+  --ink:#F2EFE6; --ink-2:#C9C5BA; --ink-3:#8E9299; --line:#3A3D44;
+  --bg:#17181C; --card:#23252B; --card-2:#2B2E35; --yellow:#F5C400; --yellow-2:#5A4A00; --shadow:4px 4px 0 #000;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:'Barlow',system-ui,-apple-system,'Segoe UI',sans-serif;font-size:15px;line-height:1.4;-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit}
+h1,h2,h3{font-family:'Barlow Condensed','Arial Narrow',sans-serif;text-transform:uppercase;letter-spacing:.02em;margin:0;text-wrap:balance}
+.app{height:100%;display:flex;flex-direction:column;max-width:720px;margin:0 auto}
+header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:3;display:flex;align-items:center;gap:10px;padding:10px 16px;background:var(--bg);border-bottom:1.5px solid var(--ink)}
+header.top .brand{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:20px;text-transform:uppercase;background:var(--yellow);color:#15171B;padding:2px 8px;line-height:1.2}
+header.top .sub{font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:15px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-2);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pill{display:inline-flex;align-items:center;gap:6px;border:1.5px solid var(--ink);padding:2px 8px;font-family:'Barlow Condensed',sans-serif;font-weight:800;text-transform:uppercase;font-size:13px;letter-spacing:.04em;background:var(--card);white-space:nowrap}
+.pill.hider{background:var(--hider);color:#fff;border-color:var(--hider)}
+.pill.seeker{background:var(--seeker);color:#fff;border-color:var(--seeker)}
+main{flex:1;overflow:auto;padding:16px 16px calc(84px + env(safe-area-inset-bottom,0px))}
+.card{background:var(--card);border:1.5px solid var(--ink);box-shadow:var(--shadow);padding:14px 16px;margin-bottom:14px}
+.card.flat{box-shadow:none}
+.card h2{font-size:22px;margin-bottom:8px}
+.card h3{font-size:14px;letter-spacing:.12em;color:var(--ink-3);margin:12px 0 6px}
+.card h3:first-child{margin-top:0}
+p{margin:6px 0}
+.muted{color:var(--ink-3)}
+.small{font-size:13px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.grow{flex:1;min-width:120px}
+.btn{border:1.5px solid var(--ink);background:var(--card);padding:9px 14px;font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:16px;text-transform:uppercase;letter-spacing:.04em;cursor:pointer;box-shadow:3px 3px 0 var(--ink);transition:transform .05s}
+.btn:active{transform:translate(2px,2px);box-shadow:1px 1px 0 var(--ink)}
+.btn.primary{background:var(--yellow);color:#15171B}
+.btn.danger{background:var(--red);color:#fff;border-color:var(--red)}
+.btn.ghost{box-shadow:none;background:transparent}
+.btn.sm{padding:5px 10px;font-size:14px;box-shadow:2px 2px 0 var(--ink)}
+.btn.block{display:block;width:100%}
+.btn[disabled]{opacity:.45;cursor:not-allowed;transform:none}
+.btn:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid var(--yellow);outline-offset:2px}
+input[type=text],select,textarea{width:100%;font:inherit;color:inherit;background:var(--card);border:1.5px solid var(--ink);padding:9px 10px;border-radius:0}
+select{appearance:auto}
+label.f{display:block;font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:13px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);margin:8px 0 4px}
+.seg{display:flex;border:1.5px solid var(--ink)}
+.seg button{flex:1;border:0;background:var(--card);padding:8px 4px;font-family:'Barlow Condensed',sans-serif;font-weight:800;text-transform:uppercase;font-size:15px;cursor:pointer;border-right:1.5px solid var(--ink)}
+.seg button:last-child{border-right:0}
+.seg button.on{background:var(--ink);color:var(--bg)}
+.timer{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:52px;line-height:1;font-variant-numeric:tabular-nums;letter-spacing:.02em}
+.timer.warn{color:var(--red)}
+.phase{font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3)}
+.stat{display:grid;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:10px;margin-top:10px}
+.stat div{background:var(--card-2);padding:8px 10px;border-left:3px solid var(--yellow)}
+.stat b{display:block;font-family:'Barlow Condensed',sans-serif;font-size:22px;line-height:1;font-variant-numeric:tabular-nums}
+.stat span{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-3)}
+/* question grid */
+.cats{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px}
+.cat{border:1.5px solid var(--ink);background:var(--card);padding:10px;cursor:pointer;text-align:left;box-shadow:3px 3px 0 var(--ink)}
+.cat b{display:block;font-family:'Barlow Condensed',sans-serif;font-size:18px;text-transform:uppercase}
+.cat span{font-size:12px;color:var(--ink-3)}
+.cat[disabled]{opacity:.4;cursor:not-allowed}
+.qlist{display:flex;flex-direction:column;gap:6px}
+.q{border:1.5px solid var(--line);background:var(--card);padding:9px 10px;cursor:pointer;text-align:left;display:flex;justify-content:space-between;gap:8px;align-items:center}
+.q:hover,.q.on{border-color:var(--ink);background:var(--yellow-2)}
+.q .fmt{font-size:12px;color:var(--ink-3)}
+/* feed */
+.msg{border:1.5px solid var(--ink);background:var(--card);padding:10px 12px;margin-bottom:10px;position:relative}
+.msg.pending{border-color:var(--yellow);border-width:2.5px;background:var(--card)}
+.msg .who{font-family:'Barlow Condensed',sans-serif;font-weight:800;text-transform:uppercase;font-size:13px;letter-spacing:.06em;display:flex;justify-content:space-between;gap:8px}
+.msg .who time{font-weight:600;color:var(--ink-3)}
+.msg .txt{margin:4px 0;font-size:16px}
+.msg .ans{margin-top:6px;padding:8px 10px;background:var(--card-2);border-left:4px solid var(--green)}
+.msg .ans b{font-family:'Barlow Condensed',sans-serif;font-size:19px;text-transform:uppercase}
+.msg .ans.veto{border-left-color:var(--red)}
+.msg.curse{border-left:6px solid var(--hider)}
+.msg img{display:block;max-width:100%;margin-top:8px;border:1.5px solid var(--ink)}
+.tag{display:inline-block;font-size:11px;padding:1px 6px;border:1px solid var(--ink-3);color:var(--ink-3);text-transform:uppercase;letter-spacing:.08em;margin-right:6px}
+.answers{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+.answers .btn{font-size:18px;padding:12px}
+/* nav */
+nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:4;display:flex;justify-content:center;background:var(--bg);border-top:1.5px solid var(--ink);padding:0 0 env(safe-area-inset-bottom,0px)}
+nav.tabs .in{display:flex;width:100%;max-width:720px}
+nav.tabs button{flex:1;border:0;background:transparent;padding:10px 4px 8px;font-family:'Barlow Condensed',sans-serif;font-weight:800;text-transform:uppercase;font-size:14px;letter-spacing:.06em;cursor:pointer;color:var(--ink-3);position:relative}
+nav.tabs button.on{color:var(--ink);box-shadow:inset 0 -4px 0 var(--yellow)}
+nav.tabs button .n{position:absolute;top:6px;right:calc(50% - 26px);min-width:18px;height:18px;border-radius:9px;background:var(--red);color:#fff;font-size:11px;line-height:18px;padding:0 5px;font-family:'Barlow',sans-serif}
+.hand{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px}
+.hcard{border:1.5px solid var(--ink);background:var(--card);padding:8px 10px;min-height:80px;display:flex;flex-direction:column;justify-content:space-between}
+.hcard b{font-family:'Barlow Condensed',sans-serif;font-size:15px;text-transform:uppercase;line-height:1.1}
+.hcard .x{align-self:flex-end;border:1px solid var(--ink-3);background:transparent;font-size:11px;padding:1px 6px;cursor:pointer;color:var(--ink-3)}
+.toast{position:fixed;left:50%;bottom:calc(72px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:8px 14px;font-weight:600;z-index:6;max-width:90vw;box-shadow:var(--shadow)}
+/* map */
+#mapview{flex:1;position:relative;overflow:hidden;background:#EDEAE1;touch-action:none;cursor:grab}
+#mapview.drag{cursor:grabbing}
+#mapsvg{width:100%;height:100%;display:block}
+#mapsvg .m-road{fill:none;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke}
+#mapsvg .m-tertiary{stroke:#fff;stroke-width:1.1px;opacity:.9}
+#mapsvg .m-secondary{stroke:#fff;stroke-width:2.1px}
+#mapsvg .m-primary{stroke:#fff;stroke-width:2.9px}
+#mapsvg .m-motorway{stroke:#B9B4A8;stroke-width:5px}
+#mapsvg .m-rail{stroke:#8F8A80;stroke-width:1.4px;stroke-dasharray:6 4}
+#mapsvg .m-cut{stroke:#15171B;stroke-width:9px;opacity:.13}
+#mapsvg .m-bart{fill:none;stroke:#F7941D;stroke-width:5px;vector-effect:non-scaling-stroke}
+#mapsvg .m-amtrak{fill:none;stroke:#1F3F8A;stroke-width:3px;vector-effect:non-scaling-stroke}
+#mapsvg .m-zone{fill:none;stroke:#15171B;stroke-width:3px;stroke-dasharray:13 7;vector-effect:non-scaling-stroke;stroke-linejoin:round}
+#mapsvg .m-zone-glow{fill:none;stroke:#F5C400;stroke-width:8px;vector-effect:non-scaling-stroke;stroke-linejoin:round}
+#mapsvg .m-oob{fill:#8C8A84;fill-opacity:.42;fill-rule:evenodd;pointer-events:none}
+#mapsvg .m-stop{fill:#fff;stroke:#15171B;stroke-width:1.5px;vector-effect:non-scaling-stroke;cursor:pointer}
+#mapsvg .m-stop.sel{fill:var(--yellow)}
+#mapsvg .m-label{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:11px;fill:#15171B;paint-order:stroke;stroke:#fff;stroke-width:4px;stroke-linejoin:round;text-transform:uppercase;letter-spacing:.04em;pointer-events:none;text-anchor:middle}
+#mapsvg .m-place{font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:10px;fill:#3C4048;letter-spacing:.12em;text-transform:uppercase;paint-order:stroke;stroke:#EDEAE1;stroke-width:3px;pointer-events:none;text-anchor:middle}
+#mapsvg .m-hz{fill:var(--hider);fill-opacity:.16;stroke:var(--hider);stroke-width:2.5px;vector-effect:non-scaling-stroke}
+#mapsvg .m-me{fill:#1E88E5;stroke:#fff;stroke-width:3px;vector-effect:non-scaling-stroke}
+#mapsvg .m-me-acc{fill:#1E88E5;fill-opacity:.15;stroke:none}
+#mapsvg .m-pin{fill:var(--red);stroke:#fff;stroke-width:2px;vector-effect:non-scaling-stroke;cursor:pointer}
+#mapctl{position:absolute;right:10px;bottom:calc(52px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:6px;z-index:2}
+#mapctl button{width:40px;height:36px;border:1.5px solid var(--ink);background:var(--card);font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:15px;cursor:pointer;box-shadow:2px 2px 0 var(--ink);padding:0}
+#mapctl button.on{background:var(--yellow);color:#15171B}
+#mapbar{position:absolute;left:10px;top:10px;right:60px;display:flex;flex-wrap:wrap;gap:6px;z-index:2}
+#mapbar .chip{background:var(--card);opacity:.96}
+#mapbar .chip.on{background:var(--ink);color:var(--card)}
+#maptip{position:absolute;left:10px;bottom:calc(52px + env(safe-area-inset-bottom,0px));max-width:calc(100% - 70px);background:var(--ink);color:var(--bg);padding:7px 10px;font-size:13px;line-height:1.3;z-index:3;border-left:4px solid var(--yellow);display:none}
+#maptip b{font-family:'Barlow Condensed',sans-serif;font-size:15px;display:block}
+#maptip .r{color:var(--yellow-2)}
+#maptip .act{margin-top:6px;display:flex;gap:6px}
+#maptip input{width:100%;margin-top:6px;font:inherit;font-size:14px;padding:5px 7px;border:1px solid var(--bg);background:var(--card);color:var(--ink)}
+#maptip .act button{font:inherit;font-weight:700;font-size:12px;border:1px solid var(--bg);background:transparent;color:var(--bg);padding:3px 8px;cursor:pointer}
+.notice{background:var(--yellow-2);border:1.5px solid var(--ink);padding:10px 12px;margin-bottom:14px;font-size:14px}
+.games{display:flex;flex-direction:column;gap:6px}
+.games button{text-align:left;border:1.5px solid var(--line);background:var(--card);padding:8px 10px;cursor:pointer;display:flex;justify-content:space-between;gap:8px;align-items:center}
+.games button:hover{border-color:var(--ink)}
+.games .code{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:18px;letter-spacing:.1em}
+table.sb{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+table.sb td,table.sb th{padding:6px 4px;border-bottom:1px solid var(--line);text-align:left}
+table.sb th{font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:.08em;font-size:12px;color:var(--ink-3)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(245,196,0,.7)}50%{box-shadow:0 0 0 8px rgba(245,196,0,0)}}
+.msg.pending.mine-to-answer{animation:pulse 1.6s infinite}
+</style>
+
+<div class="app">
+  <header class="top">
+    <span class="brand">H+S Relay</span>
+    <span class="sub" id="hdr-sub">Lobby</span>
+    <span class="pill" id="hdr-role">—</span>
+  </header>
+  <main id="main"></main>
+  <div id="mapview" hidden>
+    <svg id="mapsvg"></svg>
+    <div id="mapbar">
+      <button class="chip on" id="mp-stops" type="button">Stops</button>
+      <button class="chip" id="mp-pin" type="button">Drop pin</button>
+      <button class="chip" id="mp-zone" type="button" hidden>Set my zone</button>
+    </div>
+    <div id="mapctl">
+      <button id="mp-loc" title="Show my location" aria-label="Show my location">◎</button>
+      <button id="mp-in" aria-label="Zoom in">+</button>
+      <button id="mp-out" aria-label="Zoom out">−</button>
+      <button id="mp-fit" aria-label="Fit the zone">Fit</button>
+    </div>
+    <div id="maptip"></div>
+  </div>
+</div>
+<nav class="tabs" id="tabs" hidden>
+  <div class="in">
+    <button data-tab="ask" id="tab-ask">Ask</button>
+    <button data-tab="feed" id="tab-feed">Feed<span class="n" id="n-feed" hidden></span></button>
+    <button data-tab="map" id="tab-map">Map</button>
+    <button data-tab="hand" id="tab-hand">Hand</button>
+    <button data-tab="game" id="tab-game">Game</button>
+  </div>
+</nav>
+<div id="toast" class="toast" hidden></div>
+
+<script>
+(function(){
+// ---------- rules data ----------
+const SIZES={S:{name:'Small',hide:30,zone:'¼ mile (400 m)',photo:10},M:{name:'Medium',hide:60,zone:'¼ mile (400 m)',photo:10},L:{name:'Large',hide:180,zone:'½ mile (800 m)',photo:20}};
+const CATS=[
+ {id:'matching',name:'Matching',fmt:'Is your nearest ___ the same as my ___?',draw:3,keep:1,ans:['Yes','No'],
+  qs:[['Commercial airport'],['Transit line'],['Station name length (letters)'],['Street or path'],['1st administrative division (state)'],['2nd administrative division (county)'],['3rd administrative division (city)'],['4th administrative division'],['Mountain'],['Landmass'],['Park'],['Amusement park'],['Zoo'],['Aquarium'],['Golf course'],['Museum'],['Movie theater'],['Hospital'],['Library'],['Foreign consulate']]},
+ {id:'measuring',name:'Measuring',fmt:'Compared to me, are you closer to or further from ___?',draw:3,keep:1,ans:['Closer','Further'],
+  qs:[['Commercial airport'],['High-speed train line'],['Rail station'],['International border'],['1st administrative division border'],['2nd administrative division border'],['Sea level'],['Body of water'],['Coastline'],['Mountain'],['Park'],['Amusement park'],['Zoo'],['Aquarium'],['Golf course'],['Museum'],['Movie theater'],['Hospital'],['Library'],['Foreign consulate']]},
+ {id:'radar',name:'Radar',fmt:'Are you within ___ of me?',draw:2,keep:1,ans:['Yes','No'],
+  qs:[['¼ mile'],['½ mile'],['1 mile'],['3 miles'],['5 miles'],['10 miles'],['25 miles'],['50 miles'],['100 miles'],['Choose a distance','custom']]},
+ {id:'thermo',name:'Thermometer',fmt:'After traveling ___, am I hotter or colder?',draw:2,keep:1,ans:['Hotter','Colder'],
+  qs:[['½ mile'],['3 miles'],['10 miles','M'],['50 miles','L']]},
+ {id:'photo',name:'Photo',fmt:'Send me a photo of ___.',draw:1,keep:1,ans:[],
+  qs:[['Any building visible from your transit station'],['The widest street near you'],['A tree'],['The tallest structure in your current sightline'],['You (selfie)'],['The sky'],['Tallest building visible from your transit station','M'],['Trace your nearest street/path','M'],['2 buildings','M'],['A restaurant interior','M'],['A park','M'],['A grocery store aisle','M'],['A place of worship','M'],['Your train platform','M'],['½ mile of streets traced','L'],['Tallest mountain visible from your station','L'],['Biggest body of water in your zone','L'],['5 buildings','L']]},
+ {id:'tentacle',name:'Tentacles',fmt:'Within ___ of me, which ___ are you nearest to?',draw:4,keep:2,ans:[],min:'M',
+  qs:[['Museums within 1 mile','M'],['Libraries within 1 mile','M'],['Movie theaters within 1 mile','M'],['Hospitals within 1 mile','M'],['Metro lines within 15 miles','L'],['Zoos within 15 miles','L'],['Aquariums within 15 miles','L'],['Amusement parks within 15 miles','L']]},
+];
+const SIZE_RANK={S:0,M:1,L:2};
+const CARD_KINDS=['Time bonus','Powerup','Curse'];
+const MAPS=__MAPDATA__;
+const DEFAULT_ZONE='berkeley';
+// Hiding-zone radius in real metres, by game size.
+const HIDE_RADIUS={S:402,M:402,L:805};
+
+// ---------- state ----------
+let db=null, assets=null, dbReady=false;
+let me=load('hs-me')||{name:'',role:'seeker'};
+let code=load('hs-code')||null;
+let tab=load('hs-tab')||'feed';
+let game=null, questions=[], messages=[], pins=[], lobbyGames=[];
+let unsubs=[]; let lobbyUnsub=null;
+let askState={cat:null,q:null,custom:''};
+let seenCount=load('hs-seen-'+code)||0;
+let tick=null;
+
+function load(k){ try{ const v=localStorage.getItem(k); return v?JSON.parse(v):null; }catch(e){ return null; } }
+function save(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); }catch(e){} }
+const $=s=>document.querySelector(s);
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function toast(t){ const el=$('#toast'); el.textContent=t; el.hidden=false; clearTimeout(toast._t); toast._t=setTimeout(()=>el.hidden=true,2600); }
+function fmtT(ms){ if(ms<0) ms=0; const s=Math.floor(ms/1000); const h=Math.floor(s/3600),m=Math.floor(s%3600/60),x=s%60; return (h?h+':':'')+String(m).padStart(2,'0')+':'+String(x).padStart(2,'0'); }
+function fmtClock(ts){ return new Date(ts).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}); }
+function uid(){ return Math.random().toString(36).slice(2,8)+Date.now().toString(36).slice(-4); }
+function mkCode(){ const A='ABCDEFGHJKLMNPQRSTUVWXYZ'; let s=''; for(let i=0;i<4;i++) s+=A[Math.floor(Math.random()*A.length)]; return s; }
+function beep(){ try{ const ac=new (window.AudioContext||window.webkitAudioContext)(); const o=ac.createOscillator(), g=ac.createGain(); o.connect(g); g.connect(ac.destination); o.frequency.value=880; g.gain.value=.08; o.start(); o.frequency.setValueAtTime(1175,ac.currentTime+.12); o.stop(ac.currentTime+.25); }catch(e){} if(navigator.vibrate) navigator.vibrate([120,60,120]); }
+function isHider(){ return game && me.role==='hider'; }
+function sizeOk(min){ return !min || SIZE_RANK[(game&&game.size)||'S']>=SIZE_RANK[min]; }
+
+// ---------- capability boot ----------
+(async()=>{
+  db = window.claude && claude.use ? await claude.use('db') : null;
+  dbReady=true;
+  if(db){ assets = await claude.use('assets'); subscribeLobby(); if(code) join(code,true); }
+  render();
+})();
+
+function subscribeLobby(){
+  if(lobbyUnsub) lobbyUnsub();
+  lobbyUnsub=db.collection('games').orderBy('createdAt','desc').limit(25).onSnapshot(snap=>{ lobbyGames=snap.docs.map(d=>({id:d.id,...d.data()})); if(!game) render(); }, e=>console.warn('lobby',e));
+}
+function leave(){ unsubs.forEach(u=>u()); unsubs=[]; game=null; questions=[]; messages=[]; pins=[]; code=null; Map3.reset(); save('hs-code',null); $('#tabs').hidden=true; render(); }
+async function join(c,silent){
+  c=c.toUpperCase().trim(); if(!c) return;
+  const ref=db.doc('games/'+c);
+  const snap=await ref.get();
+  if(!snap.exists){ if(!silent) toast('No game with code '+c); save('hs-code',null); code=null; render(); return; }
+  unsubs.forEach(u=>u()); unsubs=[];
+  code=c; save('hs-code',c); seenCount=load('hs-seen-'+code)||0;
+  unsubs.push(ref.onSnapshot(s=>{ if(!s.exists){ toast('Game was deleted'); leave(); return; } const prev=game; game=s.data(); onGame(prev); render(); }, e=>toast('Lost connection to game')));
+  unsubs.push(ref.collection('questions').orderBy('askedAt','asc').limit(400).onSnapshot(s=>{ const prev=questions; questions=s.docs.map(d=>({id:d.id,...d.data()})); onQuestions(prev,s); render(); }, e=>console.warn(e)));
+  unsubs.push(ref.collection('messages').orderBy('at','asc').limit(200).onSnapshot(s=>{ const prev=messages; messages=s.docs.map(d=>({id:d.id,...d.data()})); onMessages(prev,s); render(); }, e=>console.warn(e)));
+  unsubs.push(ref.collection('pins').orderBy('at','asc').limit(100).onSnapshot(s=>{ pins=s.docs.map(d=>({id:d.id,...d.data()})); Map3.syncPins(); }, e=>console.warn(e)));
+  // register player
+  if(me.name){ const g=snap.data(); const players=Object.assign({},g.players||{}); if(!players[me.name]||players[me.name]!==me.role){ players[me.name]=me.role; await ref.update({players}); } }
+  $('#tabs').hidden=false;
+}
+function onGame(prev){
+  if(prev && prev.phase!==game.phase){ if(game.phase==='seeking') toast(isHider()?'Seekers are on the move.':'Seeking has started — ask away.'); if(game.phase==='endgame') toast('Endgame: seekers are in the zone.'); if(game.phase==='found') toast('Hider found! Round over.'); beep(); }
+}
+function onQuestions(prev,snap){
+  const ch=snap.docChanges().filter(c=>!snap.metadata.hasPendingWrites);
+  for(const c of ch){ const d=c.doc.data(); if(c.type==='added'&&d.status==='pending'&&isHider()){ beep(); toast('New question from '+d.askedBy); } if(c.type==='modified'&&d.status!=='pending'&&!isHider()&&d.askedBy!==me.name){ beep(); } if(c.type==='modified'&&d.status!=='pending'&&!isHider()&&d.askedBy===me.name){ beep(); toast('Hider answered: '+(d.answer||d.status)); } }
+}
+function onMessages(prev,snap){
+  const ch=snap.docChanges().filter(c=>!snap.metadata.hasPendingWrites);
+  for(const c of ch){ const d=c.doc.data(); if(c.type==='added'&&d.from!==me.name){ beep(); toast((d.kind==='curse'?'Curse cast: ':'')+d.title); } }
+}
+
+// ---------- writes ----------
+async function createGame(name,size){
+  let c=mkCode(); for(let i=0;i<5;i++){ const s=await db.doc('games/'+c).get(); if(!s.exists) break; c=mkCode(); }
+  const g={name:name||('Game '+c),size,zone:size==='S'?'berkeley':'berkeley-north-oakland',phase:'setup',createdAt:Date.now(),hider:me.role==='hider'?me.name:'',players:{[me.name]:me.role},hidingStartAt:null,seekingStartAt:null,endgameAt:null,foundAt:null,hand:[],note:''};
+  await db.doc('games/'+c).set(g); join(c);
+}
+async function patch(data){ if(!code) return; try{ await db.doc('games/'+code).update(data); }catch(e){ toast('Could not save: '+(e.code||e.message)); } }
+async function sendQuestion(){
+  const cat=CATS.find(c=>c.id===askState.cat); if(!cat||askState.q==null) return;
+  const q=cat.qs[askState.q]; let text=q[0]; if(q[1]==='custom'){ if(!askState.custom.trim()){ toast('Type a distance first'); return; } text=askState.custom.trim(); }
+  const body={cat:cat.id,catName:cat.name,fmt:cat.fmt,q:text,askedBy:me.name,askedAt:Date.now(),status:'pending',answer:'',answeredAt:null,photo:'',note:'',draw:cat.draw,keep:cat.keep,ans:cat.ans};
+  try{ await db.doc('games/'+code).collection('questions').add(body); askState={cat:null,q:null,custom:''}; toast('Sent to the hider'); tab='feed'; save('hs-tab',tab); render(); }catch(e){ toast('Send failed: '+(e.code||e.message)); }
+}
+async function answerQ(id,answer,extra){
+  try{ await db.doc('games/'+code+'/questions/'+id).update(Object.assign({status:'answered',answer,answeredAt:Date.now()},extra||{})); }catch(e){ toast('Could not answer: '+(e.code||e.message)); }
+}
+async function vetoQ(id){ try{ await db.doc('games/'+code+'/questions/'+id).update({status:'vetoed',answer:'Vetoed',answeredAt:Date.now()}); }catch(e){ toast('Could not veto'); } }
+async function sendMessage(kind,title,text){ try{ await db.doc('games/'+code).collection('messages').add({kind,title,text,from:me.name,role:me.role,at:Date.now()}); }catch(e){ toast('Send failed'); } }
+async function uploadPhoto(file,qid){
+  if(!assets){ toast('Photo upload is not available on this device — describe it instead'); return; }
+  try{ toast('Uploading…'); const r=await assets.upload(file); await answerQ(qid,'Photo sent',{photo:r.id}); }catch(e){ toast('Upload failed: '+(e.code||e.message)); }
+}
+
+// ---------- render ----------
+function render(){
+  const m=$('#main');
+  $('#hdr-role').textContent=me.name?(me.name+' · '+me.role):'—';
+  $('#hdr-role').className='pill '+(me.name?me.role:'');
+  if(!dbReady){ m.innerHTML='<div class="card"><h2>Connecting…</h2><p class="muted">Setting up the shared game store.</p></div>'; return; }
+  if(!db){ $('#hdr-sub').textContent='Offline'; m.innerHTML='<div class="card"><h2>Shared play needs the claude.ai viewer</h2><p>This companion relays questions between the hider and the seekers through a shared store, so everyone must open it signed in to the same claude.ai account (the one this page was published from). Open this page in the Claude app or at claude.ai on each phone.</p></div>'+rulesCard(); return; }
+  if(!game){ $('#hdr-sub').textContent='Lobby'; $('#tabs').hidden=true; m.innerHTML=lobby(); wire(); return; }
+  $('#hdr-sub').textContent=game.name+' · '+code;
+  $('#tabs').hidden=false;
+  document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.toggle('on',b.dataset.tab===tab));
+  $('#tab-ask').textContent=isHider()?'Inbox':'Ask';
+  const pendingN=questions.filter(q=>q.status==='pending').length;
+  const nb=$('#n-feed'); const unseen=(questions.length+messages.length)-seenCount; if(tab==='feed'){ seenCount=questions.length+messages.length; save('hs-seen-'+code,seenCount); nb.hidden=true; } else if(unseen>0){ nb.hidden=false; nb.textContent=unseen; } else nb.hidden=true;
+  const mv=$('#mapview');
+  if(tab==='map'){
+    m.hidden=true; mv.hidden=false; Map3.show();
+  } else {
+    mv.hidden=true; m.hidden=false;
+    let html=statusCard();
+    if(tab==='ask') html+=isHider()?inbox(pendingN):ask();
+    else if(tab==='feed') html+=feed();
+    else if(tab==='hand') html+=hand();
+    else html+=gameTab();
+    m.innerHTML=html; wire();
+  }
+  if(!tick) tick=setInterval(()=>{ const t=$('#timer'); if(t) t.textContent=timerText(); const t2=$('#timer2'); if(t2) t2.textContent=timerText2(); },1000);
+}
+function rulesCard(){
+  return `<div class="card flat"><h3>Game sizes</h3><table class="sb"><tr><th>Size</th><th>Hiding period</th><th>Hiding zone</th></tr>${Object.entries(SIZES).map(([k,s])=>`<tr><td>${s.name}</td><td>${s.hide} min</td><td>${s.zone}</td></tr>`).join('')}</table></div>`;
+}
+function lobby(){
+  return `<div class="card"><h2>Who are you?</h2>
+    <label class="f" for="me-name">Name</label><input type="text" id="me-name" value="${esc(me.name)}" placeholder="e.g. Nathan" autocomplete="off">
+    <label class="f">Role this round</label>
+    <div class="seg"><button type="button" data-role="hider" class="${me.role==='hider'?'on':''}">Hider</button><button type="button" data-role="seeker" class="${me.role==='seeker'?'on':''}">Seeker</button></div>
+  </div>
+  <div class="card"><h2>Join a game</h2>
+    <div class="row"><input type="text" id="join-code" class="grow" placeholder="4-letter code" maxlength="4" style="text-transform:uppercase;font-family:'Barlow Condensed';font-weight:800;font-size:22px;letter-spacing:.2em" autocomplete="off"><button class="btn primary" id="btn-join">Join</button></div>
+    ${lobbyGames.length?`<h3>Recent games</h3><div class="games">${lobbyGames.map(g=>`<button data-join="${g.id}"><span><span class="code">${g.id}</span> &nbsp;${esc(g.name)}</span><span class="small muted">${SIZES[g.size]?SIZES[g.size].name:''} · ${g.phase}${g.hider?' · hider '+esc(g.hider):''}</span></button>`).join('')}</div>`:''}
+  </div>
+  <div class="card"><h2>Start a new round</h2>
+    <label class="f" for="new-name">Round name</label><input type="text" id="new-name" placeholder="e.g. Round 1 — Berkeley" autocomplete="off">
+    <label class="f">Size</label>
+    <div class="seg" id="new-size"><button type="button" data-size="S" class="on">Small</button><button type="button" data-size="M">Medium</button><button type="button" data-size="L">Large</button></div>
+    <p class="small muted">Small fits Berkeley: 30-minute hiding period, ¼-mile hiding zone, no tentacles. One round = one hider; start a new round when you swap.</p>
+    <button class="btn primary block" id="btn-create" style="margin-top:8px">Create round</button>
+  </div>${rulesCard()}`;
+}
+function timerText(){
+  const now=Date.now();
+  if(game.phase==='hiding'){ const end=game.hidingStartAt+SIZES[game.size].hide*60000; return fmtT(end-now); }
+  if(game.phase==='seeking'||game.phase==='endgame') return fmtT(now-game.seekingStartAt);
+  if(game.phase==='found') return fmtT(game.foundAt-game.seekingStartAt);
+  return '--:--';
+}
+function timerText2(){ if(game.phase==='endgame') return fmtT(Date.now()-game.endgameAt); return ''; }
+function statusCard(){
+  const S=SIZES[game.size]||SIZES.S;
+  const label={setup:'Setup',hiding:'Hiding period — seekers wait',seeking:'Seeking — hider time running',endgame:'Endgame — seekers in the zone',found:'Round over'}[game.phase];
+  let ctl='';
+  if(game.phase==='setup') ctl=`<button class="btn primary" id="btn-start-hiding">Start hiding period</button>`;
+  else if(game.phase==='hiding') ctl=`<button class="btn" id="btn-start-seeking">Hiding period over — release seekers</button>`;
+  else if(game.phase==='seeking') ctl=`<button class="btn" id="btn-endgame">We're in the hiding zone</button> <button class="btn danger" id="btn-found">Found!</button>`;
+  else if(game.phase==='endgame') ctl=`<button class="btn danger" id="btn-found">Found!</button>`;
+  else ctl=`<button class="btn" id="btn-leave">Back to lobby</button>`;
+  const warn=game.phase==='hiding'&&(game.hidingStartAt+S.hide*60000-Date.now())<120000;
+  return `<div class="card"><div class="phase">${label}</div>
+    <div class="row" style="align-items:flex-end"><div class="timer ${warn?'warn':''}" id="timer">${timerText()}</div>${game.phase==='endgame'?`<div class="muted small">endgame <span id="timer2">${timerText2()}</span></div>`:''}</div>
+    <div class="stat"><div><b>${esc(game.hider||'?')}</b><span>hider</span></div><div><b>${S.name}</b><span>${S.zone} zone</span></div><div><b>${(game.hand||[]).length}</b><span>cards in hand</span></div><div><b>${questions.length}</b><span>questions</span></div></div>
+    <div class="row" style="margin-top:12px">${ctl}</div></div>`;
+}
+function ask(){
+  if(game.phase!=='seeking'&&game.phase!=='endgame') return `<div class="notice">Questions open once the hiding period ends${game.phase==='setup'?' — start it from the card above.':'.'}</div>`;
+  const cat=CATS.find(c=>c.id===askState.cat);
+  if(!cat) return `<div class="card"><h2>Ask the hider</h2><p class="small muted">Pick a category. Each question you send makes the hider draw cards — the draw/keep counts are shown.</p>
+    <div class="cats">${CATS.map(c=>`<button class="cat" data-cat="${c.id}" ${sizeOk(c.min)?'':'disabled'}><b>${c.name}</b><span>${sizeOk(c.min)?`draw ${c.draw} · keep ${c.keep}`:'medium+ games only'}</span></button>`).join('')}</div></div>`;
+  return `<div class="card"><div class="row"><button class="btn sm ghost" id="btn-back">‹ Categories</button><h2 style="flex:1">${cat.name}</h2></div><p class="small muted">${esc(cat.fmt)}</p>
+    <div class="qlist">${cat.qs.map((q,i)=>{ const ok=q[1]==='custom'||sizeOk(q[1]); if(!ok) return ''; return `<button class="q ${askState.q===i?'on':''}" data-q="${i}"><span>${esc(q[0])}</span><span class="fmt">${q[1]==='custom'?'custom':''}</span></button>`; }).join('')}</div>
+    ${cat.qs[askState.q]&&cat.qs[askState.q][1]==='custom'?`<label class="f" for="ask-custom">Distance</label><input type="text" id="ask-custom" value="${esc(askState.custom)}" placeholder="e.g. 2 miles">`:''}
+    <button class="btn primary block" id="btn-send" style="margin-top:12px" ${askState.q==null?'disabled':''}>Send to hider</button></div>`;
+}
+function inbox(n){
+  const pend=questions.filter(q=>q.status==='pending');
+  let h=`<div class="card"><h2>Inbox${n?` · ${n} waiting`:''}</h2>${pend.length?'':'<p class="muted">Nothing waiting. Questions the seekers send land here.</p>'}</div>`;
+  for(const q of pend) h+=qCard(q,true);
+  h+=`<div class="card"><h3>Send the seekers something</h3><div class="row"><select id="msg-kind" class="grow"><option value="curse">Curse</option><option value="note">Note</option></select></div>
+    <label class="f" for="msg-title">Title</label><input type="text" id="msg-title" placeholder="e.g. Curse of the Lemon Phylactery">
+    <label class="f" for="msg-text">Details</label><textarea id="msg-text" rows="2" placeholder="What the seekers must do, and until when"></textarea>
+    <button class="btn block" id="btn-msg" style="margin-top:8px">Send</button></div>`;
+  return h;
+}
+function qCard(q,mine){
+  const pending=q.status==='pending';
+  let body=`<div class="msg ${pending?'pending':''} ${pending&&mine?'mine-to-answer':''}"><div class="who"><span><span class="tag">${esc(q.catName)}</span>${esc(q.askedBy)}</span><time>${fmtClock(q.askedAt)}</time></div>
+    <div class="txt">${esc(q.fmt).replace('___','<b>'+esc(q.q)+'</b>')}</div>`;
+  if(pending&&mine){
+    body+=`<p class="small muted">Draw ${q.draw}, keep ${q.keep} — answer first, then log the card you kept in Hand.</p>`;
+    if(q.ans&&q.ans.length) body+=`<div class="answers">${q.ans.map(a=>`<button class="btn primary" data-ans="${esc(a)}" data-qid="${q.id}">${esc(a)}</button>`).join('')}</div>`;
+    else if(q.cat==='photo') body+=`<div class="row" style="margin-top:8px"><label class="btn primary" style="display:inline-block">Take / choose photo<input type="file" accept="image/*" capture="environment" data-photo="${q.id}" hidden></label><button class="btn" data-textans="${q.id}">Describe instead</button></div><p class="small muted">Photo time limit: ${SIZES[game.size].photo} min.</p>`;
+    else body+=`<div class="row" style="margin-top:8px"><input type="text" class="grow" id="ta-${q.id}" placeholder="Your answer"><button class="btn primary" data-sendtext="${q.id}">Answer</button></div>`;
+    body+=`<div class="row" style="margin-top:8px"><button class="btn sm" data-veto="${q.id}">Veto (uses a Veto card)</button></div>`;
+  } else if(pending){ body+=`<p class="small muted">Waiting for the hider…</p>`; }
+  else { body+=`<div class="ans ${q.status==='vetoed'?'veto':''}"><b>${esc(q.answer)}</b>${q.note?' — '+esc(q.note):''}<span class="small muted"> · ${fmtClock(q.answeredAt)}</span>${q.photo?`<img src="/_blob/${esc(q.photo)}" alt="Photo answer">`:''}</div>`; }
+  return body+'</div>';
+}
+function feed(){
+  const items=[...questions.map(q=>({t:q.askedAt,k:'q',q})),...messages.map(m=>({t:m.at,k:'m',m}))].sort((a,b)=>b.t-a.t);
+  if(!items.length) return `<div class="card"><h2>Feed</h2><p class="muted">Every question, answer, curse and note shows up here, newest first, on every phone.</p></div>`;
+  return items.map(it=> it.k==='q'? qCard(it.q,isHider()) : `<div class="msg ${it.m.kind}"><div class="who"><span><span class="tag">${esc(it.m.kind)}</span>${esc(it.m.from)}</span><time>${fmtClock(it.m.at)}</time></div><div class="txt"><b>${esc(it.m.title)}</b></div>${it.m.text?`<div>${esc(it.m.text)}</div>`:''}</div>`).join('');
+}
+function hand(){
+  const h=game.hand||[];
+  if(!isHider()) return `<div class="card"><h2>Hider's hand</h2><p class="muted">${h.length} card${h.length===1?'':'s'} in hand (max 6 unless a powerup says otherwise). Time bonuses held at the end count toward the hider's time.</p><div class="hand">${h.map(c=>`<div class="hcard"><b>${esc(c.kind)}</b><span class="small">${esc(c.text)}</span></div>`).join('')}</div></div>`;
+  return `<div class="card"><h2>Your hand · ${h.length}/6</h2><p class="small muted">Log what you keep after each draw so the seekers can see your card count (not the cards). Discard when you play a card.</p>
+    <div class="hand">${h.map(c=>`<div class="hcard"><b>${esc(c.kind)}</b><span class="small">${esc(c.text)}</span><button class="x" data-discard="${esc(c.id)}">discard</button></div>`).join('')}</div>
+    <h3>Add a card</h3><div class="row"><select id="card-kind">${CARD_KINDS.map(k=>`<option>${k}</option>`).join('')}</select><input type="text" class="grow" id="card-text" placeholder="e.g. +5 min, Veto, Randomize"><button class="btn" id="btn-card">Keep</button></div></div>`;
+}
+function gameTab(){
+  const players=Object.entries(game.players||{});
+  const past=lobbyGames.filter(g=>g.phase==='found'&&g.foundAt&&g.seekingStartAt).sort((a,b)=>b.foundAt-a.foundAt);
+  return `<div class="card"><h2>${esc(game.name)} <span class="muted">· ${code}</span></h2>
+    <p class="small muted">Share the code; everyone joins from the lobby on their own phone.</p>
+    <h3>Players</h3>${players.length?players.map(([n,r])=>`<span class="pill ${r}" style="margin:2px 4px 2px 0">${esc(n)} · ${r}</span>`).join(''):'<p class="muted">Nobody yet.</p>'}
+    <h3>Hider</h3><div class="row"><select id="sel-hider" class="grow"><option value="">— choose —</option>${players.map(([n])=>`<option ${game.hider===n?'selected':''}>${esc(n)}</option>`).join('')}</select></div>
+    <h3>Map zone</h3><div class="seg" id="sel-zone">${Object.entries(MAPS).map(([k,m])=>`<button type="button" data-zone="${k}" class="${(game.zone||DEFAULT_ZONE)===k?'on':''}">${esc(m.label)}</button>`).join('')}</div>
+    <p class="small muted" style="margin-top:6px">Sets what the Map tab draws for everyone. The full-screen versions are also on the web: <a href="https://homejeopardy.github.io/jetlag-berkeley/" target="_blank" rel="noopener">homejeopardy.github.io/jetlag-berkeley</a></p>
+    <h3>Round note</h3><textarea id="game-note" rows="2" placeholder="House rules, meeting point, transit passes…">${esc(game.note||'')}</textarea><button class="btn sm" id="btn-note" style="margin-top:6px">Save note</button>
+    <div class="row" style="margin-top:14px"><button class="btn sm" id="btn-switch">Switch name / role</button><button class="btn sm" id="btn-leave">Leave game</button><button class="btn sm danger" id="btn-delete">Delete round</button></div></div>
+    ${past.length?`<div class="card"><h2>Scoreboard</h2><table class="sb"><tr><th>Round</th><th>Hider</th><th>Time hidden</th></tr>${past.map(g=>`<tr><td>${esc(g.name)}</td><td>${esc(g.hider)}</td><td>${fmtT(g.foundAt-g.seekingStartAt)}</td></tr>`).join('')}</table></div>`:''}`;
+}
+
+// ---------- wiring ----------
+function wire(){
+  const on=(sel,ev,fn)=>document.querySelectorAll(sel).forEach(el=>el.addEventListener(ev,fn));
+  on('#me-name','input',e=>{ me.name=e.target.value.trim(); save('hs-me',me); });
+  on('[data-role]','click',e=>{ me.role=e.currentTarget.dataset.role; save('hs-me',me); render(); });
+  on('#new-size button','click',e=>{ document.querySelectorAll('#new-size button').forEach(b=>b.classList.toggle('on',b===e.currentTarget)); });
+  on('#btn-create','click',()=>{ if(!me.name){ toast('Enter your name first'); return; } const size=document.querySelector('#new-size .on').dataset.size; createGame($('#new-name').value.trim(),size); });
+  on('#btn-join','click',()=>{ if(!me.name){ toast('Enter your name first'); return; } join($('#join-code').value); });
+  on('[data-join]','click',e=>{ if(!me.name){ toast('Enter your name first'); return; } join(e.currentTarget.dataset.join); });
+  on('nav.tabs button','click',e=>{ tab=e.currentTarget.dataset.tab; save('hs-tab',tab); render(); });
+  on('#btn-start-hiding','click',()=>{ if(!game.hider){ toast('Pick the hider in the Game tab first'); tab='game'; save('hs-tab',tab); render(); return; } patch({phase:'hiding',hidingStartAt:Date.now()}); });
+  on('#btn-start-seeking','click',()=>patch({phase:'seeking',seekingStartAt:Date.now()}));
+  on('#btn-endgame','click',()=>patch({phase:'endgame',endgameAt:Date.now()}));
+  on('#btn-found','click',()=>{ if(confirm('Mark the hider as found and end the round?')) patch({phase:'found',foundAt:Date.now()}); });
+  on('#btn-leave','click',leave);
+  on('#btn-switch','click',()=>{ leave(); });
+  on('#btn-delete','click',async()=>{ if(!confirm('Delete this round for everyone?')) return; try{ await db.doc('games/'+code).delete(); }catch(e){ toast('Could not delete'); } leave(); });
+  on('#sel-hider','change',e=>patch({hider:e.target.value}));
+  on('#sel-zone button','click',e=>{ const z=e.currentTarget.dataset.zone; patch({zone:z}); document.querySelectorAll('#sel-zone button').forEach(b=>b.classList.toggle('on',b===e.currentTarget)); });
+  on('#btn-note','click',()=>{ patch({note:$('#game-note').value}); toast('Saved'); });
+  on('[data-cat]','click',e=>{ askState={cat:e.currentTarget.dataset.cat,q:null,custom:''}; render(); });
+  on('#btn-back','click',()=>{ askState={cat:null,q:null,custom:''}; render(); });
+  on('[data-q]','click',e=>{ askState.q=+e.currentTarget.dataset.q; render(); const c=$('#ask-custom'); if(c) c.focus(); });
+  on('#ask-custom','input',e=>{ askState.custom=e.target.value; });
+  on('#btn-send','click',sendQuestion);
+  on('[data-ans]','click',e=>answerQ(e.currentTarget.dataset.qid,e.currentTarget.dataset.ans));
+  on('[data-sendtext]','click',e=>{ const id=e.currentTarget.dataset.sendtext; const v=$('#ta-'+id).value.trim(); if(!v){ toast('Type an answer'); return; } answerQ(id,v); });
+  on('[data-textans]','click',e=>{ const id=e.currentTarget.dataset.textans; const v=prompt('Describe what the photo would show:'); if(v) answerQ(id,v); });
+  on('[data-photo]','change',e=>{ const f=e.target.files[0]; if(f) uploadPhoto(f,e.target.dataset.photo); });
+  on('[data-veto]','click',e=>{ if(confirm('Veto this question? (Play a Veto card.)')) vetoQ(e.currentTarget.dataset.veto); });
+  on('#btn-msg','click',()=>{ const t=$('#msg-title').value.trim(); if(!t){ toast('Give it a title'); return; } sendMessage($('#msg-kind').value,t,$('#msg-text').value.trim()); $('#msg-title').value=''; $('#msg-text').value=''; toast('Sent to seekers'); });
+  on('#btn-card','click',()=>{ const text=$('#card-text').value.trim(); const kind=$('#card-kind').value; const hand=[...(game.hand||[]),{id:uid(),kind,text}]; patch({hand}); });
+  on('[data-discard]','click',e=>{ const id=e.currentTarget.dataset.discard; patch({hand:(game.hand||[]).filter(c=>c.id!==id)}); });
+}
+// ---------- map ----------
+// One SVG, rebuilt only when the game's zone changes. Everything that moves
+// during a round — pins, the hider's zone, your own GPS fix — lives in its
+// own group so a snapshot from the store never costs a full redraw.
+const Map3=(function(){
+const NS='http://www.w3.org/2000/svg';
+const R=6378137;
+let svg=null, root=null, gStops=null, gDyn=null, built=null, vb=null, zonePath=null, scaled=[], fitW=0;
+let sel=null, pinMode=false, zoneMode=false, watchId=null, fix=null;
+
+const el=(t,a,p)=>{const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);if(p)p.appendChild(e);return e;};
+const zoneKey=()=> (game&&game.zone&&MAPS[game.zone])?game.zone:DEFAULT_ZONE;
+const M=()=>MAPS[zoneKey()];
+function project(lon,lat){ const o=M().origin;
+  const x=R*lon*Math.PI/180, y=R*Math.log(Math.tan(Math.PI/4+lat*Math.PI/360));
+  return [x-o[0], o[1]-y]; }
+function latAt(y){ const o=M().origin; return (2*Math.atan(Math.exp((o[1]-y)/R))-Math.PI/2)*180/Math.PI; }
+// Mercator stretches north-south, so a true 400 m radius is drawn larger the
+// further from the equator you are.
+function metres(m,y){ return m/Math.cos(latAt(y)*Math.PI/180); }
+const hideKey=()=>'hs-hide-'+code;
+
+function build(){
+  const m=M();
+  svg=document.getElementById('mapsvg');
+  svg.innerHTML='';
+  root=el('g',{},svg);
+  scaled=[];
+  const order=['parks','campus','water','tertiary','secondary','primary','motorway','rail','cut','bart','amtrak'];
+  const fills={parks:'#CFD9B8',campus:'#E6D9BF',water:'#A8C3D1'};
+  for(const k of order){ const d=m.layers[k]; if(!d) continue;
+    if(fills[k]) el('path',{d,fill:fills[k]},root);
+    else el('path',{d,class:'m-road m-'+k},root); }
+  // Everything outside the zone is out of bounds, including the area beyond
+  // the basemap's own extent — so the mask is a very large rectangle with the
+  // zone punched out of it, not the basemap rectangle.
+  if(m.layers.zone){
+    el('path',{d:'M-9999999 -9999999H9999999V9999999H-9999999Z'+m.layers.zone,class:'m-oob'},root);
+    el('path',{d:m.layers.zone,class:'m-zone-glow'},root);
+    zonePath=el('path',{d:m.layers.zone,class:'m-zone'},root);
+  }
+  gStops=el('g',{},root);
+  for(let i=0;i<m.stops.length;i++){ const st=m.stops[i];
+    el('circle',{cx:st[0],cy:st[1],r:3,class:'m-stop','data-i':i},gStops); }
+  // Markers and type are counter-scaled so they stay a readable size on
+  // screen however far the map is zoomed out.
+  const gl=el('g',{},root);
+  for(const st of m.stations){ const g=el('g',{},gl); scaled.push({g,x:st.x,y:st.y});
+    if(st.kind==='amtrak') el('rect',{x:-6,y:-6,width:12,height:12,fill:'#fff',stroke:'#1F3F8A','stroke-width':3},g);
+    else { el('circle',{r:6.5,fill:'#fff',stroke:'#15171B','stroke-width':3},g); el('circle',{r:2.5,fill:'#15171B'},g); }
+    el('text',{class:'m-label',y:-11},g).textContent=st.n+(st.edge?' (edge)':''); }
+  for(const pl of (m.places||[])){ if(pl.k!=='hood'&&pl.k!=='campus') continue;
+    const g=el('g',{},gl); scaled.push({g,x:pl.x,y:pl.y,place:true});
+    el('text',{class:'m-place'},g).textContent=pl.n; }
+  gDyn=el('g',{},root);
+  built=zoneKey();
+  fit();
+}
+
+function fit(){
+  // Frame the game zone, not the whole basemap: on a phone the zone is what
+  // you are actually looking at.
+  const m=M(), r=svg.getBoundingClientRect();
+  let x,y,w,h;
+  svg.setAttribute('viewBox',m.vb.join(' '));
+  if(zonePath){ const b=zonePath.getBBox(); x=b.x; y=b.y; w=b.width; h=b.height; }
+  else { [x,y,w,h]=m.vb; }
+  const pad=Math.max(w,h)*0.06; x-=pad; y-=pad; w+=pad*2; h+=pad*2;
+  const ar=(r.width||1)/(r.height||1);
+  let W=w,H=h; if(W/H<ar) W=H*ar; else H=W/ar;
+  vb={x:x+(w-W)/2,y:y+(h-H)/2,w:W,h:H}; fitW=W; apply();
+}
+function apply(){
+  if(!vb) return;
+  svg.setAttribute('viewBox',`${vb.x} ${vb.y} ${vb.w} ${vb.h}`);
+  svg.setAttribute('preserveAspectRatio','none');
+  const r=svg.getBoundingClientRect();
+  const px=(r.width||1)/vb.w;               // screen px per map unit
+  const inv=1/px;
+  const rad=Math.max(2.4,Math.min(6,px*45))*inv;
+  for(const c of gStops.children) c.setAttribute('r',rad);
+  // Neighbourhood names only earn their space once you are zoomed in past
+  // the whole-zone view, where they would otherwise sit on the stations.
+  const showPlaces=fitW?vb.w<fitW*0.62:true;
+  for(const sc of scaled){ sc.g.setAttribute('transform',`translate(${sc.x} ${sc.y}) scale(${inv})`);
+    if(sc.place) sc.g.style.display=showPlaces?'':'none'; }
+  redraw();
+}
+function client2map(cx,cy){ const r=svg.getBoundingClientRect();
+  return [vb.x+(cx-r.left)/r.width*vb.w, vb.y+(cy-r.top)/r.height*vb.h]; }
+function zoomAt(f,cx,cy){
+  const m=M(), [mx,my]=client2map(cx,cy);
+  const maxW=m.vb[2]*1.6, minW=400;
+  const nw=Math.min(maxW,Math.max(minW,vb.w/f)), k=vb.w/nw;
+  vb={x:mx-(mx-vb.x)/k,y:my-(my-vb.y)/k,w:nw,h:vb.h/k}; apply();
+}
+
+// Dynamic overlay: hiding zone, pins, your fix.
+function redraw(){
+  if(!gDyn) return;
+  gDyn.innerHTML='';
+  const px=(svg.getBoundingClientRect().width||1)/vb.w;
+  const hz=load(hideKey());
+  if(hz&&isHider()){
+    const rad=metres(HIDE_RADIUS[(game&&game.size)||'S'],hz.y);
+    el('circle',{cx:hz.x,cy:hz.y,r:rad,class:'m-hz'},gDyn);
+  }
+  for(const p of pins){
+    const g=el('g',{transform:`translate(${p.x} ${p.y})`,'data-pin':p.id},gDyn);
+    el('circle',{r:7/px,class:'m-pin'},g);
+    // Sized in map units so it lands at a constant size on screen.
+    // Inline style, because the class's font-size would win over a
+    // presentation attribute and leave the label microscopic.
+    const t=el('text',{class:'m-place',y:-11/px},g);
+    t.style.fontSize=(11/px)+'px'; t.textContent=p.label||'';
+  }
+  if(fix){
+    el('circle',{cx:fix.x,cy:fix.y,r:metres(fix.acc,fix.y),class:'m-me-acc'},gDyn);
+    el('circle',{cx:fix.x,cy:fix.y,r:7/px,class:'m-me'},gDyn);
+  }
+}
+
+function tip(html){ const t=document.getElementById('maptip'); if(!html){t.style.display='none';return;} t.innerHTML=html; t.style.display='block'; }
+function showStop(i){
+  const s=M().stops[i];
+  sel=i;
+  for(const c of gStops.children) c.classList.toggle('sel',+c.dataset.i===i);
+  const routes=s[3]?`<span class="r">${esc(s[3].split(';').join(' · '))}</span>`:'<span style="opacity:.7">no route data</span>';
+  let act='';
+  if(isHider()) act=`<div class="act"><button data-sethide="${i}">Hide here</button></div>`;
+  tip(`<b>${esc(s[2]||'Unnamed stop')}</b>${routes}${act}`);
+}
+
+let pend=null;
+function askPin(x,y){
+  pend=[Math.round(x),Math.round(y)];
+  tip(`<b>New pin</b><input id="pin-label" placeholder="e.g. cleared, meet here" maxlength="40" autocomplete="off"><div class="act"><button data-addpin="1">Add</button><button data-cancelpin="1">Cancel</button></div>`);
+  const i=document.getElementById('pin-label'); if(i) i.focus();
+}
+async function addPin(label){
+  if(!pend) return;
+  const [x,y]=pend; pend=null;
+  try{ await db.doc('games/'+code).collection('pins').add({x,y,label:(label||'Pin').slice(0,40),by:me.name,at:Date.now()}); }
+  catch(e){ toast('Could not add pin'); }
+}
+
+function locate(){
+  if(!navigator.geolocation){ toast('This device has no location service'); return; }
+  const btn=document.getElementById('mp-loc');
+  if(watchId!==null){ navigator.geolocation.clearWatch(watchId); watchId=null; fix=null; btn.classList.remove('on'); redraw(); return; }
+  btn.classList.add('on');
+  watchId=navigator.geolocation.watchPosition(pos=>{
+    const [x,y]=project(pos.coords.longitude,pos.coords.latitude);
+    const first=!fix;
+    fix={x,y,acc:Math.max(pos.coords.accuracy||30,15)};
+    redraw();
+    if(first){ const m=M(); if(x<m.vb[0]||x>m.vb[0]+m.vb[2]||y<m.vb[1]||y>m.vb[1]+m.vb[3]) toast('You are outside this map'); }
+  }, err=>{
+    watchId=null; btn.classList.remove('on');
+    toast(err.code===1?'Location permission denied':'Could not get your location');
+  }, {enableHighAccuracy:true,maximumAge:10000,timeout:15000});
+}
+
+function bind(){
+  const view=document.getElementById('mapview');
+  if(view.dataset.bound) return; view.dataset.bound='1';
+  const pts=new Map(); let drag=null, pinch=null, moved=0;
+  view.addEventListener('wheel',e=>{ e.preventDefault(); zoomAt(Math.exp(-e.deltaY*0.0016),e.clientX,e.clientY); },{passive:false});
+  view.addEventListener('pointerdown',e=>{
+    if(e.target.closest('#mapctl,#mapbar,#maptip')) return;
+    view.setPointerCapture(e.pointerId); pts.set(e.pointerId,e); moved=0;
+    if(pts.size===1) drag={x:e.clientX,y:e.clientY,vx:vb.x,vy:vb.y};
+    else if(pts.size===2){ const a=[...pts.values()]; drag=null; pinch={d:Math.hypot(a[0].clientX-a[1].clientX,a[0].clientY-a[1].clientY),vb:{...vb}}; }
+    view.classList.add('drag');
+  });
+  view.addEventListener('pointermove',e=>{
+    if(!pts.has(e.pointerId)) return; pts.set(e.pointerId,e);
+    if(drag&&pts.size===1){ const r=svg.getBoundingClientRect();
+      moved=Math.max(moved,Math.abs(e.clientX-drag.x)+Math.abs(e.clientY-drag.y));
+      vb.x=drag.vx-(e.clientX-drag.x)/r.width*vb.w; vb.y=drag.vy-(e.clientY-drag.y)/r.height*vb.h; apply(); }
+    else if(pinch&&pts.size===2){ const a=[...pts.values()];
+      const d=Math.hypot(a[0].clientX-a[1].clientX,a[0].clientY-a[1].clientY);
+      vb={...pinch.vb}; zoomAt(d/pinch.d,(a[0].clientX+a[1].clientX)/2,(a[0].clientY+a[1].clientY)/2); }
+  });
+  const up=e=>{
+    const wasTap=moved<6 && pts.size===1;
+    pts.delete(e.pointerId); if(pts.size<2) pinch=null;
+    if(pts.size===0){ drag=null; view.classList.remove('drag'); }
+    if(!wasTap) return;
+    // Pointer capture retargets this event to #mapview, so the element under
+    // the finger has to be looked up by position.
+    if(pinMode){ const [px0,py0]=client2map(e.clientX,e.clientY); pinMode=false;
+      document.getElementById('mp-pin').classList.remove('on'); askPin(px0,py0); return; }
+    const hit=document.elementFromPoint(e.clientX,e.clientY)||e.target;
+    const stop=hit.closest&&hit.closest('.m-stop');
+    const pin=hit.closest&&hit.closest('[data-pin]');
+    if(stop){ const i=+stop.dataset.i;
+      if(zoneMode&&isHider()){ const s=M().stops[i]; save(hideKey(),{x:s[0],y:s[1],n:s[2]}); zoneMode=false;
+        document.getElementById('mp-zone').classList.remove('on'); redraw(); toast('Hiding zone set at '+(s[2]||'this stop')); return; }
+      showStop(i); return; }
+    if(pin){ const p=pins.find(q=>q.id===pin.dataset.pin); if(p)
+      tip(`<b>${esc(p.label||'Pin')}</b><span class="r">${esc(p.by||'')}</span>${p.by===me.name?`<div class="act"><button data-delpin="${p.id}">Remove</button></div>`:''}`);
+      return; }
+    sel=null; for(const c of gStops.children) c.classList.remove('sel'); tip(null);
+  };
+  view.addEventListener('pointerup',up); view.addEventListener('pointercancel',e=>{pts.delete(e.pointerId);drag=null;pinch=null;view.classList.remove('drag');});
+  document.getElementById('maptip').addEventListener('click',async e=>{
+    const sh=e.target.dataset.sethide, dp=e.target.dataset.delpin;
+    if(e.target.dataset.addpin){ const i=document.getElementById('pin-label'); tip(null); await addPin(i?i.value.trim():''); return; }
+    if(e.target.dataset.cancelpin){ pend=null; tip(null); return; }
+    if(sh!==undefined){ const s=M().stops[+sh]; save(hideKey(),{x:s[0],y:s[1],n:s[2]}); redraw(); tip(null); toast('Hiding zone set at '+(s[2]||'this stop')); }
+    if(dp){ try{ await db.doc('games/'+code+'/pins/'+dp).delete(); tip(null); }catch(err){ toast('Could not remove pin'); } }
+  });
+  document.getElementById('mp-stops').addEventListener('click',e=>{ const on=e.currentTarget.classList.toggle('on'); gStops.style.display=on?'':'none'; });
+  document.getElementById('mp-pin').addEventListener('click',e=>{ pinMode=e.currentTarget.classList.toggle('on'); zoneMode=false; document.getElementById('mp-zone').classList.remove('on'); if(pinMode) toast('Tap the map to place a pin'); });
+  document.getElementById('mp-zone').addEventListener('click',e=>{ zoneMode=e.currentTarget.classList.toggle('on'); pinMode=false; document.getElementById('mp-pin').classList.remove('on'); if(zoneMode) toast('Tap the stop you are hiding near'); });
+  document.getElementById('mp-loc').addEventListener('click',locate);
+  document.getElementById('mp-in').addEventListener('click',()=>{const r=svg.getBoundingClientRect();zoomAt(1.6,r.left+r.width/2,r.top+r.height/2);});
+  document.getElementById('mp-out').addEventListener('click',()=>{const r=svg.getBoundingClientRect();zoomAt(1/1.6,r.left+r.width/2,r.top+r.height/2);});
+  document.getElementById('mp-fit').addEventListener('click',fit);
+  window.addEventListener('resize',()=>{ if(!document.getElementById('mapview').hidden&&vb) fit(); });
+}
+
+return {
+  show(){
+    bind();
+    if(built!==zoneKey()) build(); else { fit(); }
+    const zb=document.getElementById('mp-zone'); zb.hidden=!isHider();
+    tip(null);
+  },
+  syncPins(){ if(built&&!document.getElementById('mapview').hidden) redraw(); },
+  reset(){ built=null; fix=null; sel=null;
+    if(watchId!==null){ try{navigator.geolocation.clearWatch(watchId);}catch(e){} watchId=null;
+      const b=document.getElementById('mp-loc'); if(b) b.classList.remove('on'); } }
+};
+})();
+
+})();
+</script>
