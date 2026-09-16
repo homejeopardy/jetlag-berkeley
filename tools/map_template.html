@@ -1,0 +1,250 @@
+<title>__TITLE__</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;800&family=Barlow:wght@400;500;600&display=swap">
+<style>
+:root{
+  --ink:#15171B; --ink-2:#3C4048; --ink-3:#6E737C;
+  --land:#EDEAE1; --land-2:#E2DED3; --water:#A8C3D1; --park:#CFD9B8; --campus:#E6D9BF;
+  --road:#FFFFFF; --road-edge:#CFCAC0; --fwy:#B9B4A8;
+  --yellow:#F5C400; --yellow-2:#FFD83D; --oob:#8C8A84;
+  --bart-y:#FFE600; --bart-r:#ED1C24; --bart-o:#F7941D; --amtrak:#1F3F8A;
+  --panel:rgba(255,255,255,.94); --line:#D9D5CB;
+}
+html,body{height:100%}
+body{margin:0;background:var(--land);color:var(--ink);font-family:'Barlow',system-ui,-apple-system,'Segoe UI',sans-serif;overflow:hidden;-webkit-font-smoothing:antialiased}
+#map{position:absolute;inset:0;touch-action:none;cursor:grab;background:var(--land)}
+#map.drag{cursor:grabbing}
+svg{width:100%;height:100%;display:block}
+.road{fill:none;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke}
+.tert{stroke:var(--road);stroke-width:1.2px;opacity:.9}
+.sec{stroke:var(--road);stroke-width:2.2px}
+.sec-c{stroke:var(--road-edge);stroke-width:3.2px}
+.pri{stroke:var(--road);stroke-width:3px}
+.pri-c{stroke:var(--road-edge);stroke-width:4.4px}
+.fwy{stroke:var(--fwy);stroke-width:6px}
+.fwy-c{stroke:#9F9A8D;stroke-width:8px}
+.cutline{stroke:var(--ink);stroke-width:10px;opacity:.14}
+.rail{stroke:#8F8A80;stroke-width:1.5px;stroke-dasharray:6 4}
+.bus{fill:none;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke;stroke-width:3px;opacity:.85;transition:opacity .15s}
+.bus.transbay{stroke-width:2px;stroke-dasharray:7 5;opacity:.55}
+.bus.night{stroke-width:2px;stroke-dasharray:2 5;opacity:.6}
+.bart{fill:none;stroke-linecap:butt;stroke-linejoin:round;vector-effect:non-scaling-stroke}
+.amtrak{fill:none;vector-effect:non-scaling-stroke;stroke:var(--amtrak);stroke-width:5px}
+.amtrak2{fill:none;vector-effect:non-scaling-stroke;stroke:#fff;stroke-width:1.6px;stroke-dasharray:10 10}
+.zone-line{fill:none;stroke:var(--ink);stroke-width:3.5px;stroke-dasharray:14 7;vector-effect:non-scaling-stroke;stroke-linejoin:round}
+.zone-glow{fill:none;stroke:var(--yellow);stroke-width:9px;vector-effect:non-scaling-stroke;stroke-linejoin:round;opacity:.9}
+.oob{fill:url(#hatch);fill-rule:evenodd;pointer-events:none}
+.oob-tint{fill:var(--oob);fill-opacity:.42;fill-rule:evenodd;pointer-events:none}
+.stop{fill:#fff;stroke:var(--ink);cursor:pointer;vector-effect:non-scaling-stroke;stroke-width:1.6px;transition:opacity .15s}
+.stop:hover{fill:var(--yellow)}
+.stop.dim{opacity:.18}
+.stop.hit{fill:var(--yellow)}
+.station-lbl,.place,.hood,.roadlbl{font-family:'Barlow Condensed','Arial Narrow',sans-serif;pointer-events:none;user-select:none}
+.station-lbl{font-weight:800;font-size:15px;fill:var(--ink);paint-order:stroke;stroke:#fff;stroke-width:4px;stroke-linejoin:round;text-transform:uppercase;letter-spacing:.04em}
+.hood{font-weight:600;font-size:13px;fill:var(--ink-2);text-transform:uppercase;letter-spacing:.14em;paint-order:stroke;stroke:var(--land);stroke-width:3px;stroke-linejoin:round;text-anchor:middle}
+.campus-l{font-weight:800;font-size:14px;fill:#7A5F2A;letter-spacing:.16em}
+.park-l{font-weight:600;font-size:12px;fill:#5F7040;letter-spacing:.12em;font-style:italic;stroke:var(--park)}
+.water-l{font-weight:600;font-size:14px;fill:#3E6C86;letter-spacing:.22em;stroke:var(--water)}
+.road-l{font-weight:800;font-size:11px;fill:#fff;letter-spacing:.06em;paint-order:normal;stroke:none}
+.oob-l{font-weight:600;font-size:11px;fill:#4a4a46;letter-spacing:.1em;stroke:none;opacity:.85}
+.roadpill{fill:#5E594F;rx:3}
+/* UI */
+.panel{position:absolute;background:var(--panel);border:1.5px solid var(--ink);box-shadow:4px 4px 0 var(--ink);font-size:13px}
+#title{left:16px;top:16px;padding:12px 16px 12px;max-width:min(300px,calc(100vw - 32px))}
+#title h1{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:30px;line-height:.95;margin:0;text-transform:uppercase;letter-spacing:.01em}
+#title h1 span{display:block;background:var(--yellow);padding:2px 6px 0;margin:0 -6px 6px;width:max-content;max-width:100%}
+#title p{margin:6px 0 0;color:var(--ink-2);line-height:1.35}
+#title .stat{display:flex;gap:14px;margin-top:10px;padding-top:10px;border-top:1px solid var(--line);font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:.06em;font-size:12px;color:var(--ink-3)}
+#title .stat b{display:block;font-size:22px;color:var(--ink);font-variant-numeric:tabular-nums;line-height:1}
+#legend{left:16px;bottom:16px;padding:10px 12px;max-width:min(360px,calc(100vw - 32px));max-height:52vh;overflow:auto}
+#legend h2{font-family:'Barlow Condensed',sans-serif;font-size:12px;letter-spacing:.14em;text-transform:uppercase;margin:0 0 6px;color:var(--ink-3)}
+#legend h2+h2{margin-top:10px}
+.lg{display:flex;align-items:center;gap:8px;margin:3px 0}
+.lg i{width:26px;height:0;border-top:4px solid;border-radius:2px;flex:none}
+.lg i.dash{border-top-style:dashed;border-top-width:3px}
+.lg i.dot{border-top-style:dotted;border-top-width:3px}
+.chips{display:flex;flex-wrap:wrap;gap:4px}
+.chip{border:1.5px solid var(--ink);background:#fff;padding:2px 7px;font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:13px;cursor:pointer;line-height:1.2;user-select:none}
+.chip.on{background:var(--ink);color:#fff}
+.chip:focus-visible{outline:2px solid var(--yellow);outline-offset:1px}
+.sw{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px;vertical-align:-1px}
+#ctrl{right:16px;top:16px;padding:8px 10px;display:flex;flex-direction:column;gap:6px}
+#ctrl label{display:flex;gap:6px;align-items:center;cursor:pointer;font-weight:500}
+#ctrl input{accent-color:var(--ink)}
+#ctrl .btns{display:flex;gap:6px;margin-top:2px}
+#ctrl button{font:inherit;font-weight:600;border:1.5px solid var(--ink);background:#fff;padding:3px 9px;cursor:pointer}
+#ctrl button:hover{background:var(--yellow)}
+#tip{position:absolute;pointer-events:none;background:var(--ink);color:#fff;padding:6px 9px;font-size:13px;line-height:1.3;max-width:240px;display:none;z-index:5;border-left:4px solid var(--yellow)}
+#tip b{font-family:'Barlow Condensed',sans-serif;font-size:15px;letter-spacing:.02em}
+#tip .r{color:var(--yellow-2);font-weight:600}
+#credit{position:absolute;right:8px;bottom:6px;font-size:10px;color:var(--ink-3);background:rgba(237,234,225,.8);padding:2px 6px}
+@media (max-width:640px){
+  #legend{max-height:34vh;font-size:12px}
+  #title h1{font-size:24px}
+  #ctrl{top:auto;bottom:16px;right:16px;flex-direction:row;flex-wrap:wrap;gap:10px;max-width:calc(100vw - 32px)}
+  #legend{bottom:76px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div id="map"></div>
+
+<div class="panel" id="title">
+  <h1><span>Hide + Seek</span>__HEADING__</h1>
+  <p>__BLURB__</p>
+  <div class="stat"><div><b id="n-stops">—</b>bus stops</div><div><b id="n-stations">6</b>rail stations</div><div><b id="n-routes">—</b>bus routes</div></div>
+</div>
+
+<div class="panel" id="ctrl">
+  <label><input type="checkbox" id="tg-stops" checked> Bus stops</label>
+  <label><input type="checkbox" id="tg-routes" checked> Bus routes</label>
+  <label><input type="checkbox" id="tg-transbay"> Transbay &amp; night lines</label>
+  <label><input type="checkbox" id="tg-labels" checked> Labels</label>
+  <div class="btns"><button id="zin" aria-label="Zoom in">+</button><button id="zout" aria-label="Zoom out">−</button><button id="zfit">Fit</button></div>
+</div>
+
+<div class="panel" id="legend">
+  <h2>Rail</h2>
+  <div class="lg"><i style="border-top:6px solid var(--bart-o);box-shadow:0 -3px 0 var(--bart-y), 0 3px 0 var(--bart-r);"></i>BART (Yellow · Red · Orange)</div>
+  <div class="lg"><i style="border-color:var(--amtrak)"></i>Amtrak Capitol Corridor</div>
+  <h2>AC Transit — tap a route to highlight its stops</h2>
+  <div class="chips" id="chips-local"></div>
+  <h2>Transbay &amp; All‑Nighter</h2>
+  <div class="chips" id="chips-other"></div>
+  <h2>Zone</h2>
+  <div class="lg"><i class="dash" style="border-color:var(--ink)"></i>Game boundary</div>
+  <div class="lg"><i style="border-top:10px solid #b7b4ad;background:repeating-linear-gradient(135deg,#8c8a84 0 2px,transparent 2px 6px);height:10px;border:0"></i>Out of bounds</div>
+</div>
+
+<div id="tip"></div>
+<div id="credit">Map data © OpenStreetMap contributors (ODbL)</div>
+
+<script>
+const L = __LAYERS__;
+const D = __DATA__;
+</script>
+<script>
+(function(){
+const NS='http://www.w3.org/2000/svg';
+const el=(t,a,p)=>{const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);if(p)p.appendChild(e);return e;};
+const map=document.getElementById('map');
+const svg=el('svg',{});map.appendChild(svg);
+const defs=el('defs',{},svg);
+const pat=el('pattern',{id:'hatch',patternUnits:'userSpaceOnUse',width:'160',height:'160',patternTransform:'rotate(45)'},defs);
+el('rect',{width:'160',height:'160',fill:'none'},pat);
+el('line',{x1:0,y1:0,x2:0,y2:160,stroke:'#6f6d68',"stroke-width":'22',opacity:'.35'},pat);
+
+const [VX,VY,VW,VH]=D.VB;
+const root=el('g',{},svg);
+// ground
+el('rect',{x:VX-1e5,y:VY-1e5,width:VW+2e5,height:VH+2e5,fill:'var(--land)'},root);
+el('path',{d:L.parks,fill:'var(--park)'},root);
+el('path',{d:L.campus,fill:'var(--campus)'},root);
+el('path',{d:L.water,fill:'var(--water)'},root);
+// roads
+el('path',{d:L.tertiary,class:'road tert'},root);
+el('path',{d:L.secondary,class:'road sec-c'},root);
+el('path',{d:L.primary,class:'road pri-c'},root);
+el('path',{d:L.secondary,class:'road sec'},root);
+el('path',{d:L.primary,class:'road pri'},root);
+el('path',{d:L.rail,class:'road rail'},root);
+el('path',{d:L.motorway,class:'road fwy-c'},root);
+el('path',{d:L.motorway,class:'road fwy'},root);
+el('path',{d:L.cut,class:'road cutline'},root);
+// bus routes
+const gBus=el('g',{id:'g-bus'},root);
+const busPaths={};
+for(const r of D.routes){ busPaths[r.ref]=el('path',{d:r.d,class:'bus '+r.kind,stroke:r.color,'data-ref':r.ref},gBus); }
+// BART tri-stripe + Amtrak
+el('path',{d:L.bart,class:'bart',stroke:'#15171B','stroke-width':'14px'},root);
+el('path',{d:L.bart,class:'bart',stroke:'var(--bart-o)','stroke-width':'11px'},root);
+el('path',{d:L.bart,class:'bart',stroke:'var(--bart-r)','stroke-width':'7px'},root);
+el('path',{d:L.bart,class:'bart',stroke:'var(--bart-y)','stroke-width':'3.2px'},root);
+el('path',{d:L.amtrak,class:'amtrak'},root);
+el('path',{d:L.amtrak,class:'amtrak2'},root);
+// out of bounds
+el('path',{d:L.oob,class:'oob-tint'},root);
+el('path',{d:L.oob,class:'oob'},root);
+el('path',{d:L.zone,class:'zone-glow'},root);
+el('path',{d:L.zone,class:'zone-line'},root);
+// stops
+const gStops=el('g',{id:'g-stops'},root);
+const stopEls=[];
+for(const s of D.stops){ const c=el('circle',{cx:s[0],cy:s[1],r:1,class:'stop'},gStops); c.__d=s; stopEls.push(c); }
+// stations
+const gSt=el('g',{id:'g-st'},root);
+const gLbl=el('g',{id:'g-lbl'},root);
+const scaled=[]; // elements that get 1/zoom scaling: {g, x, y}
+for(const s of D.stations){
+  const g=el('g',{transform:`translate(${s.x} ${s.y})`},gSt); scaled.push({g,x:s.x,y:s.y,kind:'st'});
+  if(s.kind==='bart'){ el('circle',{r:9,fill:'#fff',stroke:'#15171B','stroke-width':3.5},g); el('circle',{r:3.2,fill:'#15171B'},g); }
+  else { el('rect',{x:-8,y:-8,width:16,height:16,fill:'#fff',stroke:'var(--amtrak)','stroke-width':3.5,transform:'rotate(45)'},g); }
+  const lg=el('g',{transform:`translate(${s.x} ${s.y})`},gLbl); scaled.push({g:lg,x:s.x,y:s.y,kind:'lbl'});
+  const t=el('text',{class:'station-lbl',x:0,y:s.edge?-15:-14,'text-anchor':'middle'},lg); t.textContent=s.n+(s.kind==='bart'?' BART':' Amtrak')+(s.edge?' (edge)':'');
+}
+for(const p of D.places){
+  const g=el('g',{transform:`translate(${p.x} ${p.y})`},gLbl); scaled.push({g,x:p.x,y:p.y,kind:'place',k:p.k});
+  const cls={hood:'hood',campus:'hood campus-l',park:'hood park-l',water:'hood water-l',oob:'hood oob-l',road:'hood road-l'}[p.k];
+  if(p.k==='road'){ const w=p.n.length*7.2+12; el('rect',{class:'roadpill',x:-w/2,y:-9,width:w,height:16},g); el('text',{class:cls,'text-anchor':'middle',y:3},g).textContent=p.n; }
+  else el('text',{class:cls,y:4},g).textContent=p.n;
+}
+
+// ---- viewport
+let vb={x:VX,y:VY,w:VW,h:VH};
+function fit(){ const W=map.clientWidth,H=map.clientHeight; const ar=W/H; let w=VW,h=VH; if(w/h<ar){w=h*ar;} else {h=w/ar;} vb={x:VX+(VW-w)/2,y:VY+(VH-h)/2,w,h}; apply(); }
+function zoomLevel(){ return map.clientWidth/vb.w; } // px per metre
+function apply(){
+  svg.setAttribute('viewBox',`${vb.x} ${vb.y} ${vb.w} ${vb.h}`);
+  const z=zoomLevel(); const inv=1/z;
+  const r=Math.max(2.2,Math.min(5,z*40))*inv; // stop radius in px 2.2..5
+  for(const c of stopEls) c.setAttribute('r',r);
+  const sh=z>0.05; // hide neighborhood labels when very zoomed out
+  for(const s of scaled){ s.g.setAttribute('transform',`translate(${s.x} ${s.y}) scale(${inv})`); if(s.kind==='place') s.g.style.display=(s.k==='hood'&&z<0.035)?'none':''; }
+  gStops.style.display = document.getElementById('tg-stops').checked ? '' : 'none';
+}
+function zoomAt(f,px,py){ // f>1 zoom in, px,py in client px
+  const W=map.clientWidth,H=map.clientHeight; const mx=vb.x+px/W*vb.w, my=vb.y+py/H*vb.h;
+  const nw=Math.min(VW*2,Math.max(600,vb.w/f)); const nf=vb.w/nw; const nh=vb.h/nf;
+  vb={x:mx-(mx-vb.x)/nf,y:my-(my-vb.y)/nf,w:nw,h:nh}; apply();
+}
+map.addEventListener('wheel',e=>{e.preventDefault(); zoomAt(Math.exp(-e.deltaY*0.0016),e.clientX,e.clientY);},{passive:false});
+let drag=null, pinch=null;
+map.addEventListener('pointerdown',e=>{ if(e.target.classList&&e.target.classList.contains('stop')) return; map.setPointerCapture(e.pointerId); pts.set(e.pointerId,e); if(pts.size===1) drag={x:e.clientX,y:e.clientY,vx:vb.x,vy:vb.y}; else if(pts.size===2){ drag=null; const a=[...pts.values()]; pinch={d:Math.hypot(a[0].clientX-a[1].clientX,a[0].clientY-a[1].clientY),vb:{...vb}}; } map.classList.add('drag'); });
+const pts=new Map();
+map.addEventListener('pointermove',e=>{ if(pts.has(e.pointerId)) pts.set(e.pointerId,e);
+  if(drag&&pts.size===1){ const W=map.clientWidth,H=map.clientHeight; vb.x=drag.vx-(e.clientX-drag.x)/W*vb.w; vb.y=drag.vy-(e.clientY-drag.y)/H*vb.h; apply(); }
+  else if(pinch&&pts.size===2){ const a=[...pts.values()]; const d=Math.hypot(a[0].clientX-a[1].clientX,a[0].clientY-a[1].clientY); const cx=(a[0].clientX+a[1].clientX)/2, cy=(a[0].clientY+a[1].clientY)/2; vb={...pinch.vb}; zoomAt(d/pinch.d,cx,cy); }
+});
+const up=e=>{ pts.delete(e.pointerId); if(pts.size<2) pinch=null; if(pts.size===0){drag=null; map.classList.remove('drag');} };
+map.addEventListener('pointerup',up); map.addEventListener('pointercancel',up);
+document.getElementById('zin').onclick=()=>zoomAt(1.6,map.clientWidth/2,map.clientHeight/2);
+document.getElementById('zout').onclick=()=>zoomAt(1/1.6,map.clientWidth/2,map.clientHeight/2);
+document.getElementById('zfit').onclick=fit;
+window.addEventListener('resize',()=>{const z=zoomLevel(); const W=map.clientWidth,H=map.clientHeight; vb.w=W/z; vb.h=H/z; apply();});
+
+// ---- tooltip
+const tip=document.getElementById('tip');
+gStops.addEventListener('pointerover',e=>{ const c=e.target; if(!c.__d) return; const s=c.__d; tip.innerHTML=`<b>${esc(s[2]||'Unnamed stop')}</b><br>${s[3]?'<span class="r">'+esc(s[3].split(';').join(' · '))+'</span>':'<span style="opacity:.7">no route data</span>'}${s[4]&&!/Alameda|AC Transit/.test(s[4])?'<br><span style="opacity:.7">'+esc(s[4])+'</span>':''}`; tip.style.display='block'; place(e); });
+gStops.addEventListener('pointermove',place);
+gStops.addEventListener('pointerout',()=>tip.style.display='none');
+function place(e){ const W=map.clientWidth; let x=e.clientX+14,y=e.clientY+14; if(x+250>W) x=e.clientX-254; tip.style.left=x+'px'; tip.style.top=y+'px'; }
+function esc(s){return String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
+
+// ---- legend chips + highlight
+const sel=new Set();
+function mkChip(r,parent){ const b=document.createElement('button'); b.className='chip'; b.type='button'; b.innerHTML=`<span class="sw" style="background:${r.color}"></span>${r.ref}`; b.title=r.name||''; b.onclick=()=>{ if(sel.has(r.ref)) sel.delete(r.ref); else sel.add(r.ref); b.classList.toggle('on',sel.has(r.ref)); refresh(); }; parent.appendChild(b); }
+for(const r of D.routes){ mkChip(r, document.getElementById(r.kind==='local'?'chips-local':'chips-other')); }
+function refresh(){
+  const showT=document.getElementById('tg-transbay').checked, showR=document.getElementById('tg-routes').checked;
+  const any=sel.size>0; let hit=0;
+  for(const r of D.routes){ const p=busPaths[r.ref]; const base=(r.kind==='local')?showR:(showT||sel.has(r.ref)); const on=sel.has(r.ref); p.style.display=base?'':'none'; p.style.opacity=any?(on?1:0.12):''; p.style.strokeWidth=on?'5px':''; }
+  for(const c of stopEls){ const refs=c.__d[3].split(';'); const h=any&&refs.some(x=>sel.has(x)); c.classList.toggle('hit',h); c.classList.toggle('dim',any&&!h); if(h)hit++; }
+  document.getElementById('n-stops').textContent=any?`${hit} / ${D.stops.length}`:D.stops.length;
+}
+for(const id of ['tg-routes','tg-transbay']) document.getElementById(id).addEventListener('change',refresh);
+document.getElementById('tg-stops').addEventListener('change',apply);
+document.getElementById('tg-labels').addEventListener('change',e=>{gLbl.style.display=e.target.checked?'':'none';});
+document.getElementById('n-routes').textContent=D.routes.filter(r=>r.kind==='local').length;
+document.getElementById('n-stations').textContent=D.stations.length;
+refresh(); fit();
+})();
+</script>
