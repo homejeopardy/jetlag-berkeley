@@ -55,9 +55,10 @@ should decide for you.
 
 ## The companion
 
-`companion/index.html` is a phone app for running a round. Everyone opens
-it, picks a name and a role, and creates or joins a game with a four-letter
-code.
+`companion/index.html` is a phone app for running a round, served straight
+from the site. Everyone opens it, picks a name and a role, and creates or
+joins a game with a four-letter code — nothing to install and nothing to
+sign in to.
 
 Seekers pick from the real question deck — Matching, Measuring, Radar,
 Thermometer, Photo, and Tentacles in medium and large games — and send a
@@ -79,12 +80,31 @@ on whichever stop they picked. Anyone can drop a labelled pin, which syncs
 to everyone, so the seekers can mark what they have already swept without
 the app doing any of the deducing for them.
 
-The companion needs a shared datastore to relay between phones, which it
-gets from the claude.ai artifact runtime (`claude.use("db")`). Served as a
-plain static file it degrades to an explanation of that, so if you want to
-run it elsewhere, swap the `db` and `assets` calls for whatever backend you
-like — the data model is four collections: `games/{code}`, its `questions`,
-`messages` and `pins`.
+### How the phones stay in sync
+
+All the companion needs from a backend is a handful of small JSON documents
+every phone can see. Three implementations sit behind one doc/collection
+API, tried in order:
+
+The **claude.ai artifact runtime** (`claude.use("db")`), when the page is
+opened as an artifact. Private to one account and properly durable.
+
+A **public MQTT broker** over WebSockets otherwise — EMQX, falling back to
+HiveMQ. Each document is one retained message under `jlhs/v1/…`, so a phone
+that joins late gets the current state the moment it subscribes, and
+deleting a document means publishing an empty retained payload. This is what
+makes the hosted copy work with nothing to sign up for. The trade is real
+and the app says so on its lobby screen: the broker is public, so the
+four-letter game code is the only thing keeping a stranger out, and delivery
+is best-effort.
+
+**Local storage**, if neither is reachable. One device only — no sync — but
+the timers, cards, rules and map still work.
+
+Swapping in Firebase, Supabase or your own server means writing one more
+`io` object in `tools/companion_template.html`: `publish`, `watchDoc`,
+`watchCollection`, `attach` and `settle`. The data model is four
+collections: `games/{code}` and its `questions`, `messages` and `pins`.
 
 ## Building
 
@@ -114,8 +134,8 @@ another city.
 The maps are static files, so GitHub Pages serves them as-is: in the
 repository settings, under Pages, deploy from the `main` branch at the
 repository root. GitHub then shows you the site's address; the landing page
-is at the root and the maps are under `/maps/`. The companion is not served
-from there — it needs a datastore.
+is at the root, the maps under `/maps/` and the companion under
+`/companion/`. All of it is static — there is no server to run.
 
 ```
 index.html     landing page, for GitHub Pages
