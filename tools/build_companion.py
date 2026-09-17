@@ -25,16 +25,14 @@ TEMPLATE = ROOT / "tools" / "companion_template.html"
 OUT = ROOT / "companion" / "index.html"
 
 # The reference features the matching, measuring and tentacle questions ask
-# about. Point-like only: a centroid stands in badly for a park or a lake, and
-# a wrong distance would eliminate somewhere the hider might really be.
+# about, as points. Parks, water and the shoreline are shapes instead, and are
+# measured to their nearest edge further down.
 POI_KEYS = ["airport", "museum", "library", "hospital", "cinema", "zoo",
             "aquarium", "theme_park", "golf", "consulate", "peak"]
 
-# How finely the shoreline is sampled, in degrees (~110 m).
-COAST_STEP = 0.001
-# A stop this close to the Berkeley/Oakland line is never eliminated by a
-# question about which city you are in.
-CITY_EDGE_M = 500
+# The Foreign Consulate card says to exclude honorary consulates.
+def HONORARY(key, p):
+    return key == "consulate" and "honorary" in (p[2] or "").lower()
 
 # Layers the companion draws, in paint order. `cut` (the Highway 24 band)
 # only means anything on the combined zone.
@@ -70,39 +68,27 @@ def sample_latlon(rings):
     return out
 
 
+def outlines(rings):
+    """Kept at full resolution. These are measured to their nearest edge, and
+    simplifying collapsed the small ponds to a single point, which turned
+    "how far to the nearest water" into a different question."""
+    return [[[round(x, 5), round(y, 5)] for x, y in r] for r in rings if len(r) > 1]
+
+
 def main():
     poi_src = json.loads((DATA / "poi.json").read_text())
     zones = json.loads((DATA / "zone.json").read_text())
-    from shapely.geometry import shape, Point           # noqa: E402
-    berk = shape(zones["berk"])
-    city_edge = berk.boundary
-
+    base = json.loads((DATA / "mapdata.json").read_text())
+    from shapely.geometry import shape                            # noqa: E402
+    
     maps = {}
     for name, cfg in ZONES.items():
         mode, layers, payload, meta = compute(name)
         keep = [k for k in LAYERS if k not in cfg["drop"]]
-        origin = meta["origin"]
-
-        # Which city each stop sits in, and whether it is close enough to the
-        # line that a city question must not rule it out.
-        R = 6378137.0
-        def unproject(x, y):
-            lon = math.degrees((x + origin[0]) / R)
-            lat = math.degrees(2 * math.atan(math.exp((origin[1] - y) / R)) - math.pi / 2)
-            return lon, lat
-        cities, edges = [], []
-        for st in payload["stops"]:
-            lon, lat = unproject(st[0], st[1])
-            pt = Point(lon, lat)
-            cities.append(0 if berk.contains(pt) else 1)
-            edges.append(1 if city_edge.distance(pt) * 111000 * 0.79 < CITY_EDGE_M else 0)
-
         maps[name] = {
             "label": cfg["label"],
             "vb": payload["VB"],
-            "origin": origin,
-            "city": cities,
-            "cityEdge": edges,
+            "origin": meta["origin"],
             "layers": {k: layers[k] for k in keep if layers.get(k)},
             "stops": payload["stops"],
             "stations": payload["stations"],
@@ -113,13 +99,45 @@ def main():
 
     # Reference points are shared by both zones, so they are stored once in
     # lon/lat and projected in the browser rather than baked in twice.
-    poi = {k: poi_src.get(k, []) for k in POI_KEYS}
-    poi["coast"] = [[round(x, 5), round(y, 5)] for x, y in
-                    sample_latlon(json.loads((DATA / "mapdata.json").read_text())["base"]["coast"])]
-    npoi = sum(len(v) for v in poi.values())
-    print(f"  reference points: {npoi} (shared)")
+    poi = {k: [p for p in poi_src.get(k, []) if not HONORARY(k, p)] for k in POI_KEYS}
 
-    blob = json.dumps({"zones": maps, "poi": poi}, separators=(",", ":"), ensure_ascii=False)
+    # Outlines measured to their nearest edge, not to a label point: standing
+    # in a park you are nought metres from it, which is what a player would say.
+    shapes = {
+        "coast": outlines(base["base"]["coast"]),
+        "water": outlines(base["base"]["water"]),
+        "park": outlines(base["base"]["park"]),
+    }
+
+    # Named areas a point falls inside. 1st administrative division is the
+    # city; the 2nd is the council district, loaded if the file is there.
+    def rings_of(geom):
+        g = shape(geom) if isinstance(geom, dict) else geom
+        parts = getattr(g, "geoms", [g])
+        return [[[round(x, 5), round(y, 5)] for x, y in
+                 p.exterior.simplify(0.00012).coords] for p in parts]
+
+    # Oakland arrives as loose boundary ways, so they are stitched into a
+    # polygon before anything can ask whether a point is inside it.
+    from shapely.ops import linemerge, unary_union, polygonize          # noqa: E402
+    from shapely.geometry import LineString as LS                       # noqa: E402
+    oak = list(polygonize(unary_union(linemerge(
+        [LS(r) for r in base["bnd"]["oakland"] if len(r) > 1]))))
+    oak = max(oak, key=lambda g: g.area) if oak else None
+    areas = {"city": [{"n": "Berkeley", "r": rings_of(zones["berk"])}]}
+    if oak is not None:
+        areas["city"].append({"n": "Oakland", "r": rings_of(oak)})
+    dpath = DATA / "districts.json"
+    if dpath.exists():
+        areas["district"] = json.loads(dpath.read_text())
+    print(f"  areas: " + ", ".join(f"{k} x{len(v)}" for k, v in areas.items()))
+
+    npoi = sum(len(v) for v in poi.values())
+    nshape = sum(len(v) for v in shapes.values())
+    print(f"  reference points: {npoi}; outlines: {nshape}")
+
+    blob = json.dumps({"zones": maps, "poi": poi, "shapes": shapes, "areas": areas},
+                      separators=(",", ":"), ensure_ascii=False)
     html = TEMPLATE.read_text().replace("__MAPDATA__", blob)
     OUT.parent.mkdir(exist_ok=True)
     OUT.write_text(html)
