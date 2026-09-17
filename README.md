@@ -29,7 +29,10 @@ Both are single self-contained HTML files. Open one in a browser and it
 works offline from then on, which matters when you are on a platform with
 one bar of signal. Drag to pan, pinch or scroll to zoom, hover or tap a
 stop for its name and routes, and tap a route chip in the legend to
-highlight just that line and the stops it serves.
+highlight just that line and the stops it serves. Zoom past about three
+times the framing view and the minor street network fades in, so a stop
+stops being a dot in space and becomes a corner you can walk to; zoomed
+out it stays off, where it would only grey the map over.
 
 ### Where the boundary comes from
 
@@ -83,26 +86,42 @@ Question text, category draw counts, hiding periods, zone radii and photo
 time limits follow the published Hide + Seek rules; the size of the game
 switches which cards are available.
 
-A Map tab carries both game zones — every stop, the boundary, your own
-location from GPS, and a quarter-mile hiding-zone circle the hider can drop
-on whichever stop they picked. Anyone can drop a labelled pin, which syncs
-to everyone.
+A Map tab carries both game zones — every stop, the boundary, the street
+network, your own location from GPS, and a quarter-mile hiding-zone circle
+the hider can drop on whichever stop they picked. Anyone can drop a labelled
+pin, which syncs to everyone.
 
 ### What the answers rule out
 
-Answers narrow the map, for seekers and hider alike. A radar draws its
-circle and fades every stop on the wrong side of it; a thermometer draws the
-perpendicular bisector of its two endpoints and fades the half you are
-colder from; measuring against a rail station fades the stops on the wrong
-side of that comparison. A counter says how many stops are still possible.
+Answers narrow the map, for seekers and hider alike, and every phone
+narrows it the same way. Stops that are still possible stay white; the rest
+go grey, and a counter says how many are left.
+
+A radar draws its circle and rules out the wrong side of it. A thermometer
+draws the perpendicular bisector of its two endpoints and rules out the
+half you are colder from. Measuring against something the map knows — a
+rail station, the coastline, an airport, a hospital, library, museum,
+cinema, zoo, aquarium, golf course, consulate or peak — rules out the stops
+on the wrong side of that comparison. Matching on the same list rules out
+the stops that would not give their answer, by whose nearest one they are.
+Matching on which city you are in, or on the letter-count of the nearest
+station's name, works the same way. A tentacle answer rules out every stop
+that would have been nearer one of the others in range.
 
 Two deliberate limits. Elimination is *conservative*: a stop survives if any
 point in its hiding zone could still satisfy the answer, so nothing possible
-is ever faded out — the map shows what is definitely ruled out, not a guess
-at where the hider is. And only the questions whose reference data is
-actually in the map become constraints. Asking about museums, consulates or
-county borders is recorded in the feed and left for you to reason about,
-rather than answered with geometry the app cannot honestly compute.
+is ever greyed out — the map shows what is definitely ruled out, not a guess
+at where the hider is. Comparisons between two distances are therefore given
+the benefit of two zone radii, and a stop within half a kilometre of the
+Berkeley/Oakland line is never ruled out by a question about which city you
+are in.
+
+And only the questions whose reference data is actually in the map become
+constraints. Asking about sea level, a landmass, an administrative border,
+a park, a body of water, a transit line or a named street is recorded in the
+feed and left for you to reason about, rather than answered with geometry
+the app cannot honestly compute. Each answer says in one line what it ruled
+out, or that it ruled out nothing the map can draw.
 
 ### How the phones stay in sync
 
@@ -151,7 +170,9 @@ python3 tools/fetch_osm.py      # re-runs the Overpass queries
 Overpass is a shared public service; the fetch script pauses between
 queries and backs off on rate limits. The queries themselves are in
 `tools/overpass/`, readable on their own if you want to adapt this to
-another city.
+another city. The minor street network is fetched over a tighter bounding
+box than the rest: at that density the whole basemap extent is not worth
+the file size, and outside the game zone nobody reads it.
 
 ### Putting it online
 
