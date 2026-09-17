@@ -123,6 +123,7 @@ nav.tabs button .n{position:absolute;top:6px;right:calc(50% - 26px);min-width:18
 #mapsvg .m-stop{fill:#fff;stroke:#15171B;stroke-width:1.5px;vector-effect:non-scaling-stroke;cursor:pointer}
 #mapsvg .m-stop.sel{fill:var(--yellow)}
 #mapsvg .m-ruled{fill:#4A4842;fill-opacity:.38;pointer-events:none}
+#mapsvg .m-zonering{fill:none;stroke:#15171B;stroke-width:1px;stroke-dasharray:4 4;opacity:.35;vector-effect:non-scaling-stroke;pointer-events:none}
 #mapsvg .m-con{fill:none;vector-effect:non-scaling-stroke;stroke-width:2px}
 #mapsvg .m-con.in{stroke:#1F8A5B;stroke-dasharray:6 4}
 #mapsvg .m-con.out{stroke:#D62828;stroke-dasharray:6 4}
@@ -171,6 +172,7 @@ table.sb th{font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;l
     <svg id="mapsvg"></svg>
     <div id="mapbar">
       <button class="chip on" id="mp-stops" type="button">Stops</button>
+      <button class="chip" id="mp-circles" type="button">Zones</button>
       <button class="chip" id="mp-pin" type="button">Drop pin</button>
       <button class="chip" id="mp-zone" type="button" hidden>Set my zone</button>
       <span class="chip" id="mp-count" hidden></span>
@@ -411,7 +413,7 @@ let db=null, assets=null, dbReady=false, backend=null, backendDetail='';
 let me=load('hs-me')||{name:'',role:'seeker'};
 let code=load('hs-code')||null;
 let tab=load('hs-tab')||'feed';
-let game=null, questions=[], messages=[], pins=[], photos={}, lobbyGames=[];
+let game=null, questions=[], messages=[], pins=[], photos={}, crossed={}, lobbyGames=[];
 let unsubs=[]; let lobbyUnsub=null;
 let askState={cat:null,q:null,custom:'',loc:null,locHow:''};
 let pickLoc=false;   // map is waiting for a tap to set the seeker's position
@@ -474,7 +476,7 @@ function subscribeLobby(){
   if(lobbyUnsub) lobbyUnsub();
   lobbyUnsub=db.collection('games').orderBy('createdAt','desc').limit(25).onSnapshot(snap=>{ lobbyGames=snap.docs.map(d=>({id:d.id,...d.data()})); if(!game) render(); }, e=>console.warn('lobby',e));
 }
-function leave(){ unsubs.forEach(u=>u()); unsubs=[]; game=null; questions=[]; messages=[]; pins=[]; photos={}; code=null; Map3.reset(); save('hs-code',null); $('#tabs').hidden=true; render(); }
+function leave(){ unsubs.forEach(u=>u()); unsubs=[]; game=null; questions=[]; messages=[]; pins=[]; photos={}; crossed={}; code=null; Map3.reset(); save('hs-code',null); $('#tabs').hidden=true; render(); }
 async function join(c,silent){
   c=c.toUpperCase().trim(); if(!c) return;
   const ref=db.doc('games/'+c);
@@ -485,6 +487,9 @@ async function join(c,silent){
   unsubs.push(ref.onSnapshot(s=>{ if(!s.exists){ toast('Game was deleted'); leave(); return; } const prev=game; game=s.data(); onGame(prev); render(); }, e=>toast('Lost connection to game')));
   unsubs.push(ref.collection('questions').orderBy('askedAt','asc').limit(400).onSnapshot(s=>{ const prev=questions; questions=s.docs.map(d=>({id:d.id,...d.data()})); onQuestions(prev,s); render(); }, e=>console.warn(e)));
   unsubs.push(ref.collection('messages').orderBy('at','asc').limit(200).onSnapshot(s=>{ const prev=messages; messages=s.docs.map(d=>({id:d.id,...d.data()})); onMessages(prev,s); render(); }, e=>console.warn(e)));
+  unsubs.push(ref.collection('crossed').limit(900).onSnapshot(s=>{ const c={};
+    for(const d of s.docs){ const v=d.data(); if(v&&v.out) c[d.id]=1; }
+    crossed=c; Map3.syncPins(); render(); }, e=>console.warn(e)));
   unsubs.push(ref.collection('photos').limit(40).onSnapshot(s=>{ let n=0;
     for(const d of s.docs){ if(!photos[d.id]) n++; photos[d.id]=(d.data()||{}).d; }
     if(n) render(); }, e=>console.warn(e)));
@@ -508,7 +513,7 @@ function onMessages(prev,snap){
 // ---------- writes ----------
 async function createGame(name,size){
   let c=mkCode(); for(let i=0;i<5;i++){ const s=await db.doc('games/'+c).get(); if(!s.exists) break; c=mkCode(); }
-  const g={name:name||('Game '+c),size,zone:size==='S'?'berkeley':'berkeley-north-oakland',phase:'setup',createdAt:Date.now(),hider:me.role==='hider'?me.name:'',players:{[me.name]:me.role},hidingStartAt:null,seekingStartAt:null,endgameAt:null,foundAt:null,hand:[],note:''};
+  const g={name:name||('Game '+c),size,zone:size==='S'?'berkeley':'berkeley-north-oakland',phase:'setup',createdAt:Date.now(),hider:me.role==='hider'?me.name:'',players:{[me.name]:me.role},hidingStartAt:null,seekingStartAt:null,endgameAt:null,foundAt:null,hand:[],note:'',strict:true};
   await db.doc('games/'+c).set(g); join(c);
 }
 async function patch(data){ if(!code) return; try{ await db.doc('games/'+code).update(data); }catch(e){ toast('Could not save: '+(e.code||e.message)); } }
@@ -778,6 +783,13 @@ function gameTab(){
     <h3>Hider</h3><div class="row"><select id="sel-hider" class="grow"><option value="">— choose —</option>${players.map(([n])=>`<option ${game.hider===n?'selected':''}>${esc(n)}</option>`).join('')}</select></div>
     <h3>Map zone</h3><div class="seg" id="sel-zone">${Object.entries(MAPS).map(([k,m])=>`<button type="button" data-zone="${k}" class="${(game.zone||DEFAULT_ZONE)===k?'on':''}">${esc(m.label)}</button>`).join('')}</div>
     <p class="small muted" style="margin-top:6px">Sets what the Map tab draws for everyone. The full-screen versions are also on the web: <a href="https://homejeopardy.github.io/jetlag-berkeley/" target="_blank" rel="noopener">homejeopardy.github.io/jetlag-berkeley</a></p>
+    <h3>How much the answers rule out</h3>
+    <div class="seg" id="sel-strict">
+      <button type="button" data-strict="1" class="${game.strict===false?'':'on'}">Station</button>
+      <button type="button" data-strict="0" class="${game.strict===false?'on':''}">Whole zone</button></div>
+    <p class="small muted" style="margin-top:6px">${game.strict===false
+      ? 'A station survives if the hider could have been standing anywhere in its zone. That is what the rules allow, and it means a quarter-mile radar rules out almost nothing.'
+      : 'Answers are read against the station itself, so a radar rules out every station inside its circle. Sharper, and how it plays — though a hider who wandered to the edge of their zone could in principle be ruled out.'}</p>
     <h3>Round note</h3><textarea id="game-note" rows="2" placeholder="House rules, meeting point, transit passes…">${esc(game.note||'')}</textarea><button class="btn sm" id="btn-note" style="margin-top:6px">Save note</button>
     <div class="row" style="margin-top:14px"><button class="btn sm" id="btn-switch">Switch name / role</button><button class="btn sm" id="btn-leave">Leave game</button><button class="btn sm danger" id="btn-delete">Delete round</button></div></div>
     ${past.length?`<div class="card"><h2>Scoreboard</h2><table class="sb"><tr><th>Round</th><th>Hider</th><th>Time hidden</th></tr>${past.map(g=>`<tr><td>${esc(g.name)}</td><td>${esc(g.hider)}</td><td>${fmtT(g.foundAt-g.seekingStartAt)}</td></tr>`).join('')}</table></div>`:''}`;
@@ -797,6 +809,7 @@ function wire(){
   on('#btn-start-seeking','click',()=>patch({phase:'seeking',seekingStartAt:Date.now()}));
   on('#btn-endgame','click',()=>patch({phase:'endgame',endgameAt:Date.now()}));
   on('#btn-found','click',()=>{ if(confirm('Mark the hider as found and end the round?')) patch({phase:'found',foundAt:Date.now()}); });
+  on('[data-strict]','click',e=>{ patch({strict:e.currentTarget.dataset.strict==='1'}); });
   on('#btn-leave','click',leave);
   on('#btn-switch','click',()=>{ leave(); });
   on('#btn-delete','click',async()=>{ if(!confirm('Delete this round for everyone?')) return; try{ await db.doc('games/'+code).delete(); }catch(e){ toast('Could not delete'); } leave(); });
@@ -831,6 +844,7 @@ const NS='http://www.w3.org/2000/svg';
 const R=6378137;
 let svg=null, root=null, gStops=null, gDyn=null, gRes=null, gShade=null, shadeKey='', built=null, vb=null, zonePath=null, scaled=[], fitW=0;
 let sel=null, pinMode=false, zoneMode=false, watchId=null, fix=null;
+let showCircles=!!load('hs-circles');
 
 const el=(t,a,p)=>{const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);if(p)p.appendChild(e);return e;};
 const zoneKey=()=> (game&&game.zone&&MAPS[game.zone])?game.zone:DEFAULT_ZONE;
@@ -966,7 +980,7 @@ let maskSeq=0;
 function syncShade(){
   if(!gShade) return;
   const keep=survivors();
-  const key=keep?zoneKey()+'|'+keep.join(''):'';
+  const key=keep?zoneKey()+'|'+(showCircles?'c':'')+'|'+keep.join(''):'';
   if(key===shadeKey) return;
   shadeKey=key; gShade.innerHTML='';
   if(!keep) return;
@@ -986,6 +1000,11 @@ function syncShade(){
   // say so.
   if(!live){ gShade.innerHTML=''; return; }
   el('rect',{x:-S,y:-S,width:S*2,height:S*2,class:'m-ruled',mask:'url(#'+id+')'},gShade);
+  // The same zones, outlined, for when you want to see each one rather than
+  // just the shape their union makes.
+  if(showCircles) for(let i=0;i<keep.length;i++){ if(!keep[i]) continue;
+    const st=m.stops[i];
+    el('circle',{cx:st[0],cy:st[1],r:zoneRadius(st[1]),class:'m-zonering'},gShade); }
 }
 function tip(html){ const t=document.getElementById('maptip'); if(!html){t.style.display='none';return;} t.innerHTML=html; t.style.display='block'; }
 function showStop(i){
@@ -993,9 +1012,11 @@ function showStop(i){
   sel=i;
   for(const c of gStops.children) c.classList.toggle('sel',+c.dataset.i===i);
   const routes=s[3]?`<span class="r">${esc(s[3].split(';').join(' · '))}</span>`:'<span style="opacity:.7">no route data</span>';
-  let act='';
-  if(isHider()) act=`<div class="act"><button data-sethide="${i}">Hide here</button></div>`;
-  tip(`<b>${esc(s[2]||'Unnamed stop')}</b>${routes}${act}`);
+  const off=!!crossed[i];
+  let act=`<div class="act"><button data-cross="${i}">${off?'Bring back':'Rule out'}</button>`;
+  if(isHider()) act+=`<button data-sethide="${i}">Hide here</button>`;
+  act+='</div>';
+  tip(`<b>${esc(s[2]||'Unnamed stop')}</b>${routes}${off?'<div class="r" style="margin-top:2px">ruled out by hand</div>':''}${act}`);
 }
 
 let pend=null;
@@ -1076,13 +1097,20 @@ function bind(){
   };
   view.addEventListener('pointerup',up); view.addEventListener('pointercancel',e=>{pts.delete(e.pointerId);drag=null;pinch=null;view.classList.remove('drag');});
   document.getElementById('maptip').addEventListener('click',async e=>{
-    const sh=e.target.dataset.sethide, dp=e.target.dataset.delpin;
+    const sh=e.target.dataset.sethide, dp=e.target.dataset.delpin, cr=e.target.dataset.cross;
+    if(cr!==undefined){ const i=+cr, on=!crossed[i];
+      try{ await db.doc('games/'+code+'/crossed/'+i).set({out:on,by:me.name,at:Date.now()}); }
+      catch(err){ toast('Could not save that'); }
+      crossed[i]=on?1:undefined; if(!on) delete crossed[i];
+      tip(null); redraw(); toast(on?'Ruled out':'Back in play'); return; }
     if(e.target.dataset.addpin){ const i=document.getElementById('pin-label'); tip(null); await addPin(i?i.value.trim():''); return; }
     if(e.target.dataset.cancelpin){ pend=null; tip(null); return; }
     if(sh!==undefined){ const s=M().stops[+sh]; save(hideKey(),{x:s[0],y:s[1],n:s[2]}); redraw(); tip(null); toast('Hiding zone set at '+(s[2]||'this stop')); }
     if(dp){ try{ await db.doc('games/'+code+'/pins/'+dp).delete(); tip(null); }catch(err){ toast('Could not remove pin'); } }
   });
   document.getElementById('mp-stops').addEventListener('click',e=>{ const on=e.currentTarget.classList.toggle('on'); gStops.style.display=on?'':'none'; });
+  document.getElementById('mp-circles').addEventListener('click',e=>{
+    showCircles=e.currentTarget.classList.toggle('on'); save('hs-circles',showCircles); shadeKey=''; redraw(); });
   document.getElementById('mp-pin').addEventListener('click',e=>{ pinMode=e.currentTarget.classList.toggle('on'); zoneMode=false; document.getElementById('mp-zone').classList.remove('on'); if(pinMode) toast('Tap the map to place a pin'); });
   document.getElementById('mp-zone').addEventListener('click',e=>{ zoneMode=e.currentTarget.classList.toggle('on'); pinMode=false; document.getElementById('mp-pin').classList.remove('on'); if(zoneMode) toast('Tap the stop you are hiding near'); });
   document.getElementById('mp-loc').addEventListener('click',locate);
@@ -1326,8 +1354,9 @@ function zoneRadius(y){ return metres(HIDE_RADIUS[(game&&game.size)||'S'], y); }
 // Each answer's verdict on each station is kept, so a new answer only costs
 // its own pass: the others are already decided and never change.
 let stopMaskCache={};
+const strictMode=()=>!(game&&game.strict===false);
 function stopMask(c){
-  const key=zoneKey()+'|'+((game&&game.size)||'S')+'|'+JSON.stringify(c);
+  const key=zoneKey()+'|'+((game&&game.size)||'S')+'|'+strictMode()+'|'+JSON.stringify(c);
   if(stopMaskCache[key]) return stopMaskCache[key];
   const g=grid(), m=M(), f=reachField(g,prep(c)), out=new Uint8Array(m.stops.length);
   if(!f){ out.fill(1); return stopMaskCache[key]=out; }
@@ -1336,19 +1365,23 @@ function stopMask(c){
   for(let i=0;i<m.stops.length;i++){
     const st=m.stops[i], c2=g.at(st[0],st[1]);
     if(c2<0){ out[i]=1; continue; }
-    const lim=(zoneRadius(st[1])+slop)/g.cell;
+    // Strict reads the answer against the station itself; the loose setting
+    // gives the hider the whole zone to have been standing in, which is what
+    // the rules allow and what almost nothing then rules out.
+    const lim=((strictMode()?0:zoneRadius(st[1]))+slop)/g.cell;
     out[i]=f[c2]<=lim*lim?1:0;
   }
   return stopMaskCache[key]=out;
 }
 function survivors(){
-  const raw=cons();
-  if(!raw.length) return null;
+  const raw=cons(), out=Object.keys(crossed).length;
+  if(!raw.length&&!out) return null;
   const m=M(), keep=new Uint8Array(m.stops.length).fill(1);
   for(const c of raw){
     const mk=stopMask(c);
     for(let i=0;i<keep.length;i++) if(!mk[i]) keep[i]=0;
   }
+  for(const k in crossed){ const i=+k; if(i>=0&&i<keep.length) keep[i]=0; }
   return keep;
 }
 function drawCons(g,px){
@@ -1442,6 +1475,7 @@ return {
     bind();
     if(built!==zoneKey()) build(); else { fit(); }
     const zb=document.getElementById('mp-zone'); zb.hidden=!isHider();
+    document.getElementById('mp-circles').classList.toggle('on',showCircles);
     tip(null);
   },
   syncPins(){ if(built&&!document.getElementById('mapview').hidden) redraw(); },
