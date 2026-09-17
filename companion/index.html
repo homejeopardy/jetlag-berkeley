@@ -116,6 +116,13 @@ nav.tabs button .n{position:absolute;top:6px;right:calc(50% - 26px);min-width:18
 #mapsvg .m-oob{fill:#8C8A84;fill-opacity:.42;fill-rule:evenodd;pointer-events:none}
 #mapsvg .m-stop{fill:#fff;stroke:#15171B;stroke-width:1.5px;vector-effect:non-scaling-stroke;cursor:pointer}
 #mapsvg .m-stop.sel{fill:var(--yellow)}
+#mapsvg .m-stop.out{opacity:.1}
+#mapsvg .m-con{fill:none;vector-effect:non-scaling-stroke;stroke-width:2px}
+#mapsvg .m-con.in{stroke:#1F8A5B;stroke-dasharray:6 4}
+#mapsvg .m-con.out{stroke:#D62828;stroke-dasharray:6 4}
+#mapsvg .m-con.thermo{stroke:#E4572E;stroke-dasharray:9 6}
+#mapsvg .m-leg{stroke:#E4572E;stroke-width:2px;vector-effect:non-scaling-stroke;opacity:.6}
+#mapsvg .m-from{fill:#15171B;stroke:#fff;stroke-width:2px;vector-effect:non-scaling-stroke}
 #mapsvg .m-label{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:11px;fill:#15171B;paint-order:stroke;stroke:#fff;stroke-width:4px;stroke-linejoin:round;text-transform:uppercase;letter-spacing:.04em;pointer-events:none;text-anchor:middle}
 #mapsvg .m-place{font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:10px;fill:#3C4048;letter-spacing:.12em;text-transform:uppercase;paint-order:stroke;stroke:#EDEAE1;stroke-width:3px;pointer-events:none;text-anchor:middle}
 #mapsvg .m-hz{fill:var(--hider);fill-opacity:.16;stroke:var(--hider);stroke-width:2.5px;vector-effect:non-scaling-stroke}
@@ -160,6 +167,7 @@ table.sb th{font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;l
       <button class="chip on" id="mp-stops" type="button">Stops</button>
       <button class="chip" id="mp-pin" type="button">Drop pin</button>
       <button class="chip" id="mp-zone" type="button" hidden>Set my zone</button>
+      <span class="chip" id="mp-count" hidden></span>
     </div>
     <div id="mapctl">
       <button id="mp-loc" title="Show my location" aria-label="Show my location">◎</button>
@@ -346,12 +354,12 @@ const SIZES={S:{name:'Small',hide:30,zone:'¼ mile (400 m)',photo:10},M:{name:'M
 const CATS=[
  {id:'matching',name:'Matching',fmt:'Is your nearest ___ the same as my ___?',draw:3,keep:1,ans:['Yes','No'],
   qs:[['Commercial airport'],['Transit line'],['Station name length (letters)'],['Street or path'],['1st administrative division (state)'],['2nd administrative division (county)'],['3rd administrative division (city)'],['4th administrative division'],['Mountain'],['Landmass'],['Park'],['Amusement park'],['Zoo'],['Aquarium'],['Golf course'],['Museum'],['Movie theater'],['Hospital'],['Library'],['Foreign consulate']]},
- {id:'measuring',name:'Measuring',fmt:'Compared to me, are you closer to or further from ___?',draw:3,keep:1,ans:['Closer','Further'],
+ {id:'measuring',name:'Measuring',fmt:'Compared to me, are you closer to or further from ___?',draw:3,keep:1,ans:['Closer','Further'],loc:1,
   qs:[['Commercial airport'],['High-speed train line'],['Rail station'],['International border'],['1st administrative division border'],['2nd administrative division border'],['Sea level'],['Body of water'],['Coastline'],['Mountain'],['Park'],['Amusement park'],['Zoo'],['Aquarium'],['Golf course'],['Museum'],['Movie theater'],['Hospital'],['Library'],['Foreign consulate']]},
- {id:'radar',name:'Radar',fmt:'Are you within ___ of me?',draw:2,keep:1,ans:['Yes','No'],
-  qs:[['¼ mile'],['½ mile'],['1 mile'],['3 miles'],['5 miles'],['10 miles'],['25 miles'],['50 miles'],['100 miles'],['Choose a distance','custom']]},
- {id:'thermo',name:'Thermometer',fmt:'After traveling ___, am I hotter or colder?',draw:2,keep:1,ans:['Hotter','Colder'],
-  qs:[['½ mile'],['3 miles'],['10 miles','M'],['50 miles','L']]},
+ {id:'radar',name:'Radar',fmt:'Are you within ___ of me?',draw:2,keep:1,ans:['Yes','No'],loc:1,
+  qs:[['¼ mile',null,402],['½ mile',null,805],['1 mile',null,1609],['3 miles',null,4828],['5 miles',null,8047],['10 miles',null,16093],['25 miles',null,40234],['50 miles',null,80467],['100 miles',null,160934],['Choose a distance','custom']]},
+ {id:'thermo',name:'Thermometer',fmt:'After traveling ___, am I hotter or colder?',draw:2,keep:1,ans:['Hotter','Colder'],loc:1,two:1,
+  qs:[['½ mile',null,805],['3 miles',null,4828],['10 miles','M',16093],['50 miles','L',80467]]},
  {id:'photo',name:'Photo',fmt:'Send me a photo of ___.',draw:1,keep:1,ans:[],
   qs:[['Any building visible from your transit station'],['The widest street near you'],['A tree'],['The tallest structure in your current sightline'],['You (selfie)'],['The sky'],['Tallest building visible from your transit station','M'],['Trace your nearest street/path','M'],['2 buildings','M'],['A restaurant interior','M'],['A park','M'],['A grocery store aisle','M'],['A place of worship','M'],['Your train platform','M'],['½ mile of streets traced','L'],['Tallest mountain visible from your station','L'],['Biggest body of water in your zone','L'],['5 buildings','L']]},
  {id:'tentacle',name:'Tentacles',fmt:'Within ___ of me, which ___ are you nearest to?',draw:4,keep:2,ans:[],min:'M',
@@ -371,7 +379,9 @@ let code=load('hs-code')||null;
 let tab=load('hs-tab')||'feed';
 let game=null, questions=[], messages=[], pins=[], lobbyGames=[];
 let unsubs=[]; let lobbyUnsub=null;
-let askState={cat:null,q:null,custom:''};
+let askState={cat:null,q:null,custom:'',loc:null,locHow:''};
+let pickLoc=false;   // map is waiting for a tap to set the seeker's position
+let thermoFinish={qid:null,loc:null,how:''};
 let seenCount=load('hs-seen-'+code)||0;
 let tick=null;
 
@@ -386,6 +396,34 @@ function uid(){ return Math.random().toString(36).slice(2,8)+Date.now().toString
 function mkCode(){ const A='ABCDEFGHJKLMNPQRSTUVWXYZ'; let s=''; for(let i=0;i<4;i++) s+=A[Math.floor(Math.random()*A.length)]; return s; }
 function beep(){ try{ const ac=new (window.AudioContext||window.webkitAudioContext)(); const o=ac.createOscillator(), g=ac.createGain(); o.connect(g); g.connect(ac.destination); o.frequency.value=880; g.gain.value=.08; o.start(); o.frequency.setValueAtTime(1175,ac.currentTime+.12); o.stop(ac.currentTime+.25); }catch(e){} if(navigator.vibrate) navigator.vibrate([120,60,120]); }
 function isHider(){ return game && me.role==='hider'; }
+// "2 miles", "800m", "1.5 km" -> metres
+function parseDist(str){
+  const m=String(str||'').trim().match(/^([\d.]+)\s*(mi|mile|miles|m|metre|metres|meter|meters|km|kilometre|kilometres)?$/i);
+  if(!m) return null;
+  const n=parseFloat(m[1]); if(!isFinite(n)||n<=0) return null;
+  const u=(m[2]||'mi').toLowerCase();
+  if(u==='m'||u.startsWith('met')) return Math.round(n);
+  if(u.startsWith('km')||u.startsWith('kil')) return Math.round(n*1000);
+  return Math.round(n*1609.34);
+}
+function fmtDist(m){ return m>=1609 ? (m/1609.34).toFixed(m%1609?1:0)+' mi' : Math.round(m)+' m'; }
+// The seeker's own position, needed for radars, thermometers and measuring.
+// GPS first; if that is refused the map doubles as a position picker.
+function setLoc(which,xy,how){
+  if(which==='finish'){ thermoFinish.loc=xy; thermoFinish.how=how; }
+  else { askState.loc=xy; askState.locHow=how; }
+  render();
+}
+function useGps(which){
+  if(!navigator.geolocation){ toast('This device has no location service'); return; }
+  toast('Getting your location…');
+  navigator.geolocation.getCurrentPosition(pos=>{
+    setLoc(which,Map3.project(pos.coords.longitude,pos.coords.latitude),'GPS');
+  }, err=>{
+    toast(err.code===1?'Location denied — pick your spot on the map instead':'No fix — pick your spot on the map instead');
+  }, {enableHighAccuracy:true,timeout:15000,maximumAge:30000});
+}
+function pickOnMap(which){ pickLoc=which; tab='map'; save('hs-tab',tab); render(); toast('Tap where you are'); }
 function sizeOk(min){ return !min || SIZE_RANK[(game&&game.size)||'S']>=SIZE_RANK[min]; }
 
 // ---------- capability boot ----------
@@ -439,9 +477,41 @@ async function createGame(name,size){
 async function patch(data){ if(!code) return; try{ await db.doc('games/'+code).update(data); }catch(e){ toast('Could not save: '+(e.code||e.message)); } }
 async function sendQuestion(){
   const cat=CATS.find(c=>c.id===askState.cat); if(!cat||askState.q==null) return;
-  const q=cat.qs[askState.q]; let text=q[0]; if(q[1]==='custom'){ if(!askState.custom.trim()){ toast('Type a distance first'); return; } text=askState.custom.trim(); }
-  const body={cat:cat.id,catName:cat.name,fmt:cat.fmt,q:text,askedBy:me.name,askedAt:Date.now(),status:'pending',answer:'',answeredAt:null,photo:'',note:'',draw:cat.draw,keep:cat.keep,ans:cat.ans};
-  try{ await db.doc('games/'+code).collection('questions').add(body); askState={cat:null,q:null,custom:''}; toast('Sent to the hider'); tab='feed'; save('hs-tab',tab); render(); }catch(e){ toast('Send failed: '+(e.code||e.message)); }
+  const q=cat.qs[askState.q];
+  let text=q[0], distM=q[2]||null;
+  if(q[1]==='custom'){
+    distM=parseDist(askState.custom);
+    if(!distM){ toast('Type a distance like "2 miles" or "800 m"'); return; }
+    text=fmtDist(distM);
+  }
+  if(cat.loc&&!askState.loc){ toast('Set where you are first'); return; }
+  const body={cat:cat.id,catName:cat.name,fmt:cat.fmt,q:text,askedBy:me.name,askedAt:Date.now(),
+    status:cat.two?'started':'pending',answer:'',answeredAt:null,photo:'',note:'',
+    draw:cat.draw,keep:cat.keep,ans:cat.ans,
+    loc:askState.loc||null,locHow:askState.locHow||'',loc2:null,distM:distM};
+  try{
+    await db.doc('games/'+code).collection('questions').add(body);
+    askState={cat:null,q:null,custom:'',loc:null,locHow:''};
+    toast(cat.two?'Thermometer started — the hider has your starting point':'Sent to the hider');
+    // Stay on Ask for a thermometer: the running card there is how you
+    // finish it once you have travelled.
+    tab=cat.two?'ask':'feed'; save('hs-tab',tab); render();
+  }catch(e){ toast('Send failed: '+(e.code||e.message)); }
+}
+// Second leg of a thermometer: you have travelled, now the question goes out.
+async function finishThermo(){
+  const q=questions.find(x=>x.id===thermoFinish.qid);
+  if(!q||!thermoFinish.loc) return;
+  const gone=Map3.trueMetres(q.loc,thermoFinish.loc);
+  if(gone<q.distM){
+    toast(`Only ${fmtDist(gone)} from your start — you need ${fmtDist(q.distM)} as the crow flies`);
+    return;
+  }
+  try{
+    await db.doc('games/'+code+'/questions/'+q.id).update({status:'pending',loc2:thermoFinish.loc,travelled:Math.round(gone)});
+    thermoFinish={qid:null,loc:null,how:''};
+    toast('Asked — the hider can answer now'); tab='feed'; save('hs-tab',tab); render();
+  }catch(e){ toast('Could not send: '+(e.code||e.message)); }
 }
 async function answerQ(id,answer,extra){
   try{ await db.doc('games/'+code+'/questions/'+id).update(Object.assign({status:'answered',answer,answeredAt:Date.now()},extra||{})); }catch(e){ toast('Could not answer: '+(e.code||e.message)); }
@@ -465,6 +535,7 @@ function render(){
   $('#tabs').hidden=false;
   document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.toggle('on',b.dataset.tab===tab));
   $('#tab-ask').textContent=isHider()?'Inbox':'Ask';
+  $('#tab-hand').textContent=isHider()?'Hand':'Deck';
   const pendingN=questions.filter(q=>q.status==='pending').length;
   const nb=$('#n-feed'); const unseen=(questions.length+messages.length)-seenCount; if(tab==='feed'){ seenCount=questions.length+messages.length; save('hs-seen-'+code,seenCount); nb.hidden=true; } else if(unseen>0){ nb.hidden=false; nb.textContent=unseen; } else nb.hidden=true;
   const mv=$('#mapview');
@@ -480,6 +551,11 @@ function render(){
     m.innerHTML=html; wire();
   }
   if(!tick) tick=setInterval(()=>{ const t=$('#timer'); if(t) t.textContent=timerText(); const t2=$('#timer2'); if(t2) t2.textContent=timerText2(); },1000);
+}
+function narrowChip(){
+  const c=Map3.count();
+  if(!c||!c.cons) return '';
+  return `<div><b>${c.left}</b><span>of ${c.total} stops left</span></div>`;
 }
 function backendNote(){
   if(backend==='artifact') return `<div class="card flat"><h3>Sync</h3><p class="small">Through Claude, private to your account. Everyone needs to open this page signed in to the same account.</p></div>`;
@@ -528,18 +604,43 @@ function statusCard(){
   const warn=game.phase==='hiding'&&(game.hidingStartAt+S.hide*60000-Date.now())<120000;
   return `<div class="card"><div class="phase">${label}</div>
     <div class="row" style="align-items:flex-end"><div class="timer ${warn?'warn':''}" id="timer">${timerText()}</div>${game.phase==='endgame'?`<div class="muted small">endgame <span id="timer2">${timerText2()}</span></div>`:''}</div>
-    <div class="stat"><div><b>${esc(game.hider||'?')}</b><span>hider</span></div><div><b>${S.name}</b><span>${S.zone} zone</span></div><div><b>${(game.hand||[]).length}</b><span>cards in hand</span></div><div><b>${questions.length}</b><span>questions</span></div></div>
+    <div class="stat"><div><b>${esc(game.hider||'?')}</b><span>hider</span></div><div><b>${S.name}</b><span>${S.zone} zone</span></div>${isHider()?`<div><b>${(game.hand||[]).length}</b><span>cards in hand</span></div>`:''}<div><b>${questions.length}</b><span>questions</span></div>${narrowChip()}</div>
     <div class="row" style="margin-top:12px">${ctl}</div></div>`;
+}
+// Shared "where are you" control. `which` is 'ask' or 'finish'.
+function locRow(which,loc,how){
+  return `<label class="f">Your location ${loc?`<span style="color:var(--green)">· set${how?' by '+esc(how):''}</span>`:'<span style="color:var(--red)">· needed</span>'}</label>
+    <div class="row"><button class="btn sm" data-gps="${which}">Use GPS</button><button class="btn sm" data-pick="${which}">Pick on map</button></div>`;
+}
+function runningThermos(){
+  const mine=questions.filter(q=>q.cat==='thermo'&&q.status==='started'&&q.askedBy===me.name);
+  if(!mine.length) return '';
+  return mine.map(q=>{
+    const armed=thermoFinish.qid===q.id;
+    const gone=armed&&thermoFinish.loc?Map3.trueMetres(q.loc,thermoFinish.loc):null;
+    return `<div class="card" style="border-width:2.5px;border-color:var(--yellow)">
+      <h2>Thermometer running</h2>
+      <p class="small">The hider has your starting point. Travel <b>${fmtDist(q.distM)}</b> as the crow flies, then ask.</p>
+      ${armed?locRow('finish',thermoFinish.loc,thermoFinish.how):`<button class="btn block" data-arm="${q.id}" style="margin-top:8px">I've travelled — set my new spot</button>`}
+      ${gone!==null?`<p class="small ${gone>=q.distM?'':'muted'}">${fmtDist(gone)} from the start${gone>=q.distM?' — far enough':` — ${fmtDist(q.distM-gone)} to go`}</p>`:''}
+      ${armed?`<button class="btn primary block" id="btn-thermo-go" style="margin-top:8px" ${thermoFinish.loc?'':'disabled'}>Ask: am I hotter or colder?</button>`:''}
+    </div>`;
+  }).join('');
 }
 function ask(){
   if(game.phase!=='seeking'&&game.phase!=='endgame') return `<div class="notice">Questions open once the hiding period ends${game.phase==='setup'?' — start it from the card above.':'.'}</div>`;
+  const running=runningThermos();
   const cat=CATS.find(c=>c.id===askState.cat);
-  if(!cat) return `<div class="card"><h2>Ask the hider</h2><p class="small muted">Pick a category. Each question you send makes the hider draw cards — the draw/keep counts are shown.</p>
+  if(!cat) return running+`<div class="card"><h2>Ask the hider</h2><p class="small muted">Pick a category. Each question you send makes the hider draw cards — the draw/keep counts are shown.</p>
     <div class="cats">${CATS.map(c=>`<button class="cat" data-cat="${c.id}" ${sizeOk(c.min)?'':'disabled'}><b>${c.name}</b><span>${sizeOk(c.min)?`draw ${c.draw} · keep ${c.keep}`:'medium+ games only'}</span></button>`).join('')}</div></div>`;
-  return `<div class="card"><div class="row"><button class="btn sm ghost" id="btn-back">‹ Categories</button><h2 style="flex:1">${cat.name}</h2></div><p class="small muted">${esc(cat.fmt)}</p>
+  const sel=cat.qs[askState.q];
+  const needLoc=!!cat.loc;
+  return running+`<div class="card"><div class="row"><button class="btn sm ghost" id="btn-back">‹ Categories</button><h2 style="flex:1">${cat.name}</h2></div><p class="small muted">${esc(cat.fmt)}</p>
+    ${cat.two?`<p class="small">Starting one sends the hider your position now. You then travel the distance and ask from where you end up.</p>`:''}
     <div class="qlist">${cat.qs.map((q,i)=>{ const ok=q[1]==='custom'||sizeOk(q[1]); if(!ok) return ''; return `<button class="q ${askState.q===i?'on':''}" data-q="${i}"><span>${esc(q[0])}</span><span class="fmt">${q[1]==='custom'?'custom':''}</span></button>`; }).join('')}</div>
-    ${cat.qs[askState.q]&&cat.qs[askState.q][1]==='custom'?`<label class="f" for="ask-custom">Distance</label><input type="text" id="ask-custom" value="${esc(askState.custom)}" placeholder="e.g. 2 miles">`:''}
-    <button class="btn primary block" id="btn-send" style="margin-top:12px" ${askState.q==null?'disabled':''}>Send to hider</button></div>`;
+    ${sel&&sel[1]==='custom'?`<label class="f" for="ask-custom">Distance</label><input type="text" id="ask-custom" value="${esc(askState.custom)}" placeholder="e.g. 2 miles">`:''}
+    ${needLoc?locRow('ask',askState.loc,askState.locHow):''}
+    <button class="btn primary block" id="btn-send" style="margin-top:12px" ${askState.q==null||(needLoc&&!askState.loc)?'disabled':''}>${cat.two?'Start thermometer':'Send to hider'}</button></div>`;
 }
 function inbox(n){
   const pend=questions.filter(q=>q.status==='pending');
@@ -553,8 +654,11 @@ function inbox(n){
 }
 function qCard(q,mine){
   const pending=q.status==='pending';
-  let body=`<div class="msg ${pending?'pending':''} ${pending&&mine?'mine-to-answer':''}"><div class="who"><span><span class="tag">${esc(q.catName)}</span>${esc(q.askedBy)}</span><time>${fmtClock(q.askedAt)}</time></div>
-    <div class="txt">${esc(q.fmt).replace('___','<b>'+esc(q.q)+'</b>')}</div>`;
+  const started=q.status==='started';
+  let body=`<div class="msg ${pending||started?'pending':''} ${pending&&mine?'mine-to-answer':''}"><div class="who"><span><span class="tag">${esc(q.catName)}</span>${esc(q.askedBy)}</span><time>${fmtClock(q.askedAt)}</time></div>
+    <div class="txt">${started?`Starting a thermometer — travelling <b>${esc(q.q)}</b>`:esc(q.fmt).replace('___','<b>'+esc(q.q)+'</b>')}</div>`;
+  if(q.loc) body+=`<div class="small muted">From ${esc(Map3.near(q.loc))}${q.loc2?` to ${esc(Map3.near(q.loc2))}${q.travelled?` · ${fmtDist(q.travelled)} apart`:''}`:''}</div>`;
+  if(started){ body+=`<p class="small muted">${mine?'Waiting for them to travel and ask.':'Travel the distance, then ask from the Ask tab.'}</p>`; return body+'</div>'; }
   if(pending&&mine){
     body+=`<p class="small muted">Draw ${q.draw}, keep ${q.keep} — answer first, then log the card you kept in Hand.</p>`;
     if(q.ans&&q.ans.length) body+=`<div class="answers">${q.ans.map(a=>`<button class="btn primary" data-ans="${esc(a)}" data-qid="${q.id}">${esc(a)}</button>`).join('')}</div>`;
@@ -562,7 +666,8 @@ function qCard(q,mine){
     else body+=`<div class="row" style="margin-top:8px"><input type="text" class="grow" id="ta-${q.id}" placeholder="Your answer"><button class="btn primary" data-sendtext="${q.id}">Answer</button></div>`;
     body+=`<div class="row" style="margin-top:8px"><button class="btn sm" data-veto="${q.id}">Veto (uses a Veto card)</button></div>`;
   } else if(pending){ body+=`<p class="small muted">Waiting for the hider…</p>`; }
-  else { body+=`<div class="ans ${q.status==='vetoed'?'veto':''}"><b>${esc(q.answer)}</b>${q.note?' — '+esc(q.note):''}<span class="small muted"> · ${fmtClock(q.answeredAt)}</span>${q.photo?`<img src="/_blob/${esc(q.photo)}" alt="Photo answer">`:''}</div>`; }
+  else { const cut=Map3.cutBy(q);
+    body+=`<div class="ans ${q.status==='vetoed'?'veto':''}"><b>${esc(q.answer)}</b>${q.note?' — '+esc(q.note):''}<span class="small muted"> · ${fmtClock(q.answeredAt)}</span>${cut?`<div class="small" style="opacity:.85;margin-top:4px">${esc(cut)}</div>`:''}${q.photo?`<img src="/_blob/${esc(q.photo)}" alt="Photo answer">`:''}</div>`; }
   return body+'</div>';
 }
 function feed(){
@@ -572,7 +677,9 @@ function feed(){
 }
 function hand(){
   const h=game.hand||[];
-  if(!isHider()) return `<div class="card"><h2>Hider's hand</h2><p class="muted">${h.length} card${h.length===1?'':'s'} in hand (max 6 unless a powerup says otherwise). Time bonuses held at the end count toward the hider's time.</p><div class="hand">${h.map(c=>`<div class="hcard"><b>${esc(c.kind)}</b><span class="small">${esc(c.text)}</span></div>`).join('')}</div></div>`;
+  // The hider's deck is private information — seekers see neither the cards
+  // nor how many there are.
+  if(!isHider()) return `<div class="card"><h2>The hider's hand</h2><p class="muted">Hidden. What the hider is holding — and how much of it — is theirs to know. You find out when they play something.</p></div>`;
   return `<div class="card"><h2>Your hand · ${h.length}/6</h2><p class="small muted">Log what you keep after each draw so the seekers can see your card count (not the cards). Discard when you play a card.</p>
     <div class="hand">${h.map(c=>`<div class="hcard"><b>${esc(c.kind)}</b><span class="small">${esc(c.text)}</span><button class="x" data-discard="${esc(c.id)}">discard</button></div>`).join('')}</div>
     <h3>Add a card</h3><div class="row"><select id="card-kind">${CARD_KINDS.map(k=>`<option>${k}</option>`).join('')}</select><input type="text" class="grow" id="card-text" placeholder="e.g. +5 min, Veto, Randomize"><button class="btn" id="btn-card">Keep</button></div></div>`;
@@ -612,10 +719,14 @@ function wire(){
   on('#sel-zone button','click',e=>{ const z=e.currentTarget.dataset.zone; patch({zone:z}); document.querySelectorAll('#sel-zone button').forEach(b=>b.classList.toggle('on',b===e.currentTarget)); });
   on('#btn-note','click',()=>{ patch({note:$('#game-note').value}); toast('Saved'); });
   on('[data-cat]','click',e=>{ askState={cat:e.currentTarget.dataset.cat,q:null,custom:''}; render(); });
-  on('#btn-back','click',()=>{ askState={cat:null,q:null,custom:''}; render(); });
+  on('#btn-back','click',()=>{ askState={cat:null,q:null,custom:'',loc:null,locHow:''}; render(); });
   on('[data-q]','click',e=>{ askState.q=+e.currentTarget.dataset.q; render(); const c=$('#ask-custom'); if(c) c.focus(); });
   on('#ask-custom','input',e=>{ askState.custom=e.target.value; });
   on('#btn-send','click',sendQuestion);
+  on('[data-gps]','click',e=>useGps(e.currentTarget.dataset.gps));
+  on('[data-pick]','click',e=>pickOnMap(e.currentTarget.dataset.pick));
+  on('[data-arm]','click',e=>{ thermoFinish={qid:e.currentTarget.dataset.arm,loc:null,how:''}; render(); });
+  on('#btn-thermo-go','click',finishThermo);
   on('[data-ans]','click',e=>answerQ(e.currentTarget.dataset.qid,e.currentTarget.dataset.ans));
   on('[data-sendtext]','click',e=>{ const id=e.currentTarget.dataset.sendtext; const v=$('#ta-'+id).value.trim(); if(!v){ toast('Type an answer'); return; } answerQ(id,v); });
   on('[data-textans]','click',e=>{ const id=e.currentTarget.dataset.textans; const v=prompt('Describe what the photo would show:'); if(v) answerQ(id,v); });
@@ -745,6 +856,18 @@ function redraw(){
     el('circle',{cx:fix.x,cy:fix.y,r:metres(fix.acc,fix.y),class:'m-me-acc'},gDyn);
     el('circle',{cx:fix.x,cy:fix.y,r:7/px,class:'m-me'},gDyn);
   }
+  drawCons(gDyn,px);
+  // Fade the stops the answers have ruled out.
+  const keep=survivors(), chip=document.getElementById('mp-count');
+  if(gStops){
+    const kids=gStops.children;
+    for(let i=0;i<kids.length;i++) kids[i].classList.toggle('out', keep? !keep[i] : false);
+  }
+  if(chip){
+    if(keep){ let left=0; for(let i=0;i<keep.length;i++) left+=keep[i];
+      chip.hidden=false; chip.textContent=left+' of '+keep.length+' possible'; }
+    else chip.hidden=true;
+  }
 }
 
 function tip(html){ const t=document.getElementById('maptip'); if(!html){t.style.display='none';return;} t.innerHTML=html; t.style.display='block'; }
@@ -816,6 +939,10 @@ function bind(){
     if(!wasTap) return;
     // Pointer capture retargets this event to #mapview, so the element under
     // the finger has to be looked up by position.
+    if(pickLoc){ const [lx,ly]=client2map(e.clientX,e.clientY);
+      const which=pickLoc; pickLoc=false;
+      setLoc(which,[Math.round(lx),Math.round(ly)],'map');
+      tab='ask'; save('hs-tab',tab); render(); toast('Location set'); return; }
     if(pinMode){ const [px0,py0]=client2map(e.clientX,e.clientY); pinMode=false;
       document.getElementById('mp-pin').classList.remove('on'); askPin(px0,py0); return; }
     const hit=document.elementFromPoint(e.clientX,e.clientY)||e.target;
@@ -848,7 +975,110 @@ function bind(){
   window.addEventListener('resize',()=>{ if(!document.getElementById('mapview').hidden&&vb) fit(); });
 }
 
+// --- what an answer rules out ------------------------------------------
+// Only the questions whose reference data is actually in this map become
+// constraints. Everything else is recorded and left for you to reason about,
+// rather than faked.
+function cons(){
+  const out=[];
+  for(const q of questions){
+    if(q.status!=='answered'||!q.loc) continue;
+    if(q.cat==='radar'&&q.distM) out.push({t:'radar',x:q.loc[0],y:q.loc[1],r:q.distM,inside:q.answer==='Yes'});
+    else if(q.cat==='thermo'&&q.loc2) out.push({t:'thermo',a:q.loc,b:q.loc2,hotter:q.answer==='Hotter'});
+    else if(q.cat==='measuring'&&q.q==='Rail station') out.push({t:'station',x:q.loc[0],y:q.loc[1],closer:q.answer==='Closer'});
+  }
+  return out;
+}
+function nearStationDist(p){
+  let best=Infinity;
+  for(const st of M().stations){ const d=Math.hypot(p[0]-st.x,p[1]-st.y); if(d<best) best=d; }
+  return best;
+}
+// A stop survives if ANY point in its hiding zone could satisfy the answer —
+// so nothing is eliminated that is still genuinely possible.
+function ok(p,cs,z){
+  for(const c of cs){
+    if(c.t==='radar'){
+      const d=Math.hypot(p[0]-c.x,p[1]-c.y), R=metres(c.r,p[1]);
+      if(c.inside){ if(d>R+z) return false; } else if(d<R-z) return false;
+    } else if(c.t==='thermo'){
+      // Hotter means the end point is nearer the hider, i.e. the hider lies
+      // beyond the perpendicular bisector of start->end.
+      const mx=(c.a[0]+c.b[0])/2, my=(c.a[1]+c.b[1])/2;
+      let ux=c.b[0]-c.a[0], uy=c.b[1]-c.a[1];
+      const L=Math.hypot(ux,uy)||1; ux/=L; uy/=L;
+      const sd=(p[0]-mx)*ux+(p[1]-my)*uy;
+      if(c.hotter){ if(sd<=-z) return false; } else if(sd>=z) return false;
+    } else if(c.t==='station'){
+      const dp=nearStationDist(p), ds=nearStationDist([c.x,c.y]);
+      if(c.closer){ if(dp-z>ds) return false; } else if(dp+z<ds) return false;
+    }
+  }
+  return true;
+}
+function zoneRadius(){
+  const m=M();
+  return metres(HIDE_RADIUS[(game&&game.size)||'S'], m.vb[1]+m.vb[3]/2);
+}
+function survivors(){
+  const m=M(), cs=cons();
+  if(!cs.length) return null;
+  const z=zoneRadius(), keep=new Uint8Array(m.stops.length);
+  for(let i=0;i<m.stops.length;i++) keep[i]=ok(m.stops[i],cs,z)?1:0;
+  return keep;
+}
+function drawCons(g,px){
+  for(const c of cons()){
+    if(c.t==='radar'){
+      el('circle',{cx:c.x,cy:c.y,r:metres(c.r,c.y),class:'m-con '+(c.inside?'in':'out')},g);
+      el('circle',{cx:c.x,cy:c.y,r:4/px,class:'m-from'},g);
+    } else if(c.t==='thermo'){
+      const mx=(c.a[0]+c.b[0])/2, my=(c.a[1]+c.b[1])/2;
+      let ux=c.b[0]-c.a[0], uy=c.b[1]-c.a[1];
+      const L=Math.hypot(ux,uy)||1; ux/=L; uy/=L;
+      const S=200000;   // long enough to cross any view
+      el('line',{x1:mx-uy*S,y1:my+ux*S,x2:mx+uy*S,y2:my-ux*S,class:'m-con thermo'},g);
+      el('line',{x1:c.a[0],y1:c.a[1],x2:c.b[0],y2:c.b[1],class:'m-leg'},g);
+      el('circle',{cx:c.a[0],cy:c.a[1],r:4/px,class:'m-from'},g);
+      el('circle',{cx:c.b[0],cy:c.b[1],r:4/px,class:'m-from'},g);
+    } else if(c.t==='station'){
+      el('circle',{cx:c.x,cy:c.y,r:4/px,class:'m-from'},g);
+    }
+  }
+}
+
 return {
+  project(lon,lat){ return project(lon,lat).map(Math.round); },
+  // Straight-line distance between two projected points, in real metres.
+  trueMetres(a,b){
+    const d=Math.hypot(a[0]-b[0],a[1]-b[1]);
+    return d*Math.cos(latAt((a[1]+b[1])/2)*Math.PI/180);
+  },
+  near(loc){
+    const m=M(); let best=null,bd=Infinity;
+    for(const st of m.stations){ const d=Math.hypot(loc[0]-st.x,loc[1]-st.y); if(d<bd){bd=d;best=st.n;} }
+    for(const p of m.stops){ const d=Math.hypot(loc[0]-p[0],loc[1]-p[1]); if(d<bd){bd=d;best=p[2]||'an unnamed stop';} }
+    return best?`near ${best}`:'an unknown spot';
+  },
+  cutBy(q){
+    if(q.status!=='answered'||!q.loc) return '';
+    if(q.cat==='radar'&&q.distM) return q.answer==='Yes'
+      ? `Rules out everywhere more than ${fmtDist(q.distM)} from there.`
+      : `Rules out everywhere within ${fmtDist(q.distM)} of there.`;
+    if(q.cat==='thermo'&&q.loc2) return q.answer==='Hotter'
+      ? 'Rules out the half of the map nearer where they set off.'
+      : 'Rules out the half of the map nearer where they ended up.';
+    if(q.cat==='measuring'&&q.q==='Rail station') return q.answer==='Closer'
+      ? 'Rules out stops further from a rail station than they were.'
+      : 'Rules out stops nearer a rail station than they were.';
+    return '';
+  },
+  count(){
+    const cs=cons(); if(!cs.length) return {cons:0};
+    const keep=survivors(); let left=0;
+    for(let i=0;i<keep.length;i++) left+=keep[i];
+    return {cons:cs.length,left,total:keep.length};
+  },
   show(){
     bind();
     if(built!==zoneKey()) build(); else { fit(); }
