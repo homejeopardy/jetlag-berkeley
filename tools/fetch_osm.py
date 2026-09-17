@@ -240,7 +240,7 @@ def main():
     print("5/5 basemap")
     d5 = overpass(read_query("04-basemap.overpassql"), args.endpoint)
     base = {k: [] for k in (
-        "motorway", "trunk", "primary", "secondary", "tertiary",
+        "motorway", "trunk", "primary", "secondary", "tertiary", "residential",
         "coast", "water", "park", "campus", "rail", "subway", "names",
     )}
 
@@ -259,6 +259,10 @@ def main():
             hw = tags["highway"]
             if hw == "motorway_link":
                 base["motorway"].append(geom(e, TOL_BOUNDARY))
+            elif hw in ("living_street", "unclassified"):
+                # Drawn with the residential network; the distinction is not
+                # one you can see at this scale.
+                push("residential", e, 0.00003)
             else:
                 key = hw.replace("_link", "")
                 if key in base:

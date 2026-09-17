@@ -240,6 +240,7 @@ def compute(mode_name):
         "water": poly_path(water),
         "parks": poly_path(unary_union(parks)) if parks else "",
         "campus": poly_path(unary_union(campus)) if campus else "",
+        "residential": lines_path(base.get("residential", []), view),
         "tertiary": lines_path(base["tertiary"], view),
         "secondary": lines_path(base["secondary"], view),
         "primary": lines_path(base["primary"], view),

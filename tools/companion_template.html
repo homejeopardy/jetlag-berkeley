@@ -103,6 +103,7 @@ nav.tabs button .n{position:absolute;top:6px;right:calc(50% - 26px);min-width:18
 #mapview.drag{cursor:grabbing}
 #mapsvg{width:100%;height:100%;display:block}
 #mapsvg .m-road{fill:none;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke}
+#mapsvg .m-residential{stroke:#fff;stroke-width:.8px;opacity:.7}
 #mapsvg .m-tertiary{stroke:#fff;stroke-width:1.1px;opacity:.9}
 #mapsvg .m-secondary{stroke:#fff;stroke-width:2.1px}
 #mapsvg .m-primary{stroke:#fff;stroke-width:2.9px}
@@ -116,7 +117,7 @@ nav.tabs button .n{position:absolute;top:6px;right:calc(50% - 26px);min-width:18
 #mapsvg .m-oob{fill:#8C8A84;fill-opacity:.42;fill-rule:evenodd;pointer-events:none}
 #mapsvg .m-stop{fill:#fff;stroke:#15171B;stroke-width:1.5px;vector-effect:non-scaling-stroke;cursor:pointer}
 #mapsvg .m-stop.sel{fill:var(--yellow)}
-#mapsvg .m-stop.out{opacity:.1}
+#mapsvg .m-stop.out{fill:#B6B3AB;stroke:#8D8A83;opacity:.5}
 #mapsvg .m-con{fill:none;vector-effect:non-scaling-stroke;stroke-width:2px}
 #mapsvg .m-con.in{stroke:#1F8A5B;stroke-dasharray:6 4}
 #mapsvg .m-con.out{stroke:#D62828;stroke-dasharray:6 4}
@@ -363,11 +364,29 @@ const CATS=[
  {id:'photo',name:'Photo',fmt:'Send me a photo of ___.',draw:1,keep:1,ans:[],
   qs:[['Any building visible from your transit station'],['The widest street near you'],['A tree'],['The tallest structure in your current sightline'],['You (selfie)'],['The sky'],['Tallest building visible from your transit station','M'],['Trace your nearest street/path','M'],['2 buildings','M'],['A restaurant interior','M'],['A park','M'],['A grocery store aisle','M'],['A place of worship','M'],['Your train platform','M'],['½ mile of streets traced','L'],['Tallest mountain visible from your station','L'],['Biggest body of water in your zone','L'],['5 buildings','L']]},
  {id:'tentacle',name:'Tentacles',fmt:'Within ___ of me, which ___ are you nearest to?',draw:4,keep:2,ans:[],min:'M',
-  qs:[['Museums within 1 mile','M'],['Libraries within 1 mile','M'],['Movie theaters within 1 mile','M'],['Hospitals within 1 mile','M'],['Metro lines within 15 miles','L'],['Zoos within 15 miles','L'],['Aquariums within 15 miles','L'],['Amusement parks within 15 miles','L']]},
+  qs:[['Museums within 1 mile','M',1609,'museum'],['Libraries within 1 mile','M',1609,'library'],['Movie theaters within 1 mile','M',1609,'cinema'],['Hospitals within 1 mile','M',1609,'hospital'],['Metro lines within 15 miles','L',24140],['Zoos within 15 miles','L',24140,'zoo'],['Aquariums within 15 miles','L',24140,'aquarium'],['Amusement parks within 15 miles','L',24140,'theme_park']]},
 ];
+// Which questions the map can narrow, and against what. A question missing
+// from here is recorded in the feed and left for you to reason about: an app
+// that guessed would fade out somewhere the hider might really be.
+const REF={
+ 'Commercial airport':'airport','Mountain':'peak','Amusement park':'theme_park',
+ 'Zoo':'zoo','Aquarium':'aquarium','Golf course':'golf','Museum':'museum',
+ 'Movie theater':'cinema','Hospital':'hospital','Library':'library',
+ 'Foreign consulate':'consulate','Coastline':'coast','Rail station':'station',
+ 'Station name length (letters)':'#namelen',
+ '3rd administrative division (city)':'#city'};
+// How each one reads in a sentence.
+const REF_NOUN={airport:'a commercial airport',peak:'a mountain',theme_park:'an amusement park',
+ zoo:'a zoo',aquarium:'an aquarium',golf:'a golf course',museum:'a museum',
+ cinema:'a movie theater',hospital:'a hospital',library:'a library',
+ consulate:'a foreign consulate',coast:'the coastline',station:'a rail station'};
 const SIZE_RANK={S:0,M:1,L:2};
 const CARD_KINDS=['Time bonus','Powerup','Curse'];
-const MAPS=__MAPDATA__;
+const MAPDATA=__MAPDATA__;
+const MAPS=MAPDATA.zones;
+// Reference points arrive as lon/lat and are projected once per zone.
+const POI_SRC=MAPDATA.poi;
 const DEFAULT_ZONE='berkeley';
 // Hiding-zone radius in real metres, by game size.
 const HIDE_RADIUS={S:402,M:402,L:805};
@@ -485,9 +504,13 @@ async function sendQuestion(){
     text=fmtDist(distM);
   }
   if(cat.loc&&!askState.loc){ toast('Set where you are first'); return; }
+  // Which reference points this question is about, so every phone narrows
+  // the map the same way without re-deriving it from the wording.
+  const ref=cat.id==='tentacle'?(q[3]||null)
+    :(cat.id==='matching'||cat.id==='measuring')?(REF[text]||null):null;
   const body={cat:cat.id,catName:cat.name,fmt:cat.fmt,q:text,askedBy:me.name,askedAt:Date.now(),
     status:cat.two?'started':'pending',answer:'',answeredAt:null,photo:'',note:'',
-    draw:cat.draw,keep:cat.keep,ans:cat.ans,
+    draw:cat.draw,keep:cat.keep,ans:cat.ans,ref:ref,
     loc:askState.loc||null,locHow:askState.locHow||'',loc2:null,distM:distM};
   try{
     await db.doc('games/'+code).collection('questions').add(body);
@@ -663,7 +686,9 @@ function qCard(q,mine){
     body+=`<p class="small muted">Draw ${q.draw}, keep ${q.keep} — answer first, then log the card you kept in Hand.</p>`;
     if(q.ans&&q.ans.length) body+=`<div class="answers">${q.ans.map(a=>`<button class="btn primary" data-ans="${esc(a)}" data-qid="${q.id}">${esc(a)}</button>`).join('')}</div>`;
     else if(q.cat==='photo') body+=`<div class="row" style="margin-top:8px"><label class="btn primary" style="display:inline-block">Take / choose photo<input type="file" accept="image/*" capture="environment" data-photo="${q.id}" hidden></label><button class="btn" data-textans="${q.id}">Describe instead</button></div><p class="small muted">Photo time limit: ${SIZES[game.size].photo} min.</p>`;
-    else body+=`<div class="row" style="margin-top:8px"><input type="text" class="grow" id="ta-${q.id}" placeholder="Your answer"><button class="btn primary" data-sendtext="${q.id}">Answer</button></div>`;
+    else { const opts=q.cat==='tentacle'?Map3.tentacleOptions(q):[];
+      if(opts.length) body+=`<div class="answers">${opts.map(o=>`<button class="btn primary" data-ans="${esc(o)}" data-qid="${q.id}">${esc(o)}</button>`).join('')}</div><p class="small muted">The ones within range of where they asked, nearest to them first. Not one of these? Type it instead.</p>`;
+      body+=`<div class="row" style="margin-top:8px"><input type="text" class="grow" id="ta-${q.id}" placeholder="${opts.length?'Something else':'Your answer'}"><button class="btn primary" data-sendtext="${q.id}">Answer</button></div>`; }
     body+=`<div class="row" style="margin-top:8px"><button class="btn sm" data-veto="${q.id}">Veto (uses a Veto card)</button></div>`;
   } else if(pending){ body+=`<p class="small muted">Waiting for the hider…</p>`; }
   else { const cut=Map3.cutBy(q);
@@ -743,7 +768,7 @@ function wire(){
 const Map3=(function(){
 const NS='http://www.w3.org/2000/svg';
 const R=6378137;
-let svg=null, root=null, gStops=null, gDyn=null, built=null, vb=null, zonePath=null, scaled=[], fitW=0;
+let svg=null, root=null, gStops=null, gDyn=null, gRes=null, built=null, vb=null, zonePath=null, scaled=[], fitW=0;
 let sel=null, pinMode=false, zoneMode=false, watchId=null, fix=null;
 
 const el=(t,a,p)=>{const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);if(p)p.appendChild(e);return e;};
@@ -764,11 +789,12 @@ function build(){
   svg.innerHTML='';
   root=el('g',{},svg);
   scaled=[];
-  const order=['parks','campus','water','tertiary','secondary','primary','motorway','rail','cut','bart','amtrak'];
+  const order=['parks','campus','water','residential','tertiary','secondary','primary','motorway','rail','cut','bart','amtrak'];
   const fills={parks:'#CFD9B8',campus:'#E6D9BF',water:'#A8C3D1'};
+  gRes=null;
   for(const k of order){ const d=m.layers[k]; if(!d) continue;
     if(fills[k]) el('path',{d,fill:fills[k]},root);
-    else el('path',{d,class:'m-road m-'+k},root); }
+    else { const e=el('path',{d,class:'m-road m-'+k},root); if(k==='residential') gRes=e; } }
   // Everything outside the zone is out of bounds, including the area beyond
   // the basemap's own extent — so the mask is a very large rectangle with the
   // zone punched out of it, not the basemap rectangle.
@@ -820,6 +846,9 @@ function apply(){
   // Neighbourhood names only earn their space once you are zoomed in past
   // the whole-zone view, where they would otherwise sit on the stations.
   const showPlaces=fitW?vb.w<fitW*0.62:true;
+  // The minor street network is only legible zoomed in, and drawing it at
+  // the whole-zone view just greys the map out.
+  if(gRes) gRes.style.display=(fitW&&vb.w>fitW*0.38)?'none':'';
   for(const sc of scaled){ sc.g.setAttribute('transform',`translate(${sc.x} ${sc.y}) scale(${inv})`);
     if(sc.place) sc.g.style.display=showPlaces?'':'none'; }
   redraw();
@@ -979,24 +1008,70 @@ function bind(){
 // Only the questions whose reference data is actually in this map become
 // constraints. Everything else is recorded and left for you to reason about,
 // rather than faked.
+// The reference points, projected into this zone once and kept.
+let poiCache={};
+function poiPts(k){
+  const z=zoneKey(), c=poiCache[z]||(poiCache[z]={});
+  if(c[k]) return c[k];
+  c[k]= k==='station' ? M().stations.map(s=>[s.x,s.y,s.n])
+      : (POI_SRC[k]||[]).map(q=>{ const xy=project(q[0],q[1]); return [xy[0],xy[1],q[2]||'']; });
+  return c[k];
+}
+function nearestIn(p,pts){ let bi=-1,bd=Infinity;
+  for(let i=0;i<pts.length;i++){ const d=Math.hypot(p[0]-pts[i][0],p[1]-pts[i][1]); if(d<bd){bd=d;bi=i;} }
+  return {i:bi,d:bd}; }
+function minDist(p,pts,skip){ let bd=Infinity;
+  for(let i=0;i<pts.length;i++){ if(i===skip) continue;
+    const d=Math.hypot(p[0]-pts[i][0],p[1]-pts[i][1]); if(d<bd) bd=d; }
+  return bd; }
+const nameLen=s=>(s||'').replace(/[^A-Za-z]/g,'').length;
+// Which city a position is in, judged by the stop it is nearest. Close to the
+// line that cannot be judged honestly, so the question is simply dropped.
+function cityAt(p){
+  const m=M(); if(!m.city) return -1;
+  let bi=-1,bd=Infinity;
+  for(let i=0;i<m.stops.length;i++){ const d=Math.hypot(p[0]-m.stops[i][0],p[1]-m.stops[i][1]); if(d<bd){bd=d;bi=i;} }
+  return (bi<0||m.cityEdge[bi])?-1:m.city[bi];
+}
+// Every answered question that carries geometry, as a small description.
+// Kept light so it can also be the cache key.
 function cons(){
   const out=[];
   for(const q of questions){
-    if(q.status!=='answered'||!q.loc) continue;
-    if(q.cat==='radar'&&q.distM) out.push({t:'radar',x:q.loc[0],y:q.loc[1],r:q.distM,inside:q.answer==='Yes'});
+    if(q.status!=='answered'||!q.loc||!q.answer) continue;
+    const x=q.loc[0], y=q.loc[1], ref=q.ref||REF[q.q]||null;
+    if(q.cat==='radar'&&q.distM) out.push({t:'radar',x,y,r:q.distM,inside:q.answer==='Yes'});
     else if(q.cat==='thermo'&&q.loc2) out.push({t:'thermo',a:q.loc,b:q.loc2,hotter:q.answer==='Hotter'});
-    else if(q.cat==='measuring'&&q.q==='Rail station') out.push({t:'station',x:q.loc[0],y:q.loc[1],closer:q.answer==='Closer'});
+    else if(q.cat==='measuring'&&ref&&ref[0]!=='#') out.push({t:'dist',k:ref,x,y,closer:q.answer==='Closer'});
+    else if(q.cat==='matching'&&ref&&(q.answer==='Yes'||q.answer==='No')){
+      const same=q.answer==='Yes';
+      if(ref==='#city'){ const c=cityAt(q.loc); if(c>=0) out.push({t:'city',x,y,c,same}); }
+      else if(ref==='#namelen') out.push({t:'namelen',x,y,same});
+      else out.push({t:'near',k:ref,x,y,same});
+    }
+    else if(q.cat==='tentacle'&&ref&&q.distM) out.push({t:'tent',k:ref,x,y,r:q.distM,name:q.answer});
   }
   return out;
 }
-function nearStationDist(p){
-  let best=Infinity;
-  for(const st of M().stations){ const d=Math.hypot(p[0]-st.x,p[1]-st.y); if(d<best) best=d; }
-  return best;
+// Resolve a description against this zone's reference points — once per
+// recompute, not once per stop.
+function prep(c){
+  const p=Object.assign({},c);
+  if(c.t==='dist'){ p.pts=poiPts(c.k); p.ds=minDist([c.x,c.y],p.pts,-1); }
+  else if(c.t==='near'){ p.pts=poiPts(c.k); p.j=nearestIn([c.x,c.y],p.pts).i; }
+  else if(c.t==='tent'){ const pts=poiPts(c.k), R=metres(c.r,c.y);
+    p.pts=pts; p.idx=[];
+    for(let i=0;i<pts.length;i++) if(Math.hypot(c.x-pts[i][0],c.y-pts[i][1])<=R) p.idx.push(i);
+    p.j=-1; for(const i of p.idx) if(pts[i][2]===c.name){ p.j=i; break; } }
+  else if(c.t==='namelen'){ p.pts=poiPts('station');
+    const n=nearestIn([c.x,c.y],p.pts); p.L=n.i<0?-1:nameLen(p.pts[n.i][2]); }
+  else if(c.t==='city'){ const m=M(); p.city=m.city; p.edge=m.cityEdge; }
+  return p;
 }
 // A stop survives if ANY point in its hiding zone could satisfy the answer —
-// so nothing is eliminated that is still genuinely possible.
-function ok(p,cs,z){
+// so nothing is faded out that is still genuinely possible. `z` is the zone
+// radius; a comparison between two distances can therefore be wrong by 2z.
+function ok(p,cs,z,si){
   for(const c of cs){
     if(c.t==='radar'){
       const d=Math.hypot(p[0]-c.x,p[1]-c.y), R=metres(c.r,p[1]);
@@ -1009,9 +1084,34 @@ function ok(p,cs,z){
       const L=Math.hypot(ux,uy)||1; ux/=L; uy/=L;
       const sd=(p[0]-mx)*ux+(p[1]-my)*uy;
       if(c.hotter){ if(sd<=-z) return false; } else if(sd>=z) return false;
-    } else if(c.t==='station'){
-      const dp=nearStationDist(p), ds=nearStationDist([c.x,c.y]);
-      if(c.closer){ if(dp-z>ds) return false; } else if(dp+z<ds) return false;
+    } else if(c.t==='dist'){
+      if(!c.pts.length) continue;
+      const dp=minDist(p,c.pts,-1);
+      if(c.closer){ if(dp-z>c.ds) return false; } else if(dp+z<c.ds) return false;
+    } else if(c.t==='near'){
+      if(c.j<0||c.pts.length<2) continue;
+      const dt=Math.hypot(p[0]-c.pts[c.j][0],p[1]-c.pts[c.j][1]);
+      const dr=minDist(p,c.pts,c.j);
+      if(c.same){ if(dt>dr+2*z) return false; } else if(dr>dt+2*z) return false;
+    } else if(c.t==='tent'){
+      if(c.j<0||c.idx.length<2) continue;
+      const dt=Math.hypot(p[0]-c.pts[c.j][0],p[1]-c.pts[c.j][1]);
+      let dr=Infinity;
+      for(const i of c.idx){ if(i===c.j) continue;
+        const d=Math.hypot(p[0]-c.pts[i][0],p[1]-c.pts[i][1]); if(d<dr) dr=d; }
+      if(dt>dr+2*z) return false;
+    } else if(c.t==='namelen'){
+      if(c.L<0) continue;
+      let dm=Infinity,dn=Infinity;
+      for(let i=0;i<c.pts.length;i++){ const d=Math.hypot(p[0]-c.pts[i][0],p[1]-c.pts[i][1]);
+        if(nameLen(c.pts[i][2])===c.L){ if(d<dm) dm=d; } else if(d<dn) dn=d; }
+      if(dm===Infinity||dn===Infinity) continue;
+      if(c.same){ if(dm>dn+2*z) return false; } else if(dn>dm+2*z) return false;
+    } else if(c.t==='city'){
+      // Stops within half a kilometre of the city line are never ruled out:
+      // a hiding zone that close straddles it.
+      if(si==null||!c.city||c.edge[si]) continue;
+      if((c.city[si]===c.c)!==c.same) return false;
     }
   }
   return true;
@@ -1020,18 +1120,21 @@ function zoneRadius(){
   const m=M();
   return metres(HIDE_RADIUS[(game&&game.size)||'S'], m.vb[1]+m.vb[3]/2);
 }
+let survCache={key:'',keep:null};
 function survivors(){
-  const m=M(), cs=cons();
-  if(!cs.length) return null;
-  const z=zoneRadius(), keep=new Uint8Array(m.stops.length);
-  for(let i=0;i<m.stops.length;i++) keep[i]=ok(m.stops[i],cs,z)?1:0;
+  const raw=cons();
+  if(!raw.length) return null;
+  const key=zoneKey()+'|'+((game&&game.size)||'S')+'|'+JSON.stringify(raw);
+  if(survCache.key===key) return survCache.keep;
+  const m=M(), cs=raw.map(prep), z=zoneRadius(), keep=new Uint8Array(m.stops.length);
+  for(let i=0;i<m.stops.length;i++) keep[i]=ok(m.stops[i],cs,z,i)?1:0;
+  survCache={key,keep};
   return keep;
 }
 function drawCons(g,px){
   for(const c of cons()){
     if(c.t==='radar'){
       el('circle',{cx:c.x,cy:c.y,r:metres(c.r,c.y),class:'m-con '+(c.inside?'in':'out')},g);
-      el('circle',{cx:c.x,cy:c.y,r:4/px,class:'m-from'},g);
     } else if(c.t==='thermo'){
       const mx=(c.a[0]+c.b[0])/2, my=(c.a[1]+c.b[1])/2;
       let ux=c.b[0]-c.a[0], uy=c.b[1]-c.a[1];
@@ -1041,9 +1144,10 @@ function drawCons(g,px){
       el('line',{x1:c.a[0],y1:c.a[1],x2:c.b[0],y2:c.b[1],class:'m-leg'},g);
       el('circle',{cx:c.a[0],cy:c.a[1],r:4/px,class:'m-from'},g);
       el('circle',{cx:c.b[0],cy:c.b[1],r:4/px,class:'m-from'},g);
-    } else if(c.t==='station'){
-      el('circle',{cx:c.x,cy:c.y,r:4/px,class:'m-from'},g);
+    } else if(c.t==='tent'){
+      el('circle',{cx:c.x,cy:c.y,r:metres(c.r,c.y),class:'m-con in'},g);
     }
+    if(c.x!=null) el('circle',{cx:c.x,cy:c.y,r:4/px,class:'m-from'},g);
   }
 }
 
@@ -1061,18 +1165,48 @@ return {
     return best?`near ${best}`:'an unknown spot';
   },
   cutBy(q){
-    if(q.status!=='answered'||!q.loc) return '';
-    if(q.cat==='radar'&&q.distM) return q.answer==='Yes'
+    if(q.status!=='answered'||q.cat==='photo') return '';
+    if(!q.loc) return 'Not drawn on the map — no location was recorded with it.';
+    const ref=q.ref||REF[q.q]||null, n=REF_NOUN[ref]||'it';
+    const none='Not drawn on the map — there is no reference data for that here.';
+    if(q.cat==='radar') return q.distM?(q.answer==='Yes'
       ? `Rules out everywhere more than ${fmtDist(q.distM)} from there.`
-      : `Rules out everywhere within ${fmtDist(q.distM)} of there.`;
-    if(q.cat==='thermo'&&q.loc2) return q.answer==='Hotter'
+      : `Rules out everywhere within ${fmtDist(q.distM)} of there.`):none;
+    if(q.cat==='thermo') return q.loc2?(q.answer==='Hotter'
       ? 'Rules out the half of the map nearer where they set off.'
-      : 'Rules out the half of the map nearer where they ended up.';
-    if(q.cat==='measuring'&&q.q==='Rail station') return q.answer==='Closer'
-      ? 'Rules out stops further from a rail station than they were.'
-      : 'Rules out stops nearer a rail station than they were.';
-    return '';
+      : 'Rules out the half of the map nearer where they ended up.'):none;
+    if(q.cat==='measuring') return (ref&&ref[0]!=='#')?(q.answer==='Closer'
+      ? `Rules out stops further from ${n} than they were.`
+      : `Rules out stops nearer ${n} than they were.`):none;
+    if(q.cat==='matching'){
+      if(ref==='#city') return q.answer==='Yes'
+        ? 'Rules out the other city, give or take the stops on the line.'
+        : 'Rules out their own city, give or take the stops on the line.';
+      if(ref==='#namelen') return q.answer==='Yes'
+        ? 'Rules out stops whose nearest station has a different name length.'
+        : 'Rules out stops whose nearest station matches theirs for length.';
+      if(!ref) return none;
+      return q.answer==='Yes'
+        ? `Rules out stops whose nearest ${esc(q.q).toLowerCase()} is a different one.`
+        : `Rules out stops that share their nearest ${esc(q.q).toLowerCase()}.`;
+    }
+    if(q.cat==='tentacle') return ref
+      ? `Rules out stops nearer one of the others than ${q.answer}.` : none;
+    return none;
   },
+  // The candidates a tentacle question can honestly be answered with: the
+  // ones of that type within range of where the seeker asked from.
+  tentacleOptions(q){
+    const ref=q.ref||null;
+    if(q.cat!=='tentacle'||!ref||!q.loc||!q.distM||!POI_SRC[ref]) return [];
+    const pts=poiPts(ref), R=metres(q.distM,q.loc[1]), out=[], seen={};
+    for(const t of pts){ if(!t[2]) continue;
+      const d=Math.hypot(q.loc[0]-t[0],q.loc[1]-t[1]);
+      if(d<=R) out.push({n:t[2],d}); }
+    out.sort((a,b)=>a.d-b.d);
+    return out.filter(o=>seen[o.n]?false:(seen[o.n]=1)).slice(0,16).map(o=>o.n);
+  },
+
   count(){
     const cs=cons(); if(!cs.length) return {cons:0};
     const keep=survivors(); let left=0;

@@ -1,3 +1,8 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>__TITLE__</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;800&family=Barlow:wght@400;500;600&display=swap">
 <style>
@@ -16,6 +21,7 @@ body{margin:0;background:var(--land);color:var(--ink);font-family:'Barlow',syste
 svg{width:100%;height:100%;display:block}
 .road{fill:none;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke}
 .tert{stroke:var(--road);stroke-width:1.2px;opacity:.9}
+.res{stroke:var(--road);stroke-width:.8px;opacity:.75;transition:opacity .15s}
 .sec{stroke:var(--road);stroke-width:2.2px}
 .sec-c{stroke:var(--road-edge);stroke-width:3.2px}
 .pri{stroke:var(--road);stroke-width:3px}
@@ -141,6 +147,9 @@ el('path',{d:L.parks,fill:'var(--park)'},root);
 el('path',{d:L.campus,fill:'var(--campus)'},root);
 el('path',{d:L.water,fill:'var(--water)'},root);
 // roads
+// The minor street network only earns its ink once you are zoomed in far
+// enough to read it; `apply` switches it on.
+const gRes=el('path',{d:L.residential||'',class:'road res'},root);
 el('path',{d:L.tertiary,class:'road tert'},root);
 el('path',{d:L.secondary,class:'road sec-c'},root);
 el('path',{d:L.primary,class:'road pri-c'},root);
@@ -190,7 +199,8 @@ for(const p of D.places){
 
 // ---- viewport
 let vb={x:VX,y:VY,w:VW,h:VH};
-function fit(){ const W=map.clientWidth,H=map.clientHeight; const ar=W/H; let w=VW,h=VH; if(w/h<ar){w=h*ar;} else {h=w/ar;} vb={x:VX+(VW-w)/2,y:VY+(VH-h)/2,w,h}; apply(); }
+let fitW=0;
+function fit(){ const W=map.clientWidth,H=map.clientHeight; const ar=W/H; let w=VW,h=VH; if(w/h<ar){w=h*ar;} else {h=w/ar;} vb={x:VX+(VW-w)/2,y:VY+(VH-h)/2,w,h}; fitW=w; apply(); }
 function zoomLevel(){ return map.clientWidth/vb.w; } // px per metre
 function apply(){
   svg.setAttribute('viewBox',`${vb.x} ${vb.y} ${vb.w} ${vb.h}`);
@@ -199,6 +209,9 @@ function apply(){
   for(const c of stopEls) c.setAttribute('r',r);
   const sh=z>0.05; // hide neighborhood labels when very zoomed out
   for(const s of scaled){ s.g.setAttribute('transform',`translate(${s.x} ${s.y}) scale(${inv})`); if(s.kind==='place') s.g.style.display=(s.k==='hood'&&z<0.035)?'none':''; }
+  // Relative to the framing zoom, so it behaves the same on a phone and a
+  // wide monitor: minor streets appear once you are ~3x in.
+  gRes.style.display = (fitW && vb.w > fitW*0.38) ? 'none' : '';
   gStops.style.display = document.getElementById('tg-stops').checked ? '' : 'none';
 }
 function zoomAt(f,px,py){ // f>1 zoom in, px,py in client px
