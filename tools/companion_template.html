@@ -122,7 +122,7 @@ nav.tabs button .n{position:absolute;top:6px;right:calc(50% - 26px);min-width:18
 #mapsvg .m-oob{fill:#8C8A84;fill-opacity:.42;fill-rule:evenodd;pointer-events:none}
 #mapsvg .m-stop{fill:#fff;stroke:#15171B;stroke-width:1.5px;vector-effect:non-scaling-stroke;cursor:pointer}
 #mapsvg .m-stop.sel{fill:var(--yellow)}
-#mapsvg .m-stop.out{fill:#B6B3AB;stroke:#8D8A83;opacity:.5}
+#mapsvg .m-ruled{fill:#4A4842;fill-opacity:.38;pointer-events:none}
 #mapsvg .m-con{fill:none;vector-effect:non-scaling-stroke;stroke-width:2px}
 #mapsvg .m-con.in{stroke:#1F8A5B;stroke-dasharray:6 4}
 #mapsvg .m-con.out{stroke:#D62828;stroke-dasharray:6 4}
@@ -829,7 +829,7 @@ function wire(){
 const Map3=(function(){
 const NS='http://www.w3.org/2000/svg';
 const R=6378137;
-let svg=null, root=null, gStops=null, gDyn=null, gRes=null, built=null, vb=null, zonePath=null, scaled=[], fitW=0;
+let svg=null, root=null, gStops=null, gDyn=null, gRes=null, gShade=null, shadeKey='', built=null, vb=null, zonePath=null, scaled=[], fitW=0;
 let sel=null, pinMode=false, zoneMode=false, watchId=null, fix=null;
 
 const el=(t,a,p)=>{const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);if(p)p.appendChild(e);return e;};
@@ -864,6 +864,7 @@ function build(){
     el('path',{d:m.layers.zone,class:'m-zone-glow'},root);
     zonePath=el('path',{d:m.layers.zone,class:'m-zone'},root);
   }
+  gShade=el('g',{},root); shadeKey='';
   gStops=el('g',{},root);
   for(let i=0;i<m.stops.length;i++){ const st=m.stops[i];
     el('circle',{cx:st[0],cy:st[1],r:3,class:'m-stop','data-i':i},gStops); }
@@ -928,6 +929,7 @@ function redraw(){
   if(!gDyn) return;
   gDyn.innerHTML='';
   const px=(svg.getBoundingClientRect().width||1)/vb.w;
+  syncShade();
   const hz=load(hideKey());
   if(hz&&isHider()){
     const rad=metres(HIDE_RADIUS[(game&&game.size)||'S'],hz.y);
@@ -947,12 +949,7 @@ function redraw(){
     el('circle',{cx:fix.x,cy:fix.y,r:7/px,class:'m-me'},gDyn);
   }
   drawCons(gDyn,px);
-  // Fade the stops the answers have ruled out.
   const keep=survivors(), chip=document.getElementById('mp-count');
-  if(gStops){
-    const kids=gStops.children;
-    for(let i=0;i<kids.length;i++) kids[i].classList.toggle('out', keep? !keep[i] : false);
-  }
   if(chip){
     if(keep){ let left=0; for(let i=0;i<keep.length;i++) left+=keep[i];
       chip.hidden=false; chip.textContent=left+' of '+keep.length+' possible'; }
@@ -960,6 +957,36 @@ function redraw(){
   }
 }
 
+// The hider has to be within a hiding zone of one of the stations that are
+// still possible, so everywhere else is ruled out — and that is the ground
+// this greys. A mask rather than one path, because the zones overlap and a
+// winding rule would punch the overlaps back in. It is rebuilt only when the
+// set of possible stations changes, never on a pan.
+let maskSeq=0;
+function syncShade(){
+  if(!gShade) return;
+  const keep=survivors();
+  const key=keep?zoneKey()+'|'+keep.join(''):'';
+  if(key===shadeKey) return;
+  shadeKey=key; gShade.innerHTML='';
+  if(!keep) return;
+  const m=M(), S=9999999, id='m-poss-'+(++maskSeq);
+  const mask=el('mask',{id,maskUnits:'userSpaceOnUse',x:-S,y:-S,width:S*2,height:S*2},
+                el('defs',{},gShade));
+  el('rect',{x:-S,y:-S,width:S*2,height:S*2,fill:'#fff'},mask);
+  let live=0;
+  for(let i=0;i<keep.length;i++){
+    if(!keep[i]) continue;
+    const st=m.stops[i];
+    el('circle',{cx:st[0],cy:st[1],r:zoneRadius(st[1]),fill:'#000'},mask);
+    live++;
+  }
+  // Nothing left standing means the answers contradict each other; greying
+  // the whole map would just hide it, so leave it clear and let the counter
+  // say so.
+  if(!live){ gShade.innerHTML=''; return; }
+  el('rect',{x:-S,y:-S,width:S*2,height:S*2,class:'m-ruled',mask:'url(#'+id+')'},gShade);
+}
 function tip(html){ const t=document.getElementById('maptip'); if(!html){t.style.display='none';return;} t.innerHTML=html; t.style.display='block'; }
 function showStop(i){
   const s=M().stops[i];
@@ -1418,7 +1445,7 @@ return {
     tip(null);
   },
   syncPins(){ if(built&&!document.getElementById('mapview').hidden) redraw(); },
-  reset(){ built=null; fix=null; sel=null;
+  reset(){ built=null; fix=null; sel=null; shadeKey='';
     gridCache={}; poiCache={}; stopMaskCache={};
     if(watchId!==null){ try{navigator.geolocation.clearWatch(watchId);}catch(e){} watchId=null;
       const b=document.getElementById('mp-loc'); if(b) b.classList.remove('on'); } }
