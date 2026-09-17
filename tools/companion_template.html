@@ -411,7 +411,7 @@ let db=null, assets=null, dbReady=false, backend=null, backendDetail='';
 let me=load('hs-me')||{name:'',role:'seeker'};
 let code=load('hs-code')||null;
 let tab=load('hs-tab')||'feed';
-let game=null, questions=[], messages=[], pins=[], lobbyGames=[];
+let game=null, questions=[], messages=[], pins=[], photos={}, lobbyGames=[];
 let unsubs=[]; let lobbyUnsub=null;
 let askState={cat:null,q:null,custom:'',loc:null,locHow:''};
 let pickLoc=false;   // map is waiting for a tap to set the seeker's position
@@ -474,7 +474,7 @@ function subscribeLobby(){
   if(lobbyUnsub) lobbyUnsub();
   lobbyUnsub=db.collection('games').orderBy('createdAt','desc').limit(25).onSnapshot(snap=>{ lobbyGames=snap.docs.map(d=>({id:d.id,...d.data()})); if(!game) render(); }, e=>console.warn('lobby',e));
 }
-function leave(){ unsubs.forEach(u=>u()); unsubs=[]; game=null; questions=[]; messages=[]; pins=[]; code=null; Map3.reset(); save('hs-code',null); $('#tabs').hidden=true; render(); }
+function leave(){ unsubs.forEach(u=>u()); unsubs=[]; game=null; questions=[]; messages=[]; pins=[]; photos={}; code=null; Map3.reset(); save('hs-code',null); $('#tabs').hidden=true; render(); }
 async function join(c,silent){
   c=c.toUpperCase().trim(); if(!c) return;
   const ref=db.doc('games/'+c);
@@ -485,6 +485,9 @@ async function join(c,silent){
   unsubs.push(ref.onSnapshot(s=>{ if(!s.exists){ toast('Game was deleted'); leave(); return; } const prev=game; game=s.data(); onGame(prev); render(); }, e=>toast('Lost connection to game')));
   unsubs.push(ref.collection('questions').orderBy('askedAt','asc').limit(400).onSnapshot(s=>{ const prev=questions; questions=s.docs.map(d=>({id:d.id,...d.data()})); onQuestions(prev,s); render(); }, e=>console.warn(e)));
   unsubs.push(ref.collection('messages').orderBy('at','asc').limit(200).onSnapshot(s=>{ const prev=messages; messages=s.docs.map(d=>({id:d.id,...d.data()})); onMessages(prev,s); render(); }, e=>console.warn(e)));
+  unsubs.push(ref.collection('photos').limit(40).onSnapshot(s=>{ let n=0;
+    for(const d of s.docs){ if(!photos[d.id]) n++; photos[d.id]=(d.data()||{}).d; }
+    if(n) render(); }, e=>console.warn(e)));
   unsubs.push(ref.collection('pins').orderBy('at','asc').limit(100).onSnapshot(s=>{ pins=s.docs.map(d=>({id:d.id,...d.data()})); Map3.syncPins(); }, e=>console.warn(e)));
   // register player
   if(me.name){ const g=snap.data(); const players=Object.assign({},g.players||{}); if(!players[me.name]||players[me.name]!==me.role){ players[me.name]=me.role; await ref.update({players}); } }
@@ -556,9 +559,48 @@ async function answerQ(id,answer,extra){
 }
 async function vetoQ(id){ try{ await db.doc('games/'+code+'/questions/'+id).update({status:'vetoed',answer:'Vetoed',answeredAt:Date.now()}); }catch(e){ toast('Could not veto'); } }
 async function sendMessage(kind,title,text){ try{ await db.doc('games/'+code).collection('messages').add({kind,title,text,from:me.name,role:me.role,at:Date.now()}); }catch(e){ toast('Send failed'); } }
+// A photo has to cross a public MQTT broker, which takes small messages and
+// nothing else, so it is re-encoded down to something that fits rather than
+// being sent as the multi-megabyte file the camera produced. The artifact
+// runtime has a real asset store, and is used instead when it is there.
+const PHOTO_MAX_PX=1280, PHOTO_BUDGET=110*1024;
+function shrink(file){
+  return new Promise((resolve,reject)=>{
+    const img=new Image(), url=URL.createObjectURL(file);
+    img.onload=()=>{
+      URL.revokeObjectURL(url);
+      let w=img.naturalWidth, h=img.naturalHeight;
+      const k=Math.min(1,PHOTO_MAX_PX/Math.max(w,h));
+      w=Math.round(w*k); h=Math.round(h*k);
+      const cv=document.createElement('canvas');
+      const draw=(cw,ch)=>{ cv.width=cw; cv.height=ch;
+        cv.getContext('2d').drawImage(img,0,0,cw,ch); };
+      draw(w,h);
+      // Step the quality down, then the size, until it fits the budget.
+      let out=cv.toDataURL('image/jpeg',0.82);
+      for(const q of [0.7,0.6,0.5,0.4]){ if(out.length<=PHOTO_BUDGET*1.37) break;
+        out=cv.toDataURL('image/jpeg',q); }
+      let guard=0;
+      while(out.length>PHOTO_BUDGET*1.37&&guard++<4){
+        w=Math.round(w*0.75); h=Math.round(h*0.75); draw(w,h);
+        out=cv.toDataURL('image/jpeg',0.6);
+      }
+      resolve({url:out,w,h});
+    };
+    img.onerror=()=>{ URL.revokeObjectURL(url); reject(new Error('That file is not an image')); };
+    img.src=url;
+  });
+}
 async function uploadPhoto(file,qid){
-  if(!assets){ toast('Photo upload is not available on this device — describe it instead'); return; }
-  try{ toast('Uploading…'); const r=await assets.upload(file); await answerQ(qid,'Photo sent',{photo:r.id}); }catch(e){ toast('Upload failed: '+(e.code||e.message)); }
+  try{
+    toast('Preparing photo…');
+    if(assets){ const r=await assets.upload(file); await answerQ(qid,'Photo sent',{photo:r.id}); toast('Sent'); return; }
+    const {url,w,h}=await shrink(file);
+    await db.doc('games/'+code+'/photos/'+qid).set({d:url,at:Date.now()});
+    photos[qid]=url;
+    await answerQ(qid,'Photo sent',{photoDoc:qid,photoW:w,photoH:h});
+    toast('Sent');
+  }catch(e){ toast('Could not send the photo: '+(e.message||e.code||'unknown')); }
 }
 
 // ---------- render ----------
@@ -690,6 +732,7 @@ function inbox(n){
     <button class="btn block" id="btn-msg" style="margin-top:8px">Send</button></div>`;
   return h;
 }
+const photoSrc=q=>q.photo?'/_blob/'+q.photo:(q.photoDoc?photos[q.photoDoc]:null);
 function qCard(q,mine){
   const pending=q.status==='pending';
   const started=q.status==='started';
@@ -700,14 +743,16 @@ function qCard(q,mine){
   if(pending&&mine){
     body+=`<p class="small muted">Draw ${q.draw}, keep ${q.keep} — answer first, then log the card you kept in Hand.</p>`;
     if(q.ans&&q.ans.length) body+=`<div class="answers">${q.ans.map(a=>`<button class="btn primary" data-ans="${esc(a)}" data-qid="${q.id}">${esc(a)}</button>`).join('')}</div>`;
-    else if(q.cat==='photo') body+=`<div class="row" style="margin-top:8px"><label class="btn primary" style="display:inline-block">Take / choose photo<input type="file" accept="image/*" capture="environment" data-photo="${q.id}" hidden></label><button class="btn" data-textans="${q.id}">Describe instead</button></div><p class="small muted">Photo time limit: ${SIZES[game.size].photo} min.</p>`;
+    else if(q.cat==='photo') body+=`<div class="row" style="margin-top:8px"><label class="btn primary" style="display:inline-block">Take / choose photo<input type="file" accept="image/*" capture="environment" data-photo="${q.id}" hidden></label><button class="btn" data-textans="${q.id}">Describe instead</button></div>
+      <div class="row" id="ta-row-${q.id}" hidden style="margin-top:8px"><input type="text" class="grow" id="ta-${q.id}" placeholder="Describe what the photo would show"><button class="btn primary" data-sendtext="${q.id}">Answer</button></div>
+      <p class="small muted">Photo time limit: ${SIZES[game.size].photo} min.</p>`;
     else { const opts=q.cat==='tentacle'?Map3.tentacleOptions(q):[];
       if(opts.length) body+=`<div class="answers">${opts.map(o=>`<button class="btn primary" data-ans="${esc(o)}" data-qid="${q.id}">${esc(o)}</button>`).join('')}<button class="btn" data-ans="${NOT_IN_REACH}" data-qid="${q.id}">${NOT_IN_REACH}</button></div><p class="small muted">The ones within range of where they asked, nearest to them first. You have to be inside that range yourself — if you are not, say so.</p>`;
       body+=`<div class="row" style="margin-top:8px"><input type="text" class="grow" id="ta-${q.id}" placeholder="${opts.length?'Something else':'Your answer'}"><button class="btn primary" data-sendtext="${q.id}">Answer</button></div>`; }
     body+=`<div class="row" style="margin-top:8px"><button class="btn sm" data-veto="${q.id}">Veto (uses a Veto card)</button></div>`;
   } else if(pending){ body+=`<p class="small muted">Waiting for the hider…</p>`; }
   else { const cut=Map3.cutBy(q);
-    body+=`<div class="ans ${q.status==='vetoed'?'veto':''}"><b>${esc(q.answer)}</b>${q.note?' — '+esc(q.note):''}<span class="small muted"> · ${fmtClock(q.answeredAt)}</span>${cut?`<div class="small" style="opacity:.85;margin-top:4px">${esc(cut)}</div>`:''}${q.photo?`<img src="/_blob/${esc(q.photo)}" alt="Photo answer">`:''}</div>`; }
+    body+=`<div class="ans ${q.status==='vetoed'?'veto':''}"><b>${esc(q.answer)}</b>${q.note?' — '+esc(q.note):''}<span class="small muted"> · ${fmtClock(q.answeredAt)}</span>${cut?`<div class="small" style="opacity:.85;margin-top:4px">${esc(cut)}</div>`:''}${photoSrc(q)?`<img src="${photoSrc(q)}" alt="Photo answer">`:(q.photoDoc?`<div class="small muted">Photo on its way\u2026</div>`:'')}</div>`; }
   return body+'</div>';
 }
 function feed(){
@@ -769,7 +814,8 @@ function wire(){
   on('#btn-thermo-go','click',finishThermo);
   on('[data-ans]','click',e=>answerQ(e.currentTarget.dataset.qid,e.currentTarget.dataset.ans));
   on('[data-sendtext]','click',e=>{ const id=e.currentTarget.dataset.sendtext; const v=$('#ta-'+id).value.trim(); if(!v){ toast('Type an answer'); return; } answerQ(id,v); });
-  on('[data-textans]','click',e=>{ const id=e.currentTarget.dataset.textans; const v=prompt('Describe what the photo would show:'); if(v) answerQ(id,v); });
+  on('[data-textans]','click',e=>{ const id=e.currentTarget.dataset.textans;
+    const row=document.getElementById('ta-row-'+id); if(row){ row.hidden=false; const i=document.getElementById('ta-'+id); if(i) i.focus(); } });
   on('[data-photo]','change',e=>{ const f=e.target.files[0]; if(f) uploadPhoto(f,e.target.dataset.photo); });
   on('[data-veto]','click',e=>{ if(confirm('Veto this question? (Play a Veto card.)')) vetoQ(e.currentTarget.dataset.veto); });
   on('#btn-msg','click',()=>{ const t=$('#msg-title').value.trim(); if(!t){ toast('Give it a title'); return; } sendMessage($('#msg-kind').value,t,$('#msg-text').value.trim()); $('#msg-title').value=''; $('#msg-text').value=''; toast('Sent to seekers'); });
