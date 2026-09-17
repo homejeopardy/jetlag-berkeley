@@ -65,10 +65,19 @@ Thermometer, Photo, and Tentacles in medium and large games — and send a
 question. It lands in the hider's inbox with the draw-and-keep count for
 that category. The hider taps Yes/No, Closer/Further, Hotter/Colder, takes
 a photo straight from the camera, or vetoes. The answer flows back to a
-shared feed on every phone. The hider also logs kept cards (seekers see the
-count, not the cards) and can send curses and notes. The status card runs
-the hiding-period countdown and the hider's clock, and finished rounds land
-on a scoreboard.
+shared feed on every phone. The hider logs the cards they keep and can send
+curses and notes. The status card runs the hiding-period countdown and the
+hider's clock, and finished rounds land on a scoreboard.
+
+The hider's hand is private — seekers see neither the cards nor how many
+there are. They find out when something gets played.
+
+Radars, measuring and thermometers record where the seeker was standing,
+because the answer means nothing without it. Thermometers follow the real
+two-leg procedure rather than being a single tap: starting one sends the
+hider your position immediately, you travel, and only once the app confirms
+you have covered the distance as the crow flies does the question actually
+go out, carrying both endpoints.
 
 Question text, category draw counts, hiding periods, zone radii and photo
 time limits follow the published Hide + Seek rules; the size of the game
@@ -77,8 +86,23 @@ switches which cards are available.
 A Map tab carries both game zones — every stop, the boundary, your own
 location from GPS, and a quarter-mile hiding-zone circle the hider can drop
 on whichever stop they picked. Anyone can drop a labelled pin, which syncs
-to everyone, so the seekers can mark what they have already swept without
-the app doing any of the deducing for them.
+to everyone.
+
+### What the answers rule out
+
+Answers narrow the map, for seekers and hider alike. A radar draws its
+circle and fades every stop on the wrong side of it; a thermometer draws the
+perpendicular bisector of its two endpoints and fades the half you are
+colder from; measuring against a rail station fades the stops on the wrong
+side of that comparison. A counter says how many stops are still possible.
+
+Two deliberate limits. Elimination is *conservative*: a stop survives if any
+point in its hiding zone could still satisfy the answer, so nothing possible
+is ever faded out — the map shows what is definitely ruled out, not a guess
+at where the hider is. And only the questions whose reference data is
+actually in the map become constraints. Asking about museums, consulates or
+county borders is recorded in the feed and left for you to reason about,
+rather than answered with geometry the app cannot honestly compute.
 
 ### How the phones stay in sync
 
