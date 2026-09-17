@@ -85,6 +85,15 @@ hider your position immediately, you travel, and only once the app confirms
 you have covered the distance as the crow flies does the question actually
 go out, carrying both endpoints.
 
+Photo answers go through the same sync as everything else. The camera
+produces a file far too big for a public broker, so the photo is re-encoded
+in the browser — 1280 px on its long side, quality stepped down until it
+fits about 110 KB — and sent as its own document, which both public brokers
+accept and retain. Opened as a claude.ai artifact it uses the real asset
+store instead and skips the re-encoding. Either way the seekers see the
+photo in the feed, and "describe instead" is there for when the shot is
+impossible.
+
 Question text, category draw counts, hiding periods, zone radii and photo
 time limits follow the published Hide + Seek rules; the size of the game
 switches which cards are available.
@@ -97,8 +106,11 @@ pin, which syncs to everyone.
 ### What the answers rule out
 
 Answers narrow the map, for seekers and hider alike, and every phone narrows
-it the same way. Stations that are still possible stay white; the rest go
-grey, and a counter says how many are left.
+it the same way. What greys out is the ground, not the stations: the hider
+has to be inside a hiding zone around one of the stations still in play, so
+everything outside those zones is shaded over, leaving the area still worth
+searching. A counter says how many stations are left. Every stop stays
+legible either way — the shading sits under them.
 
 The rule the elimination follows comes straight from the rulebook: questions
 are answered **from wherever the hider is standing, not from their station**,
