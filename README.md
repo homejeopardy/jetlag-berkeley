@@ -110,14 +110,27 @@ it the same way. What greys out is the ground, not the stations: the hider
 has to be inside a hiding zone around one of the stations still in play, so
 everything outside those zones is shaded over, leaving the area still worth
 searching. A counter says how many stations are left. Every stop stays
-legible either way — the shading sits under them.
+legible either way — the shading sits under them, and a Zones control outlines
+each surviving zone individually when the union's shape is not enough.
 
-The rule the elimination follows comes straight from the rulebook: questions
-are answered **from wherever the hider is standing, not from their station**,
-and the hider is free to move anywhere inside their hiding zone between
-questions. So a station is ruled out only when *no point at all* of its
-quarter-mile zone could have produced that answer — and that is tested
-exactly, not with a safety margin. Each answer is turned into the set of
+Tapping a stop also offers to rule it out by hand, for everything the app
+cannot know: a platform you have already searched, somewhere the hider would
+never pick, a deduction from a card the map does not model. Crossings sync to
+every phone and can be undone.
+
+How much an answer rules out is a setting, because the rules and the way it
+actually plays pull in different directions. The rulebook says questions are
+answered **from wherever the hider is standing, not from their station**, and
+that the hider may move anywhere inside their zone between questions. Read
+that way — the **Whole zone** setting — a station survives unless *no point
+at all* of its quarter-mile zone could have produced the answer, which is
+unimpeachable and rules out almost nothing: a quarter-mile radar answered
+"no" eliminates zero stations, because every zone reaches outside the circle.
+**Station**, the default, reads each answer against the station itself, so
+that radar rules out every station inside its circle. It is how the game
+plays, at the price that a hider who wandered to the edge of their zone could
+in principle be ruled out. Either way the geometry is computed exactly, not
+with a safety margin. Each answer is turned into the set of
 points that could have given it: a disc for a radar, a half-plane for a
 thermometer, a union of discs for a measuring card, a Voronoi cell for a
 matching or tentacle card, a city outline for an administrative one. An exact
