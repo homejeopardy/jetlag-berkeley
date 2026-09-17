@@ -76,7 +76,10 @@ The hider's hand is private — seekers see neither the cards nor how many
 there are. They find out when something gets played.
 
 Radars, measuring and thermometers record where the seeker was standing,
-because the answer means nothing without it. Thermometers follow the real
+because the answer means nothing without it. Tentacles offer the hider the
+places of that type actually within range of where the seeker asked, plus
+"not within reach" — which is a valid answer under the rules, and a strong
+one, because it rules out the whole circle. Thermometers follow the real
 two-leg procedure rather than being a single tap: starting one sends the
 hider your position immediately, you travel, and only once the app confirms
 you have covered the distance as the crow flies does the question actually
@@ -93,35 +96,42 @@ pin, which syncs to everyone.
 
 ### What the answers rule out
 
-Answers narrow the map, for seekers and hider alike, and every phone
-narrows it the same way. Stops that are still possible stay white; the rest
-go grey, and a counter says how many are left.
+Answers narrow the map, for seekers and hider alike, and every phone narrows
+it the same way. Stations that are still possible stay white; the rest go
+grey, and a counter says how many are left.
 
-A radar draws its circle and rules out the wrong side of it. A thermometer
-draws the perpendicular bisector of its two endpoints and rules out the
-half you are colder from. Measuring against something the map knows — a
-rail station, the coastline, an airport, a hospital, library, museum,
-cinema, zoo, aquarium, golf course, consulate or peak — rules out the stops
-on the wrong side of that comparison. Matching on the same list rules out
-the stops that would not give their answer, by whose nearest one they are.
-Matching on which city you are in, or on the letter-count of the nearest
-station's name, works the same way. A tentacle answer rules out every stop
-that would have been nearer one of the others in range.
+The rule the elimination follows comes straight from the rulebook: questions
+are answered **from wherever the hider is standing, not from their station**,
+and the hider is free to move anywhere inside their hiding zone between
+questions. So a station is ruled out only when *no point at all* of its
+quarter-mile zone could have produced that answer — and that is tested
+exactly, not with a safety margin. Each answer is turned into the set of
+points that could have given it: a disc for a radar, a half-plane for a
+thermometer, a union of discs for a measuring card, a Voronoi cell for a
+matching or tentacle card, a city outline for an administrative one. An exact
+Euclidean distance transform turns that set into a distance field, and the
+station survives if the field at the station is inside its zone radius. The
+grid is 25 m, so the answer is exact to about half a cell; the old version
+was loose by up to two zone radii, which is 800 m.
 
-Two deliberate limits. Elimination is *conservative*: a stop survives if any
-point in its hiding zone could still satisfy the answer, so nothing possible
-is ever greyed out — the map shows what is definitely ruled out, not a guess
-at where the hider is. Comparisons between two distances are therefore given
-the benefit of two zone radii, and a stop within half a kilometre of the
-Berkeley/Oakland line is never ruled out by a question about which city you
-are in.
+The cards the map can answer: Radar, Thermometer, Tentacles, Matching and
+Measuring against a commercial airport, mountain, amusement park, zoo,
+aquarium, golf course, museum, movie theater, hospital, library or foreign
+consulate, Measuring against a rail station, the coastline, a body of water
+or a park (to the nearest edge of the shape, not to a label point), Matching
+on the nearest station's name length (all characters, spaces and hyphens
+included, as the card says), and Matching or Measuring on the city.
 
-And only the questions whose reference data is actually in the map become
-constraints. Asking about sea level, a landmass, an administrative border,
-a park, a body of water, a transit line or a named street is recorded in the
-feed and left for you to reason about, rather than answered with geometry
-the app cannot honestly compute. Each answer says in one line what it ruled
-out, or that it ruled out nothing the map can draw.
+Reference features are taken from the real world rather than clipped to the
+game zone, which is what "correctly categorized by your mapping app" means:
+the nearest commercial airport really is Oakland International, the nearest
+zoos really are Oakland's and San Francisco's. Honorary consulates are
+excluded, as the card says.
+
+The cards it leaves alone, and says so in the feed: transit line, street or
+path, landmass, high-speed train line, international border, sea level, and
+the council-district division. Those are recorded for you to reason about
+rather than answered with geometry the app does not have.
 
 ### How the phones stay in sync
 
