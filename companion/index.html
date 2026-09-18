@@ -88,6 +88,16 @@ label.f{display:block;font-family:'Barlow Condensed',sans-serif;font-weight:600;
 .msg .ans b{font-family:'Barlow Condensed',sans-serif;font-size:19px;text-transform:uppercase}
 .msg .ans.veto{border-left-color:var(--red)}
 .msg.curse{border-left:6px solid var(--hider)}
+details.curse{border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin:6px 0;background:var(--card)}
+details.curse>summary{cursor:pointer;font-family:'Barlow Condensed',system-ui,sans-serif;font-weight:700;font-size:17px;letter-spacing:.01em;list-style:none}
+details.curse>summary::-webkit-details-marker{display:none}
+details.curse>summary::before{content:'\25B8';display:inline-block;width:1em;opacity:.55}
+details.curse[open]>summary::before{content:'\25BE'}
+details.curse .ct{margin:8px 0 0;line-height:1.45}
+details.curse .cc{margin-top:8px;font-size:14px;opacity:.9}
+details.curse .cn{margin-top:8px;font-size:13px;line-height:1.45;opacity:.75;border-top:1px dashed var(--line);padding-top:8px}
+.hcard .cast{margin-left:auto;font-size:12px}
+.mtext{white-space:pre-line}
 .msg img{display:block;max-width:100%;margin-top:8px;border:1.5px solid var(--ink)}
 .tag{display:inline-block;font-size:11px;padding:1px 6px;border:1px solid var(--ink-3);color:var(--ink-3);text-transform:uppercase;letter-spacing:.08em;margin-right:6px}
 .answers{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
@@ -360,6 +370,117 @@ return { async open(){
 
 // ---------- rules data ----------
 const SIZES={S:{name:'Small',hide:30,zone:'¼ mile',photo:10},M:{name:'Medium',hide:60,zone:'¼ mile',photo:10},L:{name:'Large',hide:180,zone:'½ mile',photo:20}};
+// ---------- the curse deck ----------
+// Card text is reproduced verbatim from the Hide+Seek deck; the {a|b|c}
+// slots are the small / medium / large values printed on the card, and
+// resolve to the size this round is being played at. "note" is the
+// rulebook's own clarification for that curse (Section: curse notes),
+// which is what settles a dispute at the table.
+const CURSES=[
+ {k:'bridge_troll',n:'Bridge Troll',
+  t:'The seekers must ask their next question from under a bridge.',
+  c:'Seekers must be at least {1|5|30} miles from you.',
+  d:'“Bridge” is defined as any elevated structure, acting as a path, road or railway, intended to be crossed by pedestrians, cars, or other vehicles. All seekers must have some part of their body under some part of the bridge when the next question is asked. If there are no bridges on the game map, this curse should be removed from the deck.'},
+ {k:'cairn',n:'Cairn',
+  t:'You have one attempt to stack as many rocks on top of each other as you can in a freestanding tower. Each rock may only touch one other rock. Once you have added a rock to the tower, it may not be removed. Before adding another rock, the tower must stand for at least five seconds. If at any point, any rock other than the base rock touches the ground, your tower has fallen. Once your tower falls, tell the seekers how many rocks high your tower was when it last stood for five seconds. The seekers must then construct a rock tower of the same number of rocks, under the same parameters, before asking another question. If their tower falls, they must restart. The rocks must be found in nature, and both teams must disperse the rocks after building.',
+  c:'Build a rock tower.',
+  d:'You cannot begin fulfilling the casting cost of this curse if you would be otherwise unable to play a curse; once the cost is fulfilled, this curse must be cast immediately. “Found in nature,” in this context, does not necessarily mean found in a natural space or untouched by humans; it simply means that you must find the rocks yourself, and cannot buy them.'},
+ {k:'distant_cuisine',n:'Distant Cuisine',
+  t:'Find a restaurant within your zone that explicitly serves food from a specific foreign country. The seekers must visit a restaurant serving food from a country that is an equal or greater distance away before asking another question.',
+  c:'You must be at the restaurant.',
+  d:'The restaurants used for this curse must explicitly reference a single country or region within a single country in either their name or some other public-facing material such as a menu. If a restaurant associates itself with multiple countries or a region larger than a single country (such as an “Asian” restaurant), it cannot be used for this curse. Distance from a given country is measured from your exact location to the nearest point in that country.'},
+ {k:'drained_brain',n:'Drained Brain',
+  t:'Choose three questions in different categories. The seekers cannot ask those questions for the rest of your run.',
+  c:'Discard your hand.'},
+ {k:'egg_partner',n:'Egg Partner',
+  t:'The seekers must aquire an egg before asking another question. This egg is now treated as an official team member of the seekers. If any team members are abandoned or killed (defined as any crack, in the egg’s case) before the end of your run, you are awarded an extra {30|45|60} minutes. This curse cannot be played during the endgame.',
+  c:'Discard two cards.'},
+ {k:'endless_tumble',n:'Endless Tumble',
+  t:'Seekers must roll a die at least 100 feet and have it land on a 5 or a 6 before they can ask another question. The die must roll the full distance, unaided, using only the momentum from the initial throw and gravity to travel the 100 feet. If the seekers accidentally hit someone with a die, you are awarded a {10|20|30} minute bonus.',
+  c:'Roll a die. If it’s a 5 or a 6, this card has no effect.'},
+ {k:'gamblers_feet',n:"Gambler's Feet",
+  t:'For the next {20|40|60} minutes, seekers must roll a die before they take any steps in any direction. They may take that many steps before rolling again.',
+  c:'Roll a die. If it’s an even number, this curse has no effect.',
+  d:'The die rolled for this curse must be a d6.'},
+ {k:'hidden_hangman',n:'Hidden Hangman',
+  t:'Before asking another question or boarding another form of transportation, seekers must beat the hider in a game of hangman. To play, the hider chooses a 5 letter word, and the game ends after either a correct word guess or 7 wrong letter guesses (head, body, two arms, two legs, and a hat). The hider must respond to all queries within 30 seconds. The seekers cannot challenge the hider for 10 minutes after a loss. After {1|2|3} losses, the seekers must wait 10 more minutes and then the curse is cleared.',
+  c:'Discard 2 cards.'},
+ {k:'impressionable_consumer',n:'Impressionable Consumer',
+  t:'Seekers must enter and gain admission (if applicable) to a location or a buy a product that they saw an advertisement for before asking another question. This advertisement must be found out in the world, not on a seeker’s device, and must be at least 100 feet from the product or location itself.',
+  c:'The seekers’ next question is free.',
+  d:'Any object or display whose primary purpose is to raise awareness of a product, service, or business counts as an advertisement. If the advertisement is for a specific service, such as a massage, the seekers must pay for and receive the service advertised. If the advertisement is for a location but not a specific service, such as an amusement park, the seekers must enter that location. Locations that are not private businesses, such as a public park, do not count. If you do not want to be forced to potentially spend money to fulfill this curse, it should be removed from the deck.'},
+ {k:'jammed_door',n:'Jammed Door',
+  t:'For the next {0.5|1|3} hours, whenever the seekers want to pass through a doorway into a building, business, train, or other vehicle, they must first roll 2 dice. If they do not roll a 7 or higher, they cannot enter that space (including through other doorways.) Any given doorway can be re-attempted after {5|10|15} minutes.',
+  c:'Discard two cards.',
+  d:'Seekers must roll two d6 dice. Dice can only be rolled to enter a doorway once the doorway is visible to the seekers. For example, if you are attempting to roll to enter a train, you cannot roll the dice before the train arrives; you must be able to see the train door first. Doorways within a building that lead to other parts of the same building, such as a store within a train station, do not need to pass a dice check. If there is any reasonable dispute as to whether something counts as a separate building, err on the side of doing a dice check. If the curse expires while a doorway is on cooldown, that cooldown also immediately expires.'},
+ {k:'labyrinth',n:'Labyrinth',
+  t:'Spend up to {10|20|30} minutes drawing a solvable maze and send a photo of it to the seekers. You cannot use the internet to research maze designs. The seekers must solve the maze before asking another question.',
+  c:'Draw a maze.'},
+ {k:'lemon_phylactery',n:'Lemon Phylactery',
+  t:'Before asking another question, the seekers must each find a lemon and affix it to the outermost layer of their clothes or skin. If, at any point, one of these lemons is no longer touching a seeker, you are awarded an extra {30|45|60} minutes. This curse cannot be played during the endgame.',
+  c:'Discard a powerup.',
+  d:'The lemon must be a real lemon. It can be affixed using any means, but must be constantly touching the seeker’s skin or clothes. Once the lemon falls, the hider should be informed of their bonus immediately.'},
+ {k:'luxury_car',n:'Luxury Car',
+  t:'Take a photo of a car. The seekers must take a photo of a more expensive car before asking another question.',
+  c:'A photo of a car.',
+  d:'You must be able to identify the car in question when sending the photo, and the seekers must agree that it is, in fact, the car that you claim that it is. Use the MSRP of the car, factoring in its year of production, and disregarding any add-ons or modifications that may have been paid for. (For example: upgrades to the car’s interior, special tires, custom colors, etc.) The photo sent to the seekers must include enough of the car for it to be identifiable. All of these rules also apply to the car found by the seekers. If you cannot confirm a car’s exact production year or exact model, both sides must come to a consensus on which model and year to use for determining price.'},
+ {k:'mediocre_travel_agent',n:'Mediocre Travel Agent',
+  t:'Choose any publicly-accessible place within {0.25|0.25|0.5} miles of the seekers’ current location. They cannot currently be on transit. They must go there, and spend at least {5|5|10} minutes there, before asking another question. They must send you at least three photos of them enjoying their vacation, and procure an object to bring you as a souvenir. If this souvenir is lost before they can give it to you, you are awarded an extra {30|45|60} minutes.',
+  c:'Their vacation destination must be further from you than their current location.'},
+ {k:'overflowing_chalice',n:'Overflowing Chalice',
+  t:'For the next three questions, you may draw (not keep) an additional card when drawing from the hider deck.',
+  c:'Discard a card.'},
+ {k:'ransom_note',n:'Ransom Note',
+  t:'The next question that the seekers ask must be composed of words and letters cut out of any printed material. The question must be coherent, and include at least 5 words.',
+  c:'Spell out “ransom note” as a ransom note (without using this card).',
+  d:'You cannot begin fulfilling the casting cost of this curse if you would be otherwise unable to play a curse; once the cost is fulfilled, this curse must be cast immediately. The printed material cannot be printed by the seekers; the letters should be gathered from magazines, newspapers, or any other material that the seekers encounter in the wild. “Coherence” in this context does not necessarily mean complete sentences, but the hider should be able to discern the meaning of the question without further clarification. You may use easy-to-understand abbreviations for certain words (such as a “2” instead of “to.”) If the question requires additional context outside of the basic sentence itself, this context does NOT need to be provided in the form of a ransom note. For example, if you are asking a thermometer question, you can simply ask something along the lines of, “Went 10 km. Hotter/colder?” Any information about where you started and ended the thermometer can be provided as normal, in the form of a location pin or text.'},
+ {k:'right_turn',n:'Right Turn',
+  t:'For the next {20|40|60} minutes, the seekers can only turn right at any street intersection. If, at any point, they find themselves in a dead end where they cannot continue forward or turn right for another 1,000 feet, they may do a full 180. A right turn is defined as a road at any angle that veers to the right of the seekers.',
+  c:'Discard a card.'},
+ {k:'spotty_memory',n:'Spotty Memory',
+  t:'For the rest of your run, one random category of questions will be disabled at all times. After this curse is played, seekers must roll a die to determine the category of questions to be disabled. This category remains disabled until the next question is asked, at which point a die is rolled again to choose a new category. The same category can be disabled multiple times in a row.',
+  c:'Discard a time bonus.',
+  d:'The seekers should assign die numbers to each category before their first roll. For small-sized games, which only include five categories of questions, a six would result in a reroll.'},
+ {k:'the_bird_guide',n:'The Bird Guide',
+  t:'You have one chance to film a bird for as long as possible, up to {5|10|15} minutes straight. If, at any point, the bird leaves the frame, your timer is stopped. The seekers must then film a bird for the same amount of time or longer before asking another question.',
+  c:'Film a bird.',
+  d:'The bird must be in frame from the moment the video starts. It is considered “in frame” so long as there is any recognizable portion of the bird on camera.'},
+ {k:'the_unguided_tourist',n:'The Unguided Tourist',
+  t:'Send the seekers an unzoomed Google Street View image from a street within 500 feet of where they are now. The shot has to be parallel to the horizon and include at least one human-built structure other than a road. Without using the internet for research, they must find what you sent them in real life before they can use transportation or ask another question. They must send a picture to the hider for verification.',
+  c:'Seekers must be outside.'},
+ {k:'the_uturn',n:'The U-Turn',
+  t:'The seekers must disembark their current mode of transportation at the next station (as long as that station is serviced by another form of transit in the next {0.5|0.5|1} hours.)',
+  c:'Seekers must be heading the wrong way. (Their next station is further from you than they are.)',
+  d:'“Next station,” in this context, refers to the next station that the seekers’ current mode of transit will stop at; if there are stops along the line that their current route will skip, those should be disregarded. If you are not sure whether the seekers are on transit, or whether their route will stop at a particular station, you may ask them for that information. If there is any ambiguity, you should tell them what you believe their next station is when this curse is cast to confirm that you didn’t misread your tracker. Even if the seekers’ current mode of transit would eventually bring them closer to you, this curse may still be played so long as their next station is further; a line that heads in your direction but temporarily curves away is a particularly advantageous situation for this curse.'},
+ {k:'urban_explorer',n:'Urban Explorer',
+  t:'For the rest of your run, seekers cannot ask questions when they are on transit or in a transit station.',
+  c:'Discard 2 cards.'},
+ {k:'water_weight',n:'Water Weight',
+  t:'The seekers must acquire and carry at least 2 liters of liquid per seeker for the rest of your run. They cannot ask another question until they have acquired the liquid. The water may be distributed between seekers as they see fit. If the liquid is lost or abandoned at any point after acquisition, the hider is awarded a {30|30|60} minute bonus.',
+  c:'Seekers must be within 1,000 feet (300 meters) of a body of water.',
+  d:'The liquid can be in any number of containers, and can be passed back and forth between seekers at any time. The liquid can be set down when the seekers are stationary or on transit, but it is considered “abandoned” once it is no longer within 3 meters of any seeker. The hider must be informed of their bonus immediately. “Body of water” within this context does not necessarily mean natural, but it cannot be a pool and must be large enough to be marked on the map.'},
+ {k:'zoologist',n:'Zoologist',
+  t:'Take a photo of a wild fish, bird, mammal, reptile, amphibian, or bug. The seekers must take a picture of a wild animal in the same category before asking another question.',
+  c:'A photo of an animal.',
+  d:'“Bug” in this context refers to any insect, arachnid, diplopoda, chilopoda, or anything else that would be colloquially and commonly referred to as a “bug.” “Wild” in this context means undomesticated and not kept in human captivity, including large-scale outdoor facilities.'},
+];
+const CURSE_BY=Object.fromEntries(CURSES.map(c=>[c.k,c]));
+// {a|b|c} → the value for this round's size, bolded.
+function szv(s){ const i={S:0,M:1,L:2}[(game&&game.size)||'M']||0;
+  return String(s).replace(/\{([^}]*)\}/g,(m,g)=>{const p=g.split('|');return '<b>'+esc(p[i]!==undefined?p[i]:p[0])+'</b>';}); }
+function szPlain(s){ const i={S:0,M:1,L:2}[(game&&game.size)||'M']||0;
+  return String(s).replace(/\{([^}]*)\}/g,(m,g)=>{const p=g.split('|');return p[i]!==undefined?p[i]:p[0];}); }
+function curseBlock(c,open){
+  return `<details class="curse"${open?' open':''}><summary>${esc(c.n)}</summary>
+    <div class="ct">${szv(esc(c.t))}</div>
+    <div class="cc"><b>Casting cost:</b> ${szv(esc(c.c))}</div>
+    ${c.d?`<div class="cn"><b>Rulebook note.</b> ${esc(c.d)}</div>`:''}</details>`;
+}
+function curseDeck(){
+  return `<div class="card"><h2>The curses</h2><p class="small muted">All 24 cards, word for word, with the ${esc(SIZES[(game&&game.size)||'M'].name.toLowerCase())}-game numbers filled in. The rulebook note under each one is what settles an argument.</p>
+    <input type="text" id="curse-find" class="grow" placeholder="Filter by name or wording" style="margin-bottom:8px">
+    <div id="curse-list">${CURSES.map(c=>curseBlock(c)).join('')}</div></div>`;
+}
 const CATS=[
  {id:'matching',name:'Matching',fmt:'Is your nearest ___ the same as my ___?',draw:3,keep:1,ans:['Yes','No'],
   qs:[['Commercial airport'],['Transit line'],['Station name length (characters)'],['Street or path'],['1st administrative division (state)'],['2nd administrative division (county)'],['3rd administrative division (city)'],['4th administrative division'],['Mountain'],['Landmass'],['Park'],['Amusement park'],['Zoo'],['Aquarium'],['Golf course'],['Museum'],['Movie theater'],['Hospital'],['Library'],['Foreign consulate']]},
@@ -542,13 +663,17 @@ async function sendQuestion(){
     text=fmtDist(distM);
   }
   if(cat.loc&&!askState.loc){ toast('Set where you are first'); return; }
+  // Asking the same question again costs the additional cost: the hider
+  // draws that multiple of cards.
+  const mult=multOf(cat.id,text);
+  if(mult>1&&!confirm('That question has been asked '+(mult-1)+(mult===2?' time':' times')+' already, so it costs '+MULT_WORD[mult]+': the hider draws '+(cat.draw*mult)+' and keeps '+(cat.keep*mult)+'.\n\nAsk it anyway?')) return;
   // Which reference points this question is about, so every phone narrows
   // the map the same way without re-deriving it from the wording.
   const ref=cat.id==='tentacle'?(q[3]||null)
     :(cat.id==='matching'||cat.id==='measuring')?(REF[text]||null):null;
   const body={cat:cat.id,catName:cat.name,fmt:cat.fmt,q:text,askedBy:me.name,askedAt:Date.now(),
     status:cat.two?'started':'pending',answer:'',answeredAt:null,photo:'',note:'',
-    draw:cat.draw,keep:cat.keep,ans:cat.ans,ref:ref,
+    draw:cat.draw*mult,keep:cat.keep*mult,mult:mult,ans:cat.ans,ref:ref,
     loc:askState.loc||null,locHow:askState.locHow||'',loc2:null,distM:distM};
   try{
     await db.doc('games/'+code).collection('questions').add(body);
@@ -663,7 +788,14 @@ function backendNote(){
   return `<div class="card flat"><h3>Sync</h3><p class="small"><b>This device only.</b> No broker was reachable, so a game you start here will not appear on anyone else's phone. The timers, cards, rules and map still work.</p></div>`;
 }
 function rulesCard(){
-  return `<div class="card flat"><h3>Game sizes</h3><table class="sb"><tr><th>Size</th><th>Hiding period</th><th>Hiding zone</th></tr>${Object.entries(SIZES).map(([k,s])=>`<tr><td>${s.name}</td><td>${s.hide} min</td><td>${s.zone}</td></tr>`).join('')}</table></div>`;
+  return `<div class="card flat"><h3>Game sizes</h3><table class="sb"><tr><th>Size</th><th>Hiding period</th><th>Hiding zone</th></tr>${Object.entries(SIZES).map(([k,s])=>`<tr><td>${s.name}</td><td>${s.hide} min</td><td>${s.zone}</td></tr>`).join('')}</table></div>`+rulesNotes();
+}
+function rulesNotes(){
+  return `<div class="card flat"><h3>Four rules people forget</h3>
+    <p class="small"><b>Asking twice costs more.</b> A question that has already been asked can only be asked again for its additional cost — double the second time, triple the third, quadruple the fourth. A veto still counts as having asked it; a randomize does not. The Ask tab marks these and scales the draw.</p>
+    <p class="small"><b>Six cards.</b> The hider holds at most six. The “Draw 1, expand maximum hand size by 1” powerup raises that to seven, or eight if two are played.</p>
+    <p class="small"><b>Found means found.</b> A seeker has to be within 2 metres of the hider <i>and</i> have actually spotted them. Being in the right building, or knowing the station, is not enough.</p>
+    <p class="small"><b>No Street View.</b> Seekers may research with anything they like except Google Street View. (The Unguided Tourist is the exception that proves it: there the <i>hider</i> sends a Street View shot, and the seekers have to find it without the internet.)</p></div>`;
 }
 function lobby(){
   return `<div class="card"><h2>Who are you?</h2>
@@ -741,7 +873,9 @@ function ask(){
       const r=cat.id==='tentacle'?q[3]:REF[q[0]];
       const nul=(cat.id==='matching'||cat.id==='measuring'||cat.id==='tentacle')&&refEmpty(r);
       const tag=q[1]==='custom'?'custom':(nul?(r&&r[0]==='!'&&Map3.areaCount(r.slice(1))===1?'always yes':'null here'):'');
-      return `<button class="q ${askState.q===i?'on':''}" data-q="${i}"><span>${esc(q[0])}</span><span class="fmt">${tag}</span></button>`; }).join('')}</div>
+      const mu=q[1]==='custom'?1:multOf(cat.id,q[0]);
+      const mtag=mu>1?`<span class="fmt" style="color:var(--hider)">${MULT_WORD[mu]} cost</span>`:'';
+      return `<button class="q ${askState.q===i?'on':''}" data-q="${i}"><span>${esc(q[0])}</span>${mtag}<span class="fmt">${tag}</span></button>`; }).join('')}</div>
     ${sel&&sel[1]==='custom'?`<label class="f" for="ask-custom">Distance</label><input type="text" id="ask-custom" value="${esc(askState.custom)}" placeholder="e.g. 2 miles">`:''}
     ${needLoc?locRow('ask',askState.loc,askState.locHow):''}
     <button class="btn primary block" id="btn-send" style="margin-top:12px" ${askState.q==null||(needLoc&&!askState.loc)?'disabled':''}>${cat.two?'Start thermometer':'Send to hider'}</button></div>`;
@@ -751,7 +885,7 @@ function inbox(n){
   let h=`<div class="card"><h2>Inbox${n?` · ${n} waiting`:''}</h2>${pend.length?'':'<p class="muted">Nothing waiting. Questions the seekers send land here.</p>'}</div>`;
   for(const q of pend) h+=qCard(q,true);
   h+=`<div class="card"><h3>Send the seekers something</h3><div class="row"><select id="msg-kind" class="grow"><option value="curse">Curse</option><option value="note">Note</option></select></div>
-    <label class="f" for="msg-title">Title</label><input type="text" id="msg-title" placeholder="e.g. Curse of the Lemon Phylactery">
+    <label class="f" for="msg-curse">Card</label><select id="msg-curse"><option value="">— pick a curse, or write your own —</option>${CURSES.map(c=>`<option value="${c.k}">${esc(c.n)}</option>`).join('')}</select><label class="f" for="msg-title">Title</label><input type="text" id="msg-title" placeholder="e.g. Curse of the Lemon Phylactery">
     <label class="f" for="msg-text">Details</label><textarea id="msg-text" rows="2" placeholder="What the seekers must do, and until when"></textarea>
     <button class="btn block" id="btn-msg" style="margin-top:8px">Send</button></div>`;
   return h;
@@ -782,16 +916,31 @@ function qCard(q,mine){
 function feed(){
   const items=[...questions.map(q=>({t:q.askedAt,k:'q',q})),...messages.map(m=>({t:m.at,k:'m',m}))].sort((a,b)=>b.t-a.t);
   if(!items.length) return `<div class="card"><h2>Feed</h2><p class="muted">Every question, answer, curse and note shows up here, newest first, on every phone.</p></div>`;
-  return items.map(it=> it.k==='q'? qCard(it.q,isHider()) : `<div class="msg ${it.m.kind}"><div class="who"><span><span class="tag">${esc(it.m.kind)}</span>${esc(it.m.from)}</span><time>${fmtClock(it.m.at)}</time></div><div class="txt"><b>${esc(it.m.title)}</b></div>${it.m.text?`<div>${esc(it.m.text)}</div>`:''}</div>`).join('');
+  return items.map(it=> it.k==='q'? qCard(it.q,isHider()) : `<div class="msg ${it.m.kind}"><div class="who"><span><span class="tag">${esc(it.m.kind)}</span>${esc(it.m.from)}</span><time>${fmtClock(it.m.at)}</time></div><div class="txt"><b>${esc(it.m.title)}</b></div>${it.m.text?`<div class="mtext">${esc(it.m.text)}</div>`:''}</div>`).join('');
 }
+// The rulebook: a question that has been asked can only be asked again for
+// its additional cost. A veto still counts as having been asked; a randomize
+// does not. Second ask doubles, third triples, fourth quadruples.
+const MULT_WORD=['','','double','triple','quadruple'];
+function askedBefore(catId,text){ return questions.filter(q=>q.cat===catId&&q.q===text&&q.status!=='randomized').length; }
+function multOf(catId,text){ return Math.min(askedBefore(catId,text)+1,4); }
+function handLimit(){ return (game&&game.handMax)||6; }
 function hand(){
   const h=game.hand||[];
   // The hider's deck is private information — seekers see neither the cards
   // nor how many there are.
-  if(!isHider()) return `<div class="card"><h2>The hider's hand</h2><p class="muted">Hidden. What the hider is holding — and how much of it — is theirs to know. You find out when they play something.</p></div>`;
-  return `<div class="card"><h2>Your hand · ${h.length}/6</h2><p class="small muted">Log what you keep after each draw so the seekers can see your card count (not the cards). Discard when you play a card.</p>
-    <div class="hand">${h.map(c=>`<div class="hcard"><b>${esc(c.kind)}</b><span class="small">${esc(c.text)}</span><button class="x" data-discard="${esc(c.id)}">discard</button></div>`).join('')}</div>
-    <h3>Add a card</h3><div class="row"><select id="card-kind">${CARD_KINDS.map(k=>`<option>${k}</option>`).join('')}</select><input type="text" class="grow" id="card-text" placeholder="e.g. +5 min, Veto, Randomize"><button class="btn" id="btn-card">Keep</button></div></div>`;
+  if(!isHider()) return `<div class="card"><h2>The hider's hand</h2><p class="muted">Hidden. What the hider is holding — and how much of it — is theirs to know. You find out when they play something.</p></div>`+curseDeck();
+  const lim=handLimit(), full=h.length>=lim;
+  return `<div class="card"><h2>Your hand · ${h.length}/${lim}</h2><p class="small muted">Log what you keep after each draw so the seekers can see your card count (not the cards). Six is the limit; the “Draw 1, expand maximum hand size by 1” powerup raises it for the rest of the round.</p>
+    <div class="row" style="align-items:center;gap:8px"><span class="small muted">Hand limit</span><div class="seg" id="sel-handmax">${[6,7,8].map(n=>`<button type="button" data-handmax="${n}" class="${lim===n?'on':''}">${n}</button>`).join('')}</div></div>
+    <div class="hand">${h.map(c=>`<div class="hcard"><b>${esc(c.kind)}</b><span class="small">${esc(c.text)}</span>${c.curse?`<button class="btn sm cast" data-cast="${esc(c.id)}">cast</button>`:''}<button class="x" data-discard="${esc(c.id)}">discard</button></div>`).join('')}</div>
+    <h3>Add a card</h3>
+    <div class="row"><select id="card-kind">${CARD_KINDS.map(k=>`<option>${k}</option>`).join('')}</select>
+      <select id="card-curse" class="grow" hidden><option value="">— which curse —</option>${CURSES.map(c=>`<option value="${c.k}">${esc(c.n)}</option>`).join('')}</select>
+      <input type="text" class="grow" id="card-text" placeholder="e.g. +5 min, Veto, Randomize">
+      <button class="btn" id="btn-card" ${full?'disabled':''}>Keep</button></div>
+    ${full?`<p class="small" style="margin-top:6px">Hand is full at ${lim}. Discard or play something before you keep another.</p>`:''}
+    <p class="small muted" style="margin-top:6px">Casting a curse posts its full text to the feed and discards the card.</p></div>`+curseDeck();
 }
 function gameTab(){
   const players=Object.entries(game.players||{});
@@ -811,7 +960,7 @@ function gameTab(){
       : 'The rulebook: “radars are asking about your location, not your hiding zone. If the radar would encompass part of your hiding zone, but not your location at the time of answering, it would be a miss.” So a station falls only when no point of its zone could have given the answer.'}</p>
     <h3>Round note</h3><textarea id="game-note" rows="2" placeholder="House rules, meeting point, transit passes…">${esc(game.note||'')}</textarea><button class="btn sm" id="btn-note" style="margin-top:6px">Save note</button>
     <div class="row" style="margin-top:14px"><button class="btn sm" id="btn-switch">Switch name / role</button><button class="btn sm" id="btn-leave">Leave game</button><button class="btn sm danger" id="btn-delete">Delete round</button></div></div>
-    ${past.length?`<div class="card"><h2>Scoreboard</h2><table class="sb"><tr><th>Round</th><th>Hider</th><th>Time hidden</th></tr>${past.map(g=>`<tr><td>${esc(g.name)}</td><td>${esc(g.hider)}</td><td>${fmtT(g.foundAt-g.seekingStartAt)}</td></tr>`).join('')}</table></div>`:''}`;
+    ${past.length?`<div class="card"><h2>Scoreboard</h2><table class="sb"><tr><th>Round</th><th>Hider</th><th>Time hidden</th></tr>${past.map(g=>`<tr><td>${esc(g.name)}</td><td>${esc(g.hider)}</td><td>${fmtT(g.foundAt-g.seekingStartAt)}</td></tr>`).join('')}</table></div>`:''}`+rulesNotes();
 }
 
 // ---------- wiring ----------
@@ -827,7 +976,7 @@ function wire(){
   on('#btn-start-hiding','click',()=>{ if(!game.hider){ toast('Pick the hider in the Game tab first'); tab='game'; save('hs-tab',tab); render(); return; } patch({phase:'hiding',hidingStartAt:Date.now()}); });
   on('#btn-start-seeking','click',()=>patch({phase:'seeking',seekingStartAt:Date.now()}));
   on('#btn-endgame','click',()=>patch({phase:'endgame',endgameAt:Date.now()}));
-  on('#btn-found','click',()=>{ if(confirm('Mark the hider as found and end the round?')) patch({phase:'found',foundAt:Date.now()}); });
+  on('#btn-found','click',()=>{ if(confirm('Found means a seeker is within 2 metres of the hider AND has actually spotted them \u2014 being in the right building is not enough.\n\nEnd the round?')) patch({phase:'found',foundAt:Date.now()}); });
   on('[data-strict]','click',e=>{ patch({strict:e.currentTarget.dataset.strict==='1'}); });
   on('#btn-leave','click',leave);
   on('#btn-switch','click',()=>{ leave(); });
@@ -851,7 +1000,32 @@ function wire(){
   on('[data-photo]','change',e=>{ const f=e.target.files[0]; if(f) uploadPhoto(f,e.target.dataset.photo); });
   on('[data-veto]','click',e=>{ if(confirm('Veto this question? (Play a Veto card.)')) vetoQ(e.currentTarget.dataset.veto); });
   on('#btn-msg','click',()=>{ const t=$('#msg-title').value.trim(); if(!t){ toast('Give it a title'); return; } sendMessage($('#msg-kind').value,t,$('#msg-text').value.trim()); $('#msg-title').value=''; $('#msg-text').value=''; toast('Sent to seekers'); });
-  on('#btn-card','click',()=>{ const text=$('#card-text').value.trim(); const kind=$('#card-kind').value; const hand=[...(game.hand||[]),{id:uid(),kind,text}]; patch({hand}); });
+  on('#card-kind','change',()=>{ const isC=$('#card-kind').value==='Curse';
+    $('#card-curse').hidden=!isC; $('#card-text').hidden=isC; });
+  on('#btn-card','click',()=>{ const kind=$('#card-kind').value;
+    const h=game.hand||[];
+    if(h.length>=handLimit()){ toast('Hand is full \u2014 discard or play something first'); return; }
+    let text='', curse='';
+    if(kind==='Curse'){ curse=$('#card-curse')?$('#card-curse').value:'';
+      if(!curse){ toast('Pick which curse'); return; }
+      text=CURSE_BY[curse].n; }
+    else { text=$('#card-text').value.trim(); if(!text){ toast('What is the card?'); return; } }
+    patch({hand:[...h,{id:uid(),kind,text,curse}]}); });
+  on('[data-handmax]','click',e=>{ patch({handMax:+e.currentTarget.dataset.handmax}); });
+  on('[data-cast]','click',e=>{ const id=e.currentTarget.dataset.cast;
+    const card=(game.hand||[]).find(c=>c.id===id); if(!card||!card.curse) return;
+    const c=CURSE_BY[card.curse]; if(!c) return;
+    sendMessage('curse','Curse of the '+c.n, szPlain(c.t)+'\n\nCasting cost: '+szPlain(c.c));
+    patch({hand:(game.hand||[]).filter(x=>x.id!==id)});
+    toast('Cast \u2014 the seekers have the full text'); });
+  on('#msg-curse','change',()=>{ const k=$('#msg-curse').value; if(!k) return;
+    const c=CURSE_BY[k]; $('#msg-kind').value='curse';
+    $('#msg-title').value='Curse of the '+c.n;
+    $('#msg-text').value=szPlain(c.t)+'\n\nCasting cost: '+szPlain(c.c); });
+  on('#curse-find','input',()=>{ const q=$('#curse-find').value.trim().toLowerCase();
+    const list=document.getElementById('curse-list'); if(!list) return;
+    [...list.children].forEach((el,i)=>{ const c=CURSES[i];
+      el.hidden=!!q&&!((c.n+' '+c.t+' '+c.c).toLowerCase().includes(q)); }); });
   on('[data-discard]','click',e=>{ const id=e.currentTarget.dataset.discard; patch({hand:(game.hand||[]).filter(c=>c.id!==id)}); });
 }
 // ---------- map ----------
