@@ -173,6 +173,7 @@ table.sb th{font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;l
     <div id="mapbar">
       <button class="chip on" id="mp-stops" type="button">Stops</button>
       <button class="chip" id="mp-circles" type="button">Zones</button>
+      <button class="chip" id="mp-map" type="button"></button>
       <button class="chip" id="mp-pin" type="button">Drop pin</button>
       <button class="chip" id="mp-zone" type="button" hidden>Set my zone</button>
       <span class="chip" id="mp-count" hidden></span>
@@ -411,7 +412,7 @@ const MAPS=MAPDATA.zones;
 const SHAPE_SRC=MAPDATA.shapes||{};
 const POI_OF=z=>(MAPS[z]&&MAPS[z].poi)||{};
 const AREA_OF=z=>(MAPS[z]&&MAPS[z].areas)||{};
-const DEFAULT_ZONE='berkeley';
+const DEFAULT_ZONE='berkeley-north-oakland';
 // Hiding-zone radius in real metres, by game size.
 const HIDE_RADIUS={S:500,M:500,L:1000};
 
@@ -520,7 +521,7 @@ function onMessages(prev,snap){
 // ---------- writes ----------
 async function createGame(name,size){
   let c=mkCode(); for(let i=0;i<5;i++){ const s=await db.doc('games/'+c).get(); if(!s.exists) break; c=mkCode(); }
-  const g={name:name||('Game '+c),size,zone:size==='S'?'berkeley':'berkeley-north-oakland',phase:'setup',createdAt:Date.now(),hider:me.role==='hider'?me.name:'',players:{[me.name]:me.role},hidingStartAt:null,seekingStartAt:null,endgameAt:null,foundAt:null,hand:[],note:'',strict:false};
+  const g={name:name||('Game '+c),size,zone:DEFAULT_ZONE,phase:'setup',createdAt:Date.now(),hider:me.role==='hider'?me.name:'',players:{[me.name]:me.role},hidingStartAt:null,seekingStartAt:null,endgameAt:null,foundAt:null,hand:[],note:'',strict:false};
   await db.doc('games/'+c).set(g); join(c);
 }
 async function patch(data){ if(!code) return; try{ await db.doc('games/'+code).update(data); }catch(e){ toast('Could not save: '+(e.code||e.message)); } }
@@ -1120,6 +1121,13 @@ function bind(){
     if(dp){ try{ await db.doc('games/'+code+'/pins/'+dp).delete(); tip(null); }catch(err){ toast('Could not remove pin'); } }
   });
   document.getElementById('mp-stops').addEventListener('click',e=>{ const on=e.currentTarget.classList.toggle('on'); gStops.style.display=on?'':'none'; });
+  // Cycles the zone for everyone, so nobody is reading a different map.
+  document.getElementById('mp-map').addEventListener('click',()=>{
+    const ks=Object.keys(MAPS), i=ks.indexOf(zoneKey());
+    const next=ks[(i+1)%ks.length];
+    if(code) patch({zone:next}); else { toast('Join a round first'); return; }
+    toast(MAPS[next].label);
+  });
   document.getElementById('mp-circles').addEventListener('click',e=>{
     showCircles=e.currentTarget.classList.toggle('on'); save('hs-circles',showCircles); shadeKey=''; redraw(); });
   document.getElementById('mp-pin').addEventListener('click',e=>{ pinMode=e.currentTarget.classList.toggle('on'); zoneMode=false; document.getElementById('mp-zone').classList.remove('on'); if(pinMode) toast('Tap the map to place a pin'); });
@@ -1547,6 +1555,9 @@ return {
     if(built!==zoneKey()) build(); else { fit(); }
     const zb=document.getElementById('mp-zone'); zb.hidden=!isHider();
     document.getElementById('mp-circles').classList.toggle('on',showCircles);
+    const mb=document.getElementById('mp-map');
+    mb.textContent=MAPS[zoneKey()].label;
+    mb.title='Switch the map everyone is using';
     tip(null);
   },
   syncPins(){ if(built&&!document.getElementById('mapview').hidden) redraw(); },
