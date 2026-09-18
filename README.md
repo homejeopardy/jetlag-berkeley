@@ -16,7 +16,7 @@ phones. Neither tool works out where the hider is. That part is the game.
 
 `maps/berkeley.html` is the Berkeley city limits, shoreline to the Tilden
 ridge: 585 bus stops, four rail stations, fifteen AC Transit lines. It fits
-a small game — a 30-minute hiding period and a quarter-mile hiding zone.
+a small game — a 30-minute hiding period and a 500 m hiding zone.
 
 `maps/berkeley-north-oakland.html` adds Oakland north of Highway 24: 714
 stops, six stations. Bigger, and it brings Rockridge and MacArthur BART
@@ -109,54 +109,49 @@ Answers narrow the map, for seekers and hider alike, and every phone narrows
 it the same way. What greys out is the ground, not the stations: the hider
 has to be inside a hiding zone around one of the stations still in play, so
 everything outside those zones is shaded over, leaving the area still worth
-searching. A counter says how many stations are left. Every stop stays
-legible either way — the shading sits under them, and a Zones control outlines
-each surviving zone individually when the union's shape is not enough.
+searching. A counter says how many stations are left, a Zones control
+outlines each surviving zone separately, and tapping a stop lets you rule it
+out by hand for the deductions the app cannot make.
 
-Tapping a stop also offers to rule it out by hand, for everything the app
-cannot know: a platform you have already searched, somewhere the hider would
-never pick, a deduction from a card the map does not model. Crossings sync to
-every phone and can be undone.
+The rulebook decides how much an answer rules out, and it is explicit:
+*"radars are asking about your location, not your hiding zone. If the radar
+would encompass part of your hiding zone, but not your location at the time
+of answering, it would be a miss."* The hider may also move freely anywhere
+in their zone until the end game. So a station falls only when **no point at
+all** of its zone could have produced the answer — which is why a 500 m radar
+answered "no" rules out almost nothing, and that is correct. A **Station**
+setting on the Game tab reads answers against the station instead, ruling out
+everything inside that circle; it is sharper, it is how people tend to play,
+and it is a house rule, so it says so.
 
-How much an answer rules out is a setting, because the rules and the way it
-actually plays pull in different directions. The rulebook says questions are
-answered **from wherever the hider is standing, not from their station**, and
-that the hider may move anywhere inside their zone between questions. Read
-that way — the **Whole zone** setting — a station survives unless *no point
-at all* of its quarter-mile zone could have produced the answer, which is
-unimpeachable and rules out almost nothing: a quarter-mile radar answered
-"no" eliminates zero stations, because every zone reaches outside the circle.
-**Station**, the default, reads each answer against the station itself, so
-that radar rules out every station inside its circle. It is how the game
-plays, at the price that a hider who wandered to the edge of their zone could
-in principle be ruled out. Either way the geometry is computed exactly, not
-with a safety margin. Each answer is turned into the set of
-points that could have given it: a disc for a radar, a half-plane for a
+The geometry is exact, not bounded. Each answer becomes the region of points
+that could have produced it — a disc for a radar, a half-plane for a
 thermometer, a union of discs for a measuring card, a Voronoi cell for a
 matching or tentacle card, a city outline for an administrative one. An exact
-Euclidean distance transform turns that set into a distance field, and the
-station survives if the field at the station is inside its zone radius. The
-grid is 25 m, so the answer is exact to about half a cell; the old version
-was loose by up to two zone radii, which is 800 m.
+distance transform turns the region into a distance field, and the station
+survives if the field at the station is within its zone radius. The grid is
+25 m, so it is exact to about half a cell.
 
-The cards the map can answer: Radar, Thermometer, Tentacles, Matching and
-Measuring against a commercial airport, mountain, amusement park, zoo,
-aquarium, golf course, museum, movie theater, hospital, library or foreign
-consulate, Measuring against a rail station, the coastline, a body of water
-or a park (to the nearest edge of the shape, not to a label point), Matching
-on the nearest station's name length (all characters, spaces and hyphens
-included, as the card says), and Matching or Measuring on the city.
-
-Reference features are taken from the real world rather than clipped to the
-game zone, which is what "correctly categorized by your mapping app" means:
-the nearest commercial airport really is Oakland International, the nearest
-zoos really are Oakland's and San Francisco's. Honorary consulates are
-excluded, as the card says.
+Reference features are whatever falls inside the game map, because the
+rulebook says so: *"if locations are not within a map's boundaries, players
+must operate as if they do not exist"*, and the question comes back **null** —
+it still counts, the hider still draws, and it tells the seekers nothing. In
+the Berkeley zone that means commercial airports, zoos, aquariums, amusement
+parks, golf courses and consulates are all null, and the app marks them in
+the question list before you spend one. Museums, libraries, hospitals,
+cinemas, mountains, parks, named water and rail stations are live. Parks and
+bodies of water are measured to their map icon, as their cards say; the
+coastline is measured to itself.
 
 The cards it leaves alone, and says so in the feed: transit line, street or
 path, landmass, high-speed train line, international border, sea level, and
-the council-district division. Those are recorded for you to reason about
-rather than answered with geometry the app does not have.
+the state and county divisions — the county line runs right along the
+Berkeley ridge and would be a good constraint, but the boundary data is not
+in the extract yet.
+
+Sizes follow the metric edition: a 500 m hiding zone for small and medium
+games, 1 km for large, hiding periods of 30, 60 and 180 minutes, and the
+metric radar and thermometer distances.
 
 ### How the phones stay in sync
 
