@@ -16,7 +16,7 @@ phones. Neither tool works out where the hider is. That part is the game.
 
 `maps/berkeley.html` is the Berkeley city limits, shoreline to the Tilden
 ridge: 585 bus stops, four rail stations, fifteen AC Transit lines. It fits
-a small game — a 30-minute hiding period and a 500 m hiding zone.
+a small game — a 30-minute hiding period and a quarter-mile hiding zone.
 
 `maps/berkeley-north-oakland.html` adds Oakland north of Highway 24: 714
 stops, six stations. Bigger, and it brings Rockridge and MacArthur BART
@@ -149,9 +149,11 @@ the state and county divisions — the county line runs right along the
 Berkeley ridge and would be a good constraint, but the boundary data is not
 in the extract yet.
 
-Sizes follow the metric edition: a 500 m hiding zone for small and medium
-games, 1 km for large, hiding periods of 30, 60 and 180 minutes, and the
-metric radar and thermometer distances.
+Distances are the imperial edition's: a quarter-mile hiding zone for small
+and medium games, half a mile for large, hiding periods of 30, 60 and 180
+minutes, and the imperial radar, thermometer and tentacle distances. (The
+rulebook scan that settled the rules above is the metric edition; the two
+differ only in that its numbers are rounded to 500 m, 1 km and so on.)
 
 ### How the phones stay in sync
 
