@@ -359,20 +359,20 @@ return { async open(){
 })();
 
 // ---------- rules data ----------
-const SIZES={S:{name:'Small',hide:30,zone:'500 m',photo:10},M:{name:'Medium',hide:60,zone:'500 m',photo:10},L:{name:'Large',hide:180,zone:'1 km',photo:20}};
+const SIZES={S:{name:'Small',hide:30,zone:'¼ mile',photo:10},M:{name:'Medium',hide:60,zone:'¼ mile',photo:10},L:{name:'Large',hide:180,zone:'½ mile',photo:20}};
 const CATS=[
  {id:'matching',name:'Matching',fmt:'Is your nearest ___ the same as my ___?',draw:3,keep:1,ans:['Yes','No'],
   qs:[['Commercial airport'],['Transit line'],['Station name length (characters)'],['Street or path'],['1st administrative division (state)'],['2nd administrative division (county)'],['3rd administrative division (city)'],['4th administrative division'],['Mountain'],['Landmass'],['Park'],['Amusement park'],['Zoo'],['Aquarium'],['Golf course'],['Museum'],['Movie theater'],['Hospital'],['Library'],['Foreign consulate']]},
  {id:'measuring',name:'Measuring',fmt:'Compared to me, are you closer to or further from ___?',draw:3,keep:1,ans:['Closer','Further'],loc:1,
   qs:[['Commercial airport'],['High-speed train line'],['Rail station'],['International border'],['1st administrative division border (state)'],['2nd administrative division border (county)'],['Sea level'],['Body of water'],['Coastline'],['Mountain'],['Park'],['Amusement park'],['Zoo'],['Aquarium'],['Golf course'],['Museum'],['Movie theater'],['Hospital'],['Library'],['Foreign consulate']]},
  {id:'radar',name:'Radar',fmt:'Are you within ___ of me?',draw:2,keep:1,ans:['Yes','No'],loc:1,
-  qs:[['500 m',null,500],['1 km',null,1000],['2 km',null,2000],['5 km',null,5000],['10 km',null,10000],['15 km',null,15000],['40 km',null,40000],['80 km',null,80000],['160 km',null,160000],['Choose a distance','custom']]},
+  qs:[['¼ mile',null,402],['½ mile',null,805],['1 mile',null,1609],['3 miles',null,4828],['5 miles',null,8047],['10 miles',null,16093],['25 miles',null,40234],['50 miles',null,80467],['100 miles',null,160934],['Choose a distance','custom']]},
  {id:'thermo',name:'Thermometer',fmt:'After traveling ___, am I hotter or colder?',draw:2,keep:1,ans:['Hotter','Colder'],loc:1,two:1,
-  qs:[['1 km',null,1000],['5 km',null,5000],['15 km','M',15000],['75 km','L',75000]]},
+  qs:[['½ mile',null,805],['3 miles',null,4828],['10 miles','M',16093],['50 miles','L',80467]]},
  {id:'photo',name:'Photo',fmt:'Send me a photo of ___.',draw:1,keep:1,ans:[],
   qs:[['Any building visible from your transit station'],['The widest street near you'],['A tree'],['The tallest structure in your current sightline'],['You (selfie)'],['The sky'],['Tallest building visible from your transit station','M'],['Trace your nearest street/path','M'],['2 buildings','M'],['A restaurant interior','M'],['A park','M'],['A grocery store aisle','M'],['A place of worship','M'],['Your train platform','M'],['½ mile of streets traced','L'],['Tallest mountain visible from your station','L'],['Biggest body of water in your zone','L'],['5 buildings','L']]},
  {id:'tentacle',name:'Tentacles',fmt:'Within ___ of me, which ___ are you nearest to?',draw:4,keep:2,ans:[],min:'M',
-  qs:[['Museums within 2 km','M',2000,'museum'],['Libraries within 2 km','M',2000,'library'],['Movie theaters within 2 km','M',2000,'cinema'],['Hospitals within 2 km','M',2000,'hospital'],['Metro lines within 25 km','L',25000],['Zoos within 25 km','L',25000,'zoo'],['Aquariums within 25 km','L',25000,'aquarium'],['Amusement parks within 25 km','L',25000,'theme_park']]},
+  qs:[['Museums within 1 mile','M',1609,'museum'],['Libraries within 1 mile','M',1609,'library'],['Movie theaters within 1 mile','M',1609,'cinema'],['Hospitals within 1 mile','M',1609,'hospital'],['Metro lines within 15 miles','L',24140],['Zoos within 15 miles','L',24140,'zoo'],['Aquariums within 15 miles','L',24140,'aquarium'],['Amusement parks within 15 miles','L',24140,'theme_park']]},
 ];
 // Which questions the map can narrow, and against what. A question missing
 // from here is recorded in the feed and left for you to reason about: an app
@@ -414,7 +414,7 @@ const POI_OF=z=>(MAPS[z]&&MAPS[z].poi)||{};
 const AREA_OF=z=>(MAPS[z]&&MAPS[z].areas)||{};
 const DEFAULT_ZONE='berkeley-north-oakland';
 // Hiding-zone radius in real metres, by game size.
-const HIDE_RADIUS={S:500,M:500,L:1000};
+const HIDE_RADIUS={S:402,M:402,L:805};
 
 // ---------- state ----------
 let db=null, assets=null, dbReady=false, backend=null, backendDetail='';
@@ -442,15 +442,22 @@ function beep(){ try{ const ac=new (window.AudioContext||window.webkitAudioConte
 function isHider(){ return game && me.role==='hider'; }
 // "2 miles", "800m", "1.5 km" -> metres
 function parseDist(str){
-  const m=String(str||'').trim().match(/^([\d.]+)\s*(mi|mile|miles|m|metre|metres|meter|meters|km|kilometre|kilometres)?$/i);
+  const m=String(str||'').trim().match(/^([\d.]+)\s*(mi|mile|miles|ft|feet|foot|m|metre|metres|meter|meters|km|kilometre|kilometres)?$/i);
   if(!m) return null;
   const n=parseFloat(m[1]); if(!isFinite(n)||n<=0) return null;
   const u=(m[2]||'mi').toLowerCase();
+  if(u.startsWith('f')) return Math.round(n*0.3048);
   if(u==='m'||u.startsWith('met')) return Math.round(n);
   if(u.startsWith('km')||u.startsWith('kil')) return Math.round(n*1000);
   return Math.round(n*1609.34);
 }
-function fmtDist(m){ return m>=1609 ? (m/1609.34).toFixed(m%1609?1:0)+' mi' : Math.round(m)+' m'; }
+// Imperial, to match the cards: feet under a tenth of a mile, miles above.
+function fmtDist(m){
+  const mi=m/1609.34;
+  if(mi<0.095) return Math.round(m*3.28084/10)*10+' ft';
+  if(mi<10) return (+mi.toFixed(2))+' mi';
+  return Math.round(mi)+' mi';
+}
 // The seeker's own position, needed for radars, thermometers and measuring.
 // GPS first; if that is refused the map doubles as a position picker.
 function setLoc(which,xy,how){
