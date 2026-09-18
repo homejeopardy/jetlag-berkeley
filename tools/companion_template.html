@@ -173,6 +173,7 @@ table.sb th{font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;l
     <div id="mapbar">
       <button class="chip on" id="mp-stops" type="button">Stops</button>
       <button class="chip" id="mp-circles" type="button">Zones</button>
+      <button class="chip" id="mp-map" type="button"></button>
       <button class="chip" id="mp-pin" type="button">Drop pin</button>
       <button class="chip" id="mp-zone" type="button" hidden>Set my zone</button>
       <span class="chip" id="mp-count" hidden></span>
@@ -358,20 +359,20 @@ return { async open(){
 })();
 
 // ---------- rules data ----------
-const SIZES={S:{name:'Small',hide:30,zone:'¼ mile (400 m)',photo:10},M:{name:'Medium',hide:60,zone:'¼ mile (400 m)',photo:10},L:{name:'Large',hide:180,zone:'½ mile (800 m)',photo:20}};
+const SIZES={S:{name:'Small',hide:30,zone:'500 m',photo:10},M:{name:'Medium',hide:60,zone:'500 m',photo:10},L:{name:'Large',hide:180,zone:'1 km',photo:20}};
 const CATS=[
  {id:'matching',name:'Matching',fmt:'Is your nearest ___ the same as my ___?',draw:3,keep:1,ans:['Yes','No'],
-  qs:[['Commercial airport'],['Transit line'],['Station name length (characters)'],['Street or path'],['1st administrative division (city)'],['2nd administrative division (district)'],['Mountain'],['Landmass'],['Park'],['Amusement park'],['Zoo'],['Aquarium'],['Golf course'],['Museum'],['Movie theater'],['Hospital'],['Library'],['Foreign consulate']]},
+  qs:[['Commercial airport'],['Transit line'],['Station name length (characters)'],['Street or path'],['1st administrative division (state)'],['2nd administrative division (county)'],['3rd administrative division (city)'],['4th administrative division'],['Mountain'],['Landmass'],['Park'],['Amusement park'],['Zoo'],['Aquarium'],['Golf course'],['Museum'],['Movie theater'],['Hospital'],['Library'],['Foreign consulate']]},
  {id:'measuring',name:'Measuring',fmt:'Compared to me, are you closer to or further from ___?',draw:3,keep:1,ans:['Closer','Further'],loc:1,
-  qs:[['Commercial airport'],['High-speed train line'],['Rail station'],['International border'],['1st administrative division border (city)'],['2nd administrative division border (district)'],['Sea level'],['Body of water'],['Coastline'],['Mountain'],['Park'],['Amusement park'],['Zoo'],['Aquarium'],['Golf course'],['Museum'],['Movie theater'],['Hospital'],['Library'],['Foreign consulate']]},
+  qs:[['Commercial airport'],['High-speed train line'],['Rail station'],['International border'],['1st administrative division border (state)'],['2nd administrative division border (county)'],['Sea level'],['Body of water'],['Coastline'],['Mountain'],['Park'],['Amusement park'],['Zoo'],['Aquarium'],['Golf course'],['Museum'],['Movie theater'],['Hospital'],['Library'],['Foreign consulate']]},
  {id:'radar',name:'Radar',fmt:'Are you within ___ of me?',draw:2,keep:1,ans:['Yes','No'],loc:1,
-  qs:[['¼ mile',null,402],['½ mile',null,805],['1 mile',null,1609],['3 miles',null,4828],['5 miles',null,8047],['10 miles',null,16093],['25 miles',null,40234],['50 miles',null,80467],['100 miles',null,160934],['Choose a distance','custom']]},
+  qs:[['500 m',null,500],['1 km',null,1000],['2 km',null,2000],['5 km',null,5000],['10 km',null,10000],['15 km',null,15000],['40 km',null,40000],['80 km',null,80000],['160 km',null,160000],['Choose a distance','custom']]},
  {id:'thermo',name:'Thermometer',fmt:'After traveling ___, am I hotter or colder?',draw:2,keep:1,ans:['Hotter','Colder'],loc:1,two:1,
-  qs:[['½ mile',null,805],['3 miles',null,4828],['10 miles','M',16093],['50 miles','L',80467]]},
+  qs:[['1 km',null,1000],['5 km',null,5000],['15 km','M',15000],['75 km','L',75000]]},
  {id:'photo',name:'Photo',fmt:'Send me a photo of ___.',draw:1,keep:1,ans:[],
   qs:[['Any building visible from your transit station'],['The widest street near you'],['A tree'],['The tallest structure in your current sightline'],['You (selfie)'],['The sky'],['Tallest building visible from your transit station','M'],['Trace your nearest street/path','M'],['2 buildings','M'],['A restaurant interior','M'],['A park','M'],['A grocery store aisle','M'],['A place of worship','M'],['Your train platform','M'],['½ mile of streets traced','L'],['Tallest mountain visible from your station','L'],['Biggest body of water in your zone','L'],['5 buildings','L']]},
  {id:'tentacle',name:'Tentacles',fmt:'Within ___ of me, which ___ are you nearest to?',draw:4,keep:2,ans:[],min:'M',
-  qs:[['Museums within 1 mile','M',1609,'museum'],['Libraries within 1 mile','M',1609,'library'],['Movie theaters within 1 mile','M',1609,'cinema'],['Hospitals within 1 mile','M',1609,'hospital'],['Metro lines within 15 miles','L',24140],['Zoos within 15 miles','L',24140,'zoo'],['Aquariums within 15 miles','L',24140,'aquarium'],['Amusement parks within 15 miles','L',24140,'theme_park']]},
+  qs:[['Museums within 2 km','M',2000,'museum'],['Libraries within 2 km','M',2000,'library'],['Movie theaters within 2 km','M',2000,'cinema'],['Hospitals within 2 km','M',2000,'hospital'],['Metro lines within 25 km','L',25000],['Zoos within 25 km','L',25000,'zoo'],['Aquariums within 25 km','L',25000,'aquarium'],['Amusement parks within 25 km','L',25000,'theme_park']]},
 ];
 // Which questions the map can narrow, and against what. A question missing
 // from here is recorded in the feed and left for you to reason about: an app
@@ -381,32 +382,39 @@ const REF={
  'Zoo':'zoo','Aquarium':'aquarium','Golf course':'golf','Museum':'museum',
  'Movie theater':'cinema','Hospital':'hospital','Library':'library',
  'Foreign consulate':'consulate','Rail station':'station',
- 'Coastline':'@coast','Body of water':'@water','Park':'@park',
- '1st administrative division border (city)':'@city',
- '2nd administrative division border (district)':'@district',
+ 'Coastline':'@coast','Body of water':'water','Park':'park',
  'Station name length (characters)':'#namelen',
- '1st administrative division (city)':'!city',
- '2nd administrative division (district)':'!district'};
+ '3rd administrative division (city)':'!city'};
 const NOT_IN_REACH='Not within reach';
+// "If locations are not within a map's boundaries, players must operate as if
+// they do not exist" — the answer is null. It still counts as a question and
+// the hider still draws, but it tells the seekers nothing.
+function refEmpty(ref){
+  if(!ref) return false;
+  if(ref[0]==='!'||ref[0]==='@') return Map3.areaCount(ref.slice(1))<(ref[0]==='!'?2:1);
+  if(ref==='#namelen') return false;
+  return Map3.refCount(ref)===0;
+}
 // How each one reads in a sentence.
-const REF_NOUN={airport:'a commercial airport',peak:'a mountain',theme_park:'an amusement park',
- '@coast':'the coastline','@water':'a body of water','@park':'a park',
- '@city':'the city line','@district':'a district line',
+const REF_NOUN={airport:'a commercial airport',
+ '@coast':'the coastline',peak:'a mountain',theme_park:'an amusement park',
+ water:'a named body of water',park:'a park',station:'a rail station',
  zoo:'a zoo',aquarium:'an aquarium',golf:'a golf course',museum:'a museum',
  cinema:'a movie theater',hospital:'a hospital',library:'a library',
- consulate:'a foreign consulate',coast:'the coastline',station:'a rail station'};
+ consulate:'a foreign consulate'};
 const SIZE_RANK={S:0,M:1,L:2};
 const CARD_KINDS=['Time bonus','Powerup','Curse'];
 const MAPDATA=__MAPDATA__;
 const MAPS=MAPDATA.zones;
 // Reference points arrive as lon/lat and are projected once per zone.
-const POI_SRC=MAPDATA.poi;
-// Outlines measured to their nearest edge, and named areas a point falls in.
+
+// References live per zone: what is on the map is what exists.
 const SHAPE_SRC=MAPDATA.shapes||{};
-const AREA_SRC=MAPDATA.areas||{};
-const DEFAULT_ZONE='berkeley';
+const POI_OF=z=>(MAPS[z]&&MAPS[z].poi)||{};
+const AREA_OF=z=>(MAPS[z]&&MAPS[z].areas)||{};
+const DEFAULT_ZONE='berkeley-north-oakland';
 // Hiding-zone radius in real metres, by game size.
-const HIDE_RADIUS={S:402,M:402,L:805};
+const HIDE_RADIUS={S:500,M:500,L:1000};
 
 // ---------- state ----------
 let db=null, assets=null, dbReady=false, backend=null, backendDetail='';
@@ -513,7 +521,7 @@ function onMessages(prev,snap){
 // ---------- writes ----------
 async function createGame(name,size){
   let c=mkCode(); for(let i=0;i<5;i++){ const s=await db.doc('games/'+c).get(); if(!s.exists) break; c=mkCode(); }
-  const g={name:name||('Game '+c),size,zone:size==='S'?'berkeley':'berkeley-north-oakland',phase:'setup',createdAt:Date.now(),hider:me.role==='hider'?me.name:'',players:{[me.name]:me.role},hidingStartAt:null,seekingStartAt:null,endgameAt:null,foundAt:null,hand:[],note:'',strict:true};
+  const g={name:name||('Game '+c),size,zone:DEFAULT_ZONE,phase:'setup',createdAt:Date.now(),hider:me.role==='hider'?me.name:'',players:{[me.name]:me.role},hidingStartAt:null,seekingStartAt:null,endgameAt:null,foundAt:null,hand:[],note:'',strict:false};
   await db.doc('games/'+c).set(g); join(c);
 }
 async function patch(data){ if(!code) return; try{ await db.doc('games/'+code).update(data); }catch(e){ toast('Could not save: '+(e.code||e.message)); } }
@@ -722,7 +730,11 @@ function ask(){
   const needLoc=!!cat.loc;
   return running+`<div class="card"><div class="row"><button class="btn sm ghost" id="btn-back">‹ Categories</button><h2 style="flex:1">${cat.name}</h2></div><p class="small muted">${esc(cat.fmt)}</p>
     ${cat.two?`<p class="small">Starting one sends the hider your position now. You then travel the distance and ask from where you end up.</p>`:''}
-    <div class="qlist">${cat.qs.map((q,i)=>{ const ok=q[1]==='custom'||sizeOk(q[1]); if(!ok) return ''; return `<button class="q ${askState.q===i?'on':''}" data-q="${i}"><span>${esc(q[0])}</span><span class="fmt">${q[1]==='custom'?'custom':''}</span></button>`; }).join('')}</div>
+    <div class="qlist">${cat.qs.map((q,i)=>{ const ok=q[1]==='custom'||sizeOk(q[1]); if(!ok) return '';
+      const r=cat.id==='tentacle'?q[3]:REF[q[0]];
+      const nul=(cat.id==='matching'||cat.id==='measuring'||cat.id==='tentacle')&&refEmpty(r);
+      const tag=q[1]==='custom'?'custom':(nul?(r&&r[0]==='!'&&Map3.areaCount(r.slice(1))===1?'always yes':'null here'):'');
+      return `<button class="q ${askState.q===i?'on':''}" data-q="${i}"><span>${esc(q[0])}</span><span class="fmt">${tag}</span></button>`; }).join('')}</div>
     ${sel&&sel[1]==='custom'?`<label class="f" for="ask-custom">Distance</label><input type="text" id="ask-custom" value="${esc(askState.custom)}" placeholder="e.g. 2 miles">`:''}
     ${needLoc?locRow('ask',askState.loc,askState.locHow):''}
     <button class="btn primary block" id="btn-send" style="margin-top:12px" ${askState.q==null||(needLoc&&!askState.loc)?'disabled':''}>${cat.two?'Start thermometer':'Send to hider'}</button></div>`;
@@ -785,11 +797,11 @@ function gameTab(){
     <p class="small muted" style="margin-top:6px">Sets what the Map tab draws for everyone. The full-screen versions are also on the web: <a href="https://homejeopardy.github.io/jetlag-berkeley/" target="_blank" rel="noopener">homejeopardy.github.io/jetlag-berkeley</a></p>
     <h3>How much the answers rule out</h3>
     <div class="seg" id="sel-strict">
-      <button type="button" data-strict="1" class="${game.strict===false?'':'on'}">Station</button>
-      <button type="button" data-strict="0" class="${game.strict===false?'on':''}">Whole zone</button></div>
-    <p class="small muted" style="margin-top:6px">${game.strict===false
-      ? 'A station survives if the hider could have been standing anywhere in its zone. That is what the rules allow, and it means a quarter-mile radar rules out almost nothing.'
-      : 'Answers are read against the station itself, so a radar rules out every station inside its circle. Sharper, and how it plays — though a hider who wandered to the edge of their zone could in principle be ruled out.'}</p>
+      <button type="button" data-strict="0" class="${game.strict===true?'':'on'}">By the book</button>
+      <button type="button" data-strict="1" class="${game.strict===true?'on':''}">Station</button></div>
+    <p class="small muted" style="margin-top:6px">${game.strict===true
+      ? 'House rule: answers are read against the station itself, so a radar rules out every station inside its circle. Sharper, but it can rule out a hider who had wandered across their zone.'
+      : 'The rulebook: “radars are asking about your location, not your hiding zone. If the radar would encompass part of your hiding zone, but not your location at the time of answering, it would be a miss.” So a station falls only when no point of its zone could have given the answer.'}</p>
     <h3>Round note</h3><textarea id="game-note" rows="2" placeholder="House rules, meeting point, transit passes…">${esc(game.note||'')}</textarea><button class="btn sm" id="btn-note" style="margin-top:6px">Save note</button>
     <div class="row" style="margin-top:14px"><button class="btn sm" id="btn-switch">Switch name / role</button><button class="btn sm" id="btn-leave">Leave game</button><button class="btn sm danger" id="btn-delete">Delete round</button></div></div>
     ${past.length?`<div class="card"><h2>Scoreboard</h2><table class="sb"><tr><th>Round</th><th>Hider</th><th>Time hidden</th></tr>${past.map(g=>`<tr><td>${esc(g.name)}</td><td>${esc(g.hider)}</td><td>${fmtT(g.foundAt-g.seekingStartAt)}</td></tr>`).join('')}</table></div>`:''}`;
@@ -1109,6 +1121,13 @@ function bind(){
     if(dp){ try{ await db.doc('games/'+code+'/pins/'+dp).delete(); tip(null); }catch(err){ toast('Could not remove pin'); } }
   });
   document.getElementById('mp-stops').addEventListener('click',e=>{ const on=e.currentTarget.classList.toggle('on'); gStops.style.display=on?'':'none'; });
+  // Cycles the zone for everyone, so nobody is reading a different map.
+  document.getElementById('mp-map').addEventListener('click',()=>{
+    const ks=Object.keys(MAPS), i=ks.indexOf(zoneKey());
+    const next=ks[(i+1)%ks.length];
+    if(code) patch({zone:next}); else { toast('Join a round first'); return; }
+    toast(MAPS[next].label);
+  });
   document.getElementById('mp-circles').addEventListener('click',e=>{
     showCircles=e.currentTarget.classList.toggle('on'); save('hs-circles',showCircles); shadeKey=''; redraw(); });
   document.getElementById('mp-pin').addEventListener('click',e=>{ pinMode=e.currentTarget.classList.toggle('on'); zoneMode=false; document.getElementById('mp-zone').classList.remove('on'); if(pinMode) toast('Tap the map to place a pin'); });
@@ -1140,7 +1159,7 @@ function poiPts(k){
   const z=zoneKey(), c=poiCache[z]||(poiCache[z]={});
   if(c[k]) return c[k];
   c[k]= k==='station' ? M().stations.map(s=>[s.x,s.y,s.n])
-      : (POI_SRC[k]||[]).map(q=>{ const xy=project(q[0],q[1]); return [xy[0],xy[1],q[2]||'']; });
+      : ((POI_OF(z)[k])||[]).map(q=>{ const xy=project(q[0],q[1]); return [xy[0],xy[1],q[2]||'']; });
   return c[k];
 }
 const nameLen=s=>(s||'').length;   // hyphens and spaces count, per the card
@@ -1189,16 +1208,31 @@ function blank(g){ const f=new Float64Array(g.n); f.fill(FAR); return f; }
 function toMetres(g,f){ const d=new Float32Array(g.n);
   for(let i=0;i<g.n;i++) d[i]=Math.sqrt(f[i])*g.cell; return d; }
 
-// Nearest-reference-point field: distance, and which one won.
+// Nearest-reference-point field: distance, and which one won. Computed cell
+// by cell rather than by distance transform — the separable transform gets
+// the distance right but mislabels a thin band along the Voronoi boundaries,
+// and a station can turn on whether a sliver of its zone fell in that band.
+// The reference sets are clipped to the map, so they are small enough to do
+// this honestly.
 function pointField(key,pts){
   const g=grid(); if(g.fields[key]) return g.fields[key];
-  const f=blank(g), lbl=new Int32Array(g.n).fill(-1);
-  for(let i=0;i<pts.length;i++){
-    const c=g.at(pts[i][0],pts[i][1]);
-    if(c>=0&&lbl[c]<0){ f[c]=0; lbl[c]=i; }
+  const d=new Float32Array(g.n), lbl=new Int32Array(g.n).fill(-1), n=pts.length;
+  if(!n){ d.fill(Infinity); return g.fields[key]={d,lbl,pts}; }
+  const px=new Float64Array(n), py=new Float64Array(n);
+  for(let i=0;i<n;i++){ px[i]=pts[i][0]; py[i]=pts[i][1]; }
+  for(let gy=0,c=0;gy<g.gh;gy++){
+    const y=g.y0+(gy+0.5)*g.cell;
+    for(let gx=0;gx<g.gw;gx++,c++){
+      const x=g.x0+(gx+0.5)*g.cell;
+      let bi=0,bd=Infinity;
+      for(let i=0;i<n;i++){
+        const dx=x-px[i], dy=y-py[i], dd=dx*dx+dy*dy;
+        if(dd<bd){ bd=dd; bi=i; }
+      }
+      d[c]=Math.sqrt(bd); lbl[c]=bi;
+    }
   }
-  edt(g,f,lbl);
-  return g.fields[key]={d:toMetres(g,f),lbl,pts};
+  return g.fields[key]={d,lbl,pts};
 }
 const poiField=k=>pointField('p:'+k,poiPts(k));
 // Distance to the edge of a shape — a park, a lake, the shoreline — by
@@ -1206,7 +1240,7 @@ const poiField=k=>pointField('p:'+k,poiPts(k));
 function shapeField(k){
   const g=grid(), key='s:'+k; if(g.fields[key]) return g.fields[key];
   const f=blank(g);
-  for(const line of (SHAPE_SRC[k]?SHAPE_SRC[k]:[].concat(...(AREA_SRC[k]||[]).map(a=>a.r)))){
+  for(const line of (SHAPE_SRC[k]?SHAPE_SRC[k]:[].concat(...((AREA_OF(zoneKey())[k])||[]).map(a=>a.r)))){
     let px=null,py=null;
     for(const ll of line){
       const [x,y]=project(ll[0],ll[1]);
@@ -1223,7 +1257,7 @@ function shapeField(k){
 // Which named area (city, council district) each cell falls in.
 function areaField(k){
   const g=grid(), key='a:'+k; if(g.fields[key]) return g.fields[key];
-  const list=AREA_SRC[k]||[], lbl=new Int32Array(g.n).fill(-1);
+  const list=AREA_OF(zoneKey())[k]||[], lbl=new Int32Array(g.n).fill(-1);
   for(let ai=0;ai<list.length;ai++){
     for(const ring of list[ai].r){
       const pr=ring.map(ll=>project(ll[0],ll[1]));
@@ -1259,7 +1293,8 @@ function cons(){
   const out=[];
   for(const q of questions){
     if(q.status!=='answered'||!q.loc||!q.answer) continue;
-    const x=q.loc[0], y=q.loc[1], ref=q.ref||REF[q.q]||null;
+    const x=q.loc[0], y=q.loc[1], ref0=q.ref||REF[q.q]||null;
+    const ref=(ref0&&refEmpty(ref0))?null:ref0;
     if(q.cat==='radar'&&q.distM) out.push({t:'radar',x,y,r:q.distM,inside:q.answer==='Yes'});
     else if(q.cat==='thermo'&&q.loc2) out.push({t:'thermo',a:q.loc,b:q.loc2,hotter:q.answer==='Hotter'});
     else if(q.cat==='measuring'&&ref&&(q.answer==='Closer'||q.answer==='Further'))
@@ -1276,32 +1311,73 @@ function cons(){
   return out;
 }
 
-// Resolve the seeker's own side of a comparison — done once, not per cell.
+// Resolve the seeker's own side of a comparison. The seeker's position is
+// known exactly, so it is measured exactly rather than read off the grid —
+// a seeker standing near a Voronoi boundary would otherwise be assigned the
+// wrong nearest feature and the whole region would come out wrong.
+function segDist(p,a,b){
+  const vx=b[0]-a[0], vy=b[1]-a[1], L2=vx*vx+vy*vy;
+  if(!L2) return Math.hypot(p[0]-a[0],p[1]-a[1]);
+  let t=((p[0]-a[0])*vx+(p[1]-a[1])*vy)/L2;
+  t=t<0?0:t>1?1:t;
+  return Math.hypot(p[0]-(a[0]+t*vx), p[1]-(a[1]+t*vy));
+}
+function exactShapeDist(k,p){
+  let best=Infinity;
+  const rings=SHAPE_SRC[k]?SHAPE_SRC[k]:[].concat(...((AREA_OF(zoneKey())[k])||[]).map(a=>a.r));
+  for(const line of rings){
+    let prev=null;
+    for(const ll of line){
+      const q=project(ll[0],ll[1]);
+      if(prev){ const d=segDist(p,prev,q); if(d<best) best=d; }
+      else { const d=Math.hypot(p[0]-q[0],p[1]-q[1]); if(d<best) best=d; }
+      prev=q;
+    }
+  }
+  return best;
+}
+function exactNearest(pts,p){
+  let bi=-1,bd=Infinity;
+  for(let i=0;i<pts.length;i++){ const d=Math.hypot(p[0]-pts[i][0],p[1]-pts[i][1]); if(d<bd){bd=d;bi=i;} }
+  return {i:bi,d:bd};
+}
+function pointInRings(rings,p){
+  let inside=false;
+  for(const ring of rings){
+    const pr=ring.map(ll=>project(ll[0],ll[1]));
+    for(let i=0,j=pr.length-1;i<pr.length;j=i++){
+      const [xi,yi]=pr[i], [xj,yj]=pr[j];
+      if((yi>p[1])!==(yj>p[1]) && p[0] < xi+(p[1]-yi)/(yj-yi)*(xj-xi)) inside=!inside;
+    }
+  }
+  return inside;
+}
 function prep(c){
-  const p=Object.assign({},c), g=grid();
-  const cell=g.at(c.x,c.y);
+  const p=Object.assign({},c), here=[c.x,c.y];
   if(c.t==='dist'){
-    const F=c.k[0]==='@'?shapeField(c.k.slice(1)).d:poiField(c.k).d;
-    p.F=F; p.ds=cell>=0?F[cell]:Infinity;
+    if(c.k[0]==='@'){ p.F=shapeField(c.k.slice(1)).d; p.ds=exactShapeDist(c.k.slice(1),here); }
+    else { const f=poiField(c.k); p.F=f.d; p.ds=exactNearest(f.pts,here).d; }
   } else if(c.t==='near'){
-    const f=poiField(c.k); p.lbl=f.lbl; p.j=cell>=0?f.lbl[cell]:-1;
+    const f=poiField(c.k); p.lbl=f.lbl; p.j=exactNearest(f.pts,here).i;
   } else if(c.t==='tent'){
-    // The Voronoi diagram for a tentacle covers only the places in range of
-    // where the seeker asked, so it is built per question.
+    // A tentacle's Voronoi covers only the places in range of where the
+    // seeker asked, so it is built per question.
     const all=poiPts(c.k), R=metres(c.r,c.y), sub=[];
     for(const t of all) if(t[2]&&Math.hypot(c.x-t[0],c.y-t[1])<=R) sub.push(t);
     p.sub=sub; p.R=R;
     p.j=c.name==null?-1:sub.findIndex(t=>t[2]===c.name);
     p.lbl=sub.length?pointField('t:'+c.k+':'+Math.round(c.x)+':'+Math.round(c.y)+':'+c.r,sub).lbl:null;
   } else if(c.t==='area'){
-    const f=areaField(c.k); p.lbl=f.lbl; p.j=cell>=0?f.lbl[cell]:-1;
+    const f=areaField(c.k), list=AREA_OF(zoneKey())[c.k]||[];
+    p.lbl=f.lbl; p.j=-1;
+    for(let i=0;i<list.length;i++) if(pointInRings(list[i].r,here)){ p.j=i; break; }
   } else if(c.t==='namelen'){
     const f=poiField('station'); p.lbl=f.lbl; p.pts=f.pts;
-    p.L=(cell>=0&&f.lbl[cell]>=0)?nameLen(f.pts[f.lbl[cell]][2]):-1;
+    const n=exactNearest(f.pts,here);
+    p.L=n.i<0?-1:nameLen(f.pts[n.i][2]);
   }
   return p;
 }
-
 // The set of points that could have given this answer.
 function regionMask(g,c){
   const n=g.n, mask=new Uint8Array(n);
@@ -1354,7 +1430,7 @@ function zoneRadius(y){ return metres(HIDE_RADIUS[(game&&game.size)||'S'], y); }
 // Each answer's verdict on each station is kept, so a new answer only costs
 // its own pass: the others are already decided and never change.
 let stopMaskCache={};
-const strictMode=()=>!(game&&game.strict===false);
+const strictMode=()=>!!(game&&game.strict===true);
 function stopMask(c){
   const key=zoneKey()+'|'+((game&&game.size)||'S')+'|'+strictMode()+'|'+JSON.stringify(c);
   if(stopMaskCache[key]) return stopMaskCache[key];
@@ -1465,6 +1541,9 @@ return {
     return out.filter(o=>seen[o.n]?false:(seen[o.n]=1)).slice(0,16).map(o=>o.n);
   },
 
+  refCount(k){ try{ return poiPts(k).length; }catch(e){ return 0; } },
+  areaCount(k){ const a=AREA_OF(zoneKey())[k]; if(a) return a.length;
+    return (SHAPE_SRC[k]||[]).length; },
   count(){
     const cs=cons(); if(!cs.length) return {cons:0};
     const keep=survivors(); let left=0;
@@ -1476,6 +1555,9 @@ return {
     if(built!==zoneKey()) build(); else { fit(); }
     const zb=document.getElementById('mp-zone'); zb.hidden=!isHider();
     document.getElementById('mp-circles').classList.toggle('on',showCircles);
+    const mb=document.getElementById('mp-map');
+    mb.textContent=MAPS[zoneKey()].label;
+    mb.title='Switch the map everyone is using';
     tip(null);
   },
   syncPins(){ if(built&&!document.getElementById('mapview').hidden) redraw(); },

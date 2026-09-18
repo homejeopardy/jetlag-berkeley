@@ -69,22 +69,83 @@ def sample_latlon(rings):
 
 
 def outlines(rings):
-    """Kept at full resolution. These are measured to their nearest edge, and
-    simplifying collapsed the small ponds to a single point, which turned
-    "how far to the nearest water" into a different question."""
+    """Kept at full resolution. The shoreline is measured to itself, not to a
+    label point, so simplifying it changes the answer."""
     return [[[round(x, 5), round(y, 5)] for x, y in r] for r in rings if len(r) > 1]
+
+
+def icons(rings, names=None):
+    """Parks and bodies of water are measured "from the map icon", per the
+    cards, so each shape is reduced to the point a map would label it at."""
+    out = []
+    for r in rings:
+        if len(r) < 4:
+            continue
+        g = Polygon(r)
+        if not g.is_valid or g.area <= 0:
+            continue
+        p = g.representative_point()
+        out.append([round(p.x, 5), round(p.y, 5), ""])
+    return out
 
 
 def main():
     poi_src = json.loads((DATA / "poi.json").read_text())
     zones = json.loads((DATA / "zone.json").read_text())
     base = json.loads((DATA / "mapdata.json").read_text())
-    from shapely.geometry import shape                            # noqa: E402
-    
+    from shapely.geometry import shape, Point, Polygon                # noqa: E402
+    from shapely.ops import linemerge, unary_union, polygonize        # noqa: E402
+    from shapely.geometry import LineString as LS                     # noqa: E402
+    globals()["Polygon"] = Polygon
+
+    # The reference features a question can be about are whatever falls inside
+    # the game map. The rulebook is explicit: "if locations are not within a
+    # map's boundaries, players must operate as if they do not exist", and the
+    # question comes back null. So each zone carries its own clipped sets.
+    park_pts = icons(base["base"]["park"])
+    water_pts = icons(base["base"]["water"])
+
+    oak = list(polygonize(unary_union(linemerge(
+        [LS(r) for r in base["bnd"]["oakland"] if len(r) > 1]))))
+    oak = max(oak, key=lambda g: g.area) if oak else None
+    berk = shape(zones["berk"])
+
+    def rings_of(g):
+        parts = [q for q in getattr(g, "geoms", [g])
+                 if q.geom_type == "Polygon" and q.area > 1e-8]
+        return [[[round(x, 5), round(y, 5)] for x, y in
+                 p.exterior.simplify(0.00012).coords] for p in parts]
+
     maps = {}
     for name, cfg in ZONES.items():
         mode, layers, payload, meta = compute(name)
         keep = [k for k in LAYERS if k not in cfg["drop"]]
+        area = shape(zones["berk" if name == "berkeley" else "zone"])
+
+        def clip(pts):
+            return [p for p in pts if area.contains(Point(p[0], p[1]))]
+
+        poi = {k: clip([p for p in poi_src.get(k, []) if not HONORARY(k, p)])
+               for k in POI_KEYS}
+        poi["park"] = clip(park_pts)
+        poi["water"] = clip(water_pts)
+
+        # A city with no real area inside the map is not on the map.
+        cities = []
+        for nm, g in (("Berkeley", berk), ("Oakland", oak)):
+            if g is None:
+                continue
+            r = rings_of(g.intersection(area))
+            if r:
+                cities.append({"n": nm, "r": r})
+        areas = {"city": cities}
+        for extra, path in (("county", DATA / "counties.json"),):
+            if path.exists():
+                got = [a for a in json.loads(path.read_text())
+                       if shape({"type": "Polygon", "coordinates": [a["r"][0]]}).intersects(area)]
+                if got:
+                    areas[extra] = got
+
         maps[name] = {
             "label": cfg["label"],
             "vb": payload["VB"],
@@ -93,50 +154,21 @@ def main():
             "stops": payload["stops"],
             "stations": payload["stations"],
             "places": payload["places"],
+            "poi": poi,
+            "areas": areas,
         }
+        have = ", ".join(f"{k}:{len(v)}" for k, v in poi.items() if v)
+        miss = ", ".join(k for k, v in poi.items() if not v)
         kb = len(json.dumps(maps[name], separators=(",", ":"))) // 1024
         print(f"  {name}: {len(payload['stops'])} stops, {kb} KB")
+        print(f"      on the map: {have}")
+        print(f"      null here:  {miss or 'none'}")
+        print(f"      areas: " + ", ".join(f"{k} x{len(v)}" for k, v in areas.items()))
 
-    # Reference points are shared by both zones, so they are stored once in
-    # lon/lat and projected in the browser rather than baked in twice.
-    poi = {k: [p for p in poi_src.get(k, []) if not HONORARY(k, p)] for k in POI_KEYS}
+    # The shoreline is the one reference measured to the feature itself.
+    shapes = {"coast": outlines(base["base"]["coast"])}
 
-    # Outlines measured to their nearest edge, not to a label point: standing
-    # in a park you are nought metres from it, which is what a player would say.
-    shapes = {
-        "coast": outlines(base["base"]["coast"]),
-        "water": outlines(base["base"]["water"]),
-        "park": outlines(base["base"]["park"]),
-    }
-
-    # Named areas a point falls inside. 1st administrative division is the
-    # city; the 2nd is the council district, loaded if the file is there.
-    def rings_of(geom):
-        g = shape(geom) if isinstance(geom, dict) else geom
-        parts = getattr(g, "geoms", [g])
-        return [[[round(x, 5), round(y, 5)] for x, y in
-                 p.exterior.simplify(0.00012).coords] for p in parts]
-
-    # Oakland arrives as loose boundary ways, so they are stitched into a
-    # polygon before anything can ask whether a point is inside it.
-    from shapely.ops import linemerge, unary_union, polygonize          # noqa: E402
-    from shapely.geometry import LineString as LS                       # noqa: E402
-    oak = list(polygonize(unary_union(linemerge(
-        [LS(r) for r in base["bnd"]["oakland"] if len(r) > 1]))))
-    oak = max(oak, key=lambda g: g.area) if oak else None
-    areas = {"city": [{"n": "Berkeley", "r": rings_of(zones["berk"])}]}
-    if oak is not None:
-        areas["city"].append({"n": "Oakland", "r": rings_of(oak)})
-    dpath = DATA / "districts.json"
-    if dpath.exists():
-        areas["district"] = json.loads(dpath.read_text())
-    print(f"  areas: " + ", ".join(f"{k} x{len(v)}" for k, v in areas.items()))
-
-    npoi = sum(len(v) for v in poi.values())
-    nshape = sum(len(v) for v in shapes.values())
-    print(f"  reference points: {npoi}; outlines: {nshape}")
-
-    blob = json.dumps({"zones": maps, "poi": poi, "shapes": shapes, "areas": areas},
+    blob = json.dumps({"zones": maps, "shapes": shapes},
                       separators=(",", ":"), ensure_ascii=False)
     html = TEMPLATE.read_text().replace("__MAPDATA__", blob)
     OUT.parent.mkdir(exist_ok=True)
