@@ -1,0 +1,4 @@
+
+# Python bytecode caches from the build scripts
+__pycache__/
+*.pyc
