@@ -118,8 +118,8 @@ The rulebook decides how much an answer rules out, and it is explicit:
 would encompass part of your hiding zone, but not your location at the time
 of answering, it would be a miss."* The hider may also move freely anywhere
 in their zone until the end game. So a station falls only when **no point at
-all** of its zone could have produced the answer — which is why a 500 m radar
-answered "no" rules out almost nothing, and that is correct. A **Station**
+all** of its zone could have produced the answer — which is why a quarter-mile
+radar answered "no" rules out almost nothing, and that is correct. A **Station**
 setting on the Game tab reads answers against the station instead, ruling out
 everything inside that circle; it is sharper, it is how people tend to play,
 and it is a house rule, so it says so.
