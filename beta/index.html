@@ -165,7 +165,8 @@ nav.tabs button .n{position:absolute;top:6px;right:calc(50% - 26px);min-width:18
 #mapbar{position:absolute;left:10px;top:10px;right:60px;display:flex;flex-wrap:wrap;gap:6px;z-index:401}
 #mapbar .chip{background:var(--card);opacity:.96}
 #mapbar .chip.on{background:var(--ink);color:var(--card)}
-#mappanel{position:absolute;right:10px;top:46px;bottom:calc(52px + env(safe-area-inset-bottom,0px));width:min(290px,calc(100% - 20px));background:var(--card);border:1px solid var(--line);box-shadow:0 6px 22px rgba(0,0,0,.18);z-index:403;display:flex;flex-direction:column}
+#mappanel{position:absolute;right:10px;top:auto;bottom:calc(52px + env(safe-area-inset-bottom,0px));left:10px;max-height:46%;background:var(--card);border:1px solid var(--line);box-shadow:0 6px 22px rgba(0,0,0,.18);z-index:403;display:flex;flex-direction:column}
+@media (min-width:620px){#mappanel{left:auto;top:46px;width:300px;max-height:none}}
 #mappanel .ph{display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--line);font-family:'Barlow Condensed',sans-serif;font-size:17px;letter-spacing:.02em}
 #mappanel .ph b{flex:1}
 #mappanel .ph button{border:1px solid var(--line);background:var(--card-2);font:inherit;font-size:12px;padding:2px 8px;cursor:pointer}
@@ -1090,10 +1091,12 @@ const hideKey=()=>'hs-hide-'+code;
 // the start of a round — the old hand-drawn basemap and its own pan and
 // zoom are still there underneath.
 const BASEMAPS={
-  street:{n:'Street',u:'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
-          a:'&copy; OpenStreetMap &copy; CARTO',sub:'abcd',max:20},
-  dark:{n:'Dark',u:'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-          a:'&copy; OpenStreetMap &copy; CARTO',sub:'abcd',max:20},
+  street:{n:'Street',u:'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+          a:'&copy; OpenStreetMap contributors',max:19},
+  dark:{n:'Dark',u:'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+          a:'&copy; OpenStreetMap contributors',max:19,invert:true},
+  terrain:{n:'Terrain',u:'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
+          a:'&copy; OpenStreetMap contributors, SRTM | OpenTopoMap (CC-BY-SA)',sub:'abc',max:17},
   satellite:{n:'Satellite',u:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
           a:'Imagery &copy; Esri',max:19},
   paper:{n:'Paper',u:null,a:'&copy; OpenStreetMap contributors'}
@@ -1176,8 +1179,10 @@ function setBasemap(k,quiet){
   if(!lmap) return;
   if(ltiles){ lmap.removeLayer(ltiles); ltiles=null; }
   const b=BASEMAPS[k];
-  if(b.u){ ltiles=L.tileLayer(b.u,{attribution:b.a,maxZoom:b.max||19,maxNativeZoom:b.max||19,
-      subdomains:b.sub||'abc',detectRetina:true}).addTo(lmap); ltiles.bringToBack(); }
+  if(b.u){ ltiles=L.tileLayer(b.u,{attribution:b.a,maxZoom:20,maxNativeZoom:b.max||19,
+      subdomains:b.sub||'abc'}).addTo(lmap); ltiles.bringToBack(); }
+  const tp=document.querySelector('#mapleaf .leaflet-tile-pane');
+  if(tp) tp.style.filter=b.invert?'invert(1) hue-rotate(180deg) brightness(.95)':'';
   if(paperBase) paperBase.style.display=b.u?'none':'';
   document.getElementById('mapleaf').style.background=k==='dark'?'#20232A':(k==='satellite'?'#1A1C20':'#EDEAE1');
   if(!quiet) toast(b.n+' basemap');
