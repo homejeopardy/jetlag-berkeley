@@ -118,6 +118,9 @@ nav.tabs button .n{position:absolute;top:6px;right:calc(50% - 26px);min-width:18
 /* map */
 #mapview{flex:1;position:relative;overflow:hidden;background:#EDEAE1;touch-action:none;cursor:grab}
 #mapleaf{position:absolute;inset:0;background:#EDEAE1;z-index:0}
+/* Without Leaflet the drawing is a plain static SVG, which a positioned
+   sibling would paint straight over. */
+#mapview:not(.leaf) #mapleaf{display:none}
 #mapleaf .leaflet-container{background:#EDEAE1;font-family:'Barlow',system-ui,sans-serif}
 #mapleaf .leaflet-control-attribution{font-size:9px;background:rgba(255,255,255,.72)}
 /* The drawing is a Leaflet layer once Leaflet is up, so Leaflet owns panning
@@ -162,6 +165,18 @@ nav.tabs button .n{position:absolute;top:6px;right:calc(50% - 26px);min-width:18
 #mapbar{position:absolute;left:10px;top:10px;right:60px;display:flex;flex-wrap:wrap;gap:6px;z-index:401}
 #mapbar .chip{background:var(--card);opacity:.96}
 #mapbar .chip.on{background:var(--ink);color:var(--card)}
+#mappanel{position:absolute;right:10px;top:46px;bottom:calc(52px + env(safe-area-inset-bottom,0px));width:min(290px,calc(100% - 20px));background:var(--card);border:1px solid var(--line);box-shadow:0 6px 22px rgba(0,0,0,.18);z-index:403;display:flex;flex-direction:column}
+#mappanel .ph{display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--line);font-family:'Barlow Condensed',sans-serif;font-size:17px;letter-spacing:.02em}
+#mappanel .ph b{flex:1}
+#mappanel .ph button{border:1px solid var(--line);background:var(--card-2);font:inherit;font-size:12px;padding:2px 8px;cursor:pointer}
+#mappanel .pb{flex:1;overflow:auto;-webkit-overflow-scrolling:touch}
+#mappanel .lrow{display:flex;align-items:center;gap:8px;padding:7px 10px;border-bottom:1px solid var(--line);font-size:13px;cursor:pointer;background:none;border-left:0;border-right:0;border-top:0;width:100%;text-align:left;font-family:inherit}
+#mappanel .lrow:hover{background:var(--card-2)}
+#mappanel .lrow.off{opacity:.45}
+#mappanel .lrow.on{background:var(--yellow-2)}
+#mappanel .sw{width:14px;height:14px;flex:0 0 14px;border-radius:2px;border:1px solid rgba(0,0,0,.25)}
+#mappanel .lrow .sub{display:block;font-size:11px;color:var(--ink-3)}
+#mappanel .empty{padding:12px 10px;font-size:13px;color:var(--ink-3)}
 #maptip{position:absolute;left:10px;bottom:calc(52px + env(safe-area-inset-bottom,0px));max-width:calc(100% - 70px);background:var(--ink);color:var(--bg);padding:7px 10px;font-size:13px;line-height:1.3;z-index:402;border-left:4px solid var(--yellow);display:none}
 #maptip b{font-family:'Barlow Condensed',sans-serif;font-size:15px;display:block}
 #maptip .r{color:var(--yellow-2)}
@@ -196,6 +211,8 @@ table.sb th{font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;l
       <button class="chip on" id="mp-stops" type="button">Stops</button>
       <button class="chip" id="mp-circles" type="button">Zones</button>
       <button class="chip" id="mp-map" type="button"></button>
+      <button class="chip" id="mp-layers" type="button">Layers</button>
+      <button class="chip" id="mp-list" type="button">Stations</button>
       <button class="chip" id="mp-pin" type="button">Drop pin</button>
       <button class="chip" id="mp-zone" type="button" hidden>Set my zone</button>
       <span class="chip" id="mp-count" hidden></span>
@@ -206,6 +223,7 @@ table.sb th{font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;l
       <button id="mp-out" aria-label="Zoom out">−</button>
       <button id="mp-fit" aria-label="Fit the zone">Fit</button>
     </div>
+    <div id="mappanel" hidden><div class="ph"><b id="pnl-title"></b><button id="pnl-x" type="button">close</button></div><div class="pb" id="pnl-body"></div></div>
     <div id="maptip"></div>
   </div>
 </div>
@@ -1169,6 +1187,10 @@ function initLeaflet(){
   const host=document.getElementById('mapleaf');
   lmap=L.map(host,{zoomControl:false,attributionControl:true,preferCanvas:false,
     zoomSnap:0.25,wheelPxPerZoomLevel:90,maxZoom:20,minZoom:9});
+  // Leaflet refuses to place layers or tiles before it has a view, so give it
+  // the zone's centre now; fit() frames it properly a moment later.
+  const mv=M().vb;
+  lmap.setView(unprojLL(mv[0]+mv[2]/2, mv[1]+mv[3]/2), 13);
   const Rend=L.Renderer.extend({
     _initContainer(){ this._container=document.getElementById('mapsvg'); },
     _destroyContainer(){},
@@ -1188,7 +1210,7 @@ function initLeaflet(){
   lrend=new Rend({padding:0.35}); lmap.addLayer(lrend);
   lmap.on('zoomend viewreset moveend resize',syncTransform);
   lmap.on('click',onMapClick);
-  for(const id of ['mapbar','mapctl','maptip']){ const e=document.getElementById(id);
+  for(const id of ['mapbar','mapctl','maptip','mappanel']){ const e=document.getElementById(id);
     if(e){ L.DomEvent.disableClickPropagation(e); L.DomEvent.disableScrollPropagation(e); } }
   document.getElementById('mapview').classList.add('leaf');
   return true;
@@ -1278,6 +1300,7 @@ function redraw(){
       chip.hidden=false; chip.textContent=left+' of '+keep.length+' possible'; }
     else chip.hidden=true;
   }
+  if(panelTab) drawPanel();
 }
 
 // The hider has to be within a hiding zone of one of the stations that are
@@ -1315,6 +1338,56 @@ function syncShade(){
     const st=m.stops[i];
     el('circle',{cx:st[0],cy:st[1],r:zoneRadius(st[1]),class:'m-zonering'},gShade); }
 }
+// ---------- the side panel ----------
+// Two lists that both point at the same map: the answers, and the stations
+// they have left standing.
+function openPanel(which){
+  panelTab = panelTab===which ? null : which;
+  const el0=document.getElementById('mappanel');
+  document.getElementById('mp-layers').classList.toggle('on',panelTab==='layers');
+  document.getElementById('mp-list').classList.toggle('on',panelTab==='list');
+  if(!panelTab){ el0.hidden=true; return; }
+  el0.hidden=false; drawPanel(true);
+}
+let panelKey='';
+function drawPanel(force){
+  if(!panelTab) return;
+  const cs=cons(), keep=panelTab==='list'?survivors():null;
+  // Rebuilt only when what it is showing actually changes: the map redraws
+  // on every tick, and replacing these rows underneath a finger loses both
+  // the scroll position and the tap.
+  const key=panelTab+'|'+cs.map(conLabel).join('~')+'|'+Object.keys(conOff).sort().join(',')
+    +'|'+listSel+'|'+(keep?keep.join(''):'');
+  if(!force&&key===panelKey) return;
+  panelKey=key;
+  const body=document.getElementById('pnl-body');
+  document.getElementById('pnl-title').textContent=panelTab==='layers'?'Answers on the map':'Stations still possible';
+  if(panelTab==='layers'){
+    body.innerHTML = cs.length ? cs.map((c,i)=>
+      `<button class="lrow ${conOff[i]?'off':''}" data-layer="${i}">
+        <span class="sw" style="background:${conColor(i)}"></span>
+        <span>${esc(conLabel(c))}<span class="sub">${conOff[i]?'hidden':'drawn'}</span></span>
+      </button>`).join('')
+      : '<div class="empty">No answers yet that the map can draw. Radars, thermometers, matching and measuring questions all show up here once they are answered.</div>';
+    return;
+  }
+  const m=M();
+  if(!keep){ body.innerHTML='<div class="empty">Every stop is still in play — nothing has been ruled out yet.</div>'; return; }
+  const rows=[];
+  for(let i=0;i<keep.length;i++){ if(!keep[i]) continue;
+    const st=m.stops[i];
+    rows.push(`<button class="lrow ${listSel===i?'on':''}" data-stop="${i}" id="lrow-${i}">
+      <span>${esc(st[2]||'Unnamed stop')}<span class="sub">${esc((st[3]||'').split(';').join(' · ')||'no route data')}</span></span></button>`); }
+  body.innerHTML = rows.length?rows.join('')
+    : '<div class="empty">Nothing is left standing. The answers contradict each other — check the feed for one that was recorded wrong.</div>';
+  const cur=document.getElementById('lrow-'+listSel);
+  if(cur) cur.scrollIntoView({block:'nearest'});
+}
+function focusStop(i){
+  const st=M().stops[i];
+  if(lmap) lmap.panTo(unprojLL(st[0],st[1]),{animate:true});
+  showStop(i);
+}
 // A tap is resolved against the data rather than the DOM: under Leaflet the
 // drawing takes no pointer events at all, so there is no element to hit.
 function nearStop(x,y,px){
@@ -1351,7 +1424,8 @@ function onMapClick(e){ const p=project(e.latlng.lng,e.latlng.lat); tapAt(p[0],p
 function tip(html){ const t=document.getElementById('maptip'); if(!html){t.style.display='none';return;} t.innerHTML=html; t.style.display='block'; }
 function showStop(i){
   const s=M().stops[i];
-  sel=i;
+  sel=i; listSel=i;
+  if(panelTab==='list') drawPanel();
   for(const c of gStops.children) c.classList.toggle('sel',+c.dataset.i===i);
   const routes=s[3]?`<span class="r">${esc(s[3].split(';').join(' · '))}</span>`:'<span style="opacity:.7">no route data</span>';
   const off=!!crossed[i];
@@ -1400,7 +1474,7 @@ function bind(){
   if(!lmap){
   view.addEventListener('wheel',e=>{ e.preventDefault(); zoomAt(Math.exp(-e.deltaY*0.0016),e.clientX,e.clientY); },{passive:false});
   view.addEventListener('pointerdown',e=>{
-    if(e.target.closest('#mapctl,#mapbar,#maptip')) return;
+    if(e.target.closest('#mapctl,#mapbar,#maptip,#mappanel')) return;
     view.setPointerCapture(e.pointerId); pts.set(e.pointerId,e); moved=0;
     if(pts.size===1) drag={x:e.clientX,y:e.clientY,vx:vb.x,vy:vb.y};
     else if(pts.size===2){ const a=[...pts.values()]; drag=null; pinch={d:Math.hypot(a[0].clientX-a[1].clientX,a[0].clientY-a[1].clientY),vb:{...vb}}; }
@@ -1453,6 +1527,15 @@ function bind(){
   document.getElementById('mp-in').addEventListener('click',()=>{ if(lmap) lmap.zoomIn(1); else {const r=svg.getBoundingClientRect();zoomAt(1.6,r.left+r.width/2,r.top+r.height/2);} });
   document.getElementById('mp-out').addEventListener('click',()=>{ if(lmap) lmap.zoomOut(1); else {const r=svg.getBoundingClientRect();zoomAt(1/1.6,r.left+r.width/2,r.top+r.height/2);} });
   document.getElementById('mp-fit').addEventListener('click',fit);
+  document.getElementById('mp-layers').addEventListener('click',()=>openPanel('layers'));
+  document.getElementById('mp-list').addEventListener('click',()=>openPanel('list'));
+  document.getElementById('pnl-x').addEventListener('click',()=>openPanel(panelTab));
+  document.getElementById('pnl-body').addEventListener('click',e=>{
+    const L0=e.target.closest('[data-layer]'), S0=e.target.closest('[data-stop]');
+    if(L0){ const i=+L0.dataset.layer; if(conOff[i]) delete conOff[i]; else conOff[i]=1;
+      redraw(); drawPanel(true); return; }
+    if(S0){ focusStop(+S0.dataset.stop); }
+  });
   const bb=document.getElementById('mp-base');
   bb.textContent=BASEMAPS[basemap].n;
   bb.title='Change the basemap';
@@ -1738,24 +1821,104 @@ function survivors(){
   for(const k in crossed){ const i=+k; if(i>=0&&i<keep.length) keep[i]=0; }
   return keep;
 }
-function drawCons(g,px){
-  for(const c of cons()){
-    if(c.t==='radar'){
-      el('circle',{cx:c.x,cy:c.y,r:metres(c.r,c.y),class:'m-con '+(c.inside?'in':'out')},g);
-    } else if(c.t==='thermo'){
-      const mx=(c.a[0]+c.b[0])/2, my=(c.a[1]+c.b[1])/2;
-      let ux=c.b[0]-c.a[0], uy=c.b[1]-c.a[1];
-      const L=Math.hypot(ux,uy)||1; ux/=L; uy/=L;
-      const S=200000;   // long enough to cross any view
-      el('line',{x1:mx-uy*S,y1:my+ux*S,x2:mx+uy*S,y2:my-ux*S,class:'m-con thermo'},g);
-      el('line',{x1:c.a[0],y1:c.a[1],x2:c.b[0],y2:c.b[1],class:'m-leg'},g);
-      el('circle',{cx:c.a[0],cy:c.a[1],r:4/px,class:'m-from'},g);
-      el('circle',{cx:c.b[0],cy:c.b[1],r:4/px,class:'m-from'},g);
-    } else if(c.t==='tent'){
-      el('circle',{cx:c.x,cy:c.y,r:metres(c.r,c.y),class:'m-con in'},g);
-    }
-    if(c.x!=null) el('circle',{cx:c.x,cy:c.y,r:4/px,class:'m-from'},g);
+// ---------- per-answer layers ----------
+// Each answer gets its own drawing of the line it actually cut along, so the
+// grey on the map can be read back to the question that caused it. These are
+// the real boundaries — a Voronoi cell really is a polygon of bisectors —
+// not sketches, and turning one off hides the drawing only. What is ruled
+// out never depends on what you are looking at.
+const CON_COLORS=['#D62828','#0077B6','#1F8A5B','#B5179E','#E4572E','#5A189A','#0F7B8A','#9A6A00'];
+let conOff={}, panelTab=null, listSel=-1;
+const conColor=i=>CON_COLORS[i%CON_COLORS.length];
+function conLabel(c){
+  const d=k=>{ for(const n in REF) if(REF[n]===k) return n.toLowerCase(); return k; };
+  if(c.t==='radar') return (c.inside?'Within ':'Not within ')+fmtDist(metres(c.r,c.y)*Math.cos(latAt(c.y)*Math.PI/180));
+  if(c.t==='thermo') return c.hotter?'Hotter after travelling':'Colder after travelling';
+  if(c.t==='dist') return (c.closer?'Closer to ':'Further from ')+d(c.k);
+  if(c.t==='near') return (c.same?'Same nearest ':'Different nearest ')+d(c.k);
+  if(c.t==='tent') return c.name?('Nearest '+d(c.k)+': '+c.name):('No '+d(c.k)+' in reach');
+  if(c.t==='area') return c.same?'Same city':'Different city';
+  if(c.t==='namelen') return c.same?'Same station-name length':'Different station-name length';
+  return c.t;
+}
+// A Voronoi cell is the intersection of the half-planes that beat every other
+// reference, so it is built by clipping a big rectangle with each bisector.
+function clipHalf(poly,nx,ny,mx,my){
+  const f=pt=>(pt[0]-mx)*nx+(pt[1]-my)*ny, out=[];
+  for(let i=0;i<poly.length;i++){
+    const a=poly[i], b=poly[(i+1)%poly.length], fa=f(a), fb=f(b);
+    if(fa<=0) out.push(a);
+    if((fa<0&&fb>0)||(fa>0&&fb<0)){ const t=fa/(fa-fb);
+      out.push([a[0]+t*(b[0]-a[0]),a[1]+t*(b[1]-a[1])]); }
   }
+  return out;
+}
+function cellPoly(pts,j){
+  const p=pts[j]; if(!p) return null;
+  const m=M(), S=Math.max(m.vb[2],m.vb[3])*1.5;
+  let poly=[[m.vb[0]-S,m.vb[1]-S],[m.vb[0]+m.vb[2]+S,m.vb[1]-S],
+            [m.vb[0]+m.vb[2]+S,m.vb[1]+m.vb[3]+S],[m.vb[0]-S,m.vb[1]+m.vb[3]+S]];
+  for(let i=0;i<pts.length&&poly.length>2;i++){
+    if(i===j) continue;
+    poly=clipHalf(poly,pts[i][0]-p[0],pts[i][1]-p[1],(p[0]+pts[i][0])/2,(p[1]+pts[i][1])/2);
+  }
+  return poly.length>2?poly:null;
+}
+const polyD=pl=>'M'+pl.map(q=>q[0].toFixed(1)+' '+q[1].toFixed(1)).join('L')+'Z';
+const MAX_ARCS=220;    // past this the circles are noise, not information
+function drawOne(c,i,g,px){
+  const col=conColor(i), gg=el('g',{class:'con-layer','data-ci':i,stroke:col},g);
+  const ring=(x,y,r,dash)=>el('circle',{cx:x,cy:y,r,fill:'none',stroke:col,
+    'stroke-width':2,'stroke-dasharray':dash||'6 4','vector-effect':'non-scaling-stroke',opacity:.9},gg);
+  if(c.t==='radar') ring(c.x,c.y,metres(c.r,c.y),c.inside?'6 4':'2 5');
+  else if(c.t==='thermo'){
+    const mx=(c.a[0]+c.b[0])/2, my=(c.a[1]+c.b[1])/2;
+    let ux=c.b[0]-c.a[0], uy=c.b[1]-c.a[1];
+    const L=Math.hypot(ux,uy)||1; ux/=L; uy/=L; const S=200000;
+    el('line',{x1:mx-uy*S,y1:my+ux*S,x2:mx+uy*S,y2:my-ux*S,stroke:col,'stroke-width':2.5,
+      'stroke-dasharray':'9 6','vector-effect':'non-scaling-stroke'},gg);
+    el('line',{x1:c.a[0],y1:c.a[1],x2:c.b[0],y2:c.b[1],stroke:col,'stroke-width':2,
+      opacity:.55,'vector-effect':'non-scaling-stroke'},gg);
+    el('circle',{cx:c.b[0],cy:c.b[1],r:4/px,fill:col,stroke:'#fff','stroke-width':2,
+      'vector-effect':'non-scaling-stroke'},gg);
+  } else if(c.t==='dist'){
+    const p=prep(c); if(!isFinite(p.ds)) return gg;
+    if(c.k[0]==='@'){ for(const line of shapeRings(c.k.slice(1)))
+        for(const q of line.filter((_,n)=>n%6===0).slice(0,MAX_ARCS)) ring(q[0],q[1],p.ds,'3 5'); }
+    else { const pts=poiPts(c.k);
+      for(const q of pts.slice(0,MAX_ARCS)) ring(q[0],q[1],p.ds,'3 5'); }
+  } else if(c.t==='near'){
+    const pts=poiPts(c.k), p=prep(c), pl=p.j>=0?cellPoly(pts,p.j):null;
+    if(pl) el('path',{d:polyD(pl),fill:col,'fill-opacity':c.same?0.07:0.0,stroke:col,
+      'stroke-width':2.5,'stroke-dasharray':c.same?'':'5 5','vector-effect':'non-scaling-stroke'},gg);
+    if(p.j>=0) el('circle',{cx:pts[p.j][0],cy:pts[p.j][1],r:5/px,fill:col,stroke:'#fff',
+      'stroke-width':2,'vector-effect':'non-scaling-stroke'},gg);
+  } else if(c.t==='namelen'){
+    const pts=poiPts('station'), p=prep(c);
+    if(p.L>=0){ let n=0;
+      for(let j=0;j<pts.length&&n<40;j++){ if(nameLen(pts[j][2])!==p.L) continue;
+        const pl=cellPoly(pts,j); n++;
+        if(pl) el('path',{d:polyD(pl),fill:col,'fill-opacity':c.same?0.07:0,stroke:col,
+          'stroke-width':1.6,'vector-effect':'non-scaling-stroke',opacity:.8},gg); } }
+  } else if(c.t==='tent'){
+    ring(c.x,c.y,metres(c.r,c.y),'6 4');
+    const p=prep(c);
+    if(p.j>=0&&p.sub.length){ const pl=cellPoly(p.sub,p.j);
+      if(pl) el('path',{d:polyD(pl),fill:col,'fill-opacity':.07,stroke:col,'stroke-width':2.5,
+        'vector-effect':'non-scaling-stroke'},gg); }
+  } else if(c.t==='area'){
+    const list=AREA_OF(zoneKey())[c.k]||[], p=prep(c);
+    if(p.j>=0) for(const r of projRings('a:'+c.k+':'+p.j,list[p.j].r))
+      el('path',{d:polyD(r),fill:col,'fill-opacity':c.same?0.07:0,stroke:col,'stroke-width':2.5,
+        'stroke-dasharray':c.same?'':'5 5','vector-effect':'non-scaling-stroke'},gg);
+  }
+  if(c.x!=null) el('circle',{cx:c.x,cy:c.y,r:4/px,fill:'#15171B',stroke:'#fff','stroke-width':2,
+    'vector-effect':'non-scaling-stroke'},gg);
+  return gg;
+}
+function drawCons(g,px){
+  const cs=cons();
+  for(let i=0;i<cs.length;i++){ if(conOff[i]) continue; drawOne(cs[i],i,g,px); }
 }
 
 return {
