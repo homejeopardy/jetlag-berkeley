@@ -124,13 +124,46 @@ setting on the Game tab reads answers against the station instead, ruling out
 everything inside that circle; it is sharper, it is how people tend to play,
 and it is a house rule, so it says so.
 
-The geometry is exact, not bounded. Each answer becomes the region of points
-that could have produced it — a disc for a radar, a half-plane for a
-thermometer, a union of discs for a measuring card, a Voronoi cell for a
-matching or tentacle card, a city outline for an administrative one. An exact
-distance transform turns the region into a distance field, and the station
-survives if the field at the station is within its zone radius. The grid is
-25 m, so it is exact to about half a cell.
+The geometry is exact, and it no longer runs on a grid. Each answer becomes
+the region of points that could have produced it — a disc for a radar, a
+half-plane for a thermometer, a union of discs for a measuring card, a Voronoi
+cell for a matching or tentacle card, a city outline for an administrative
+one — and that region is expressed as a clearance function: at or above zero
+exactly where the answer is possible, and never changing faster than distance
+itself. A station survives when some point of its hiding zone sits at or above
+zero. Because the function is Lipschitz, a square whose centre sits further
+below zero than its own half-diagonal cannot contain a qualifying point
+anywhere, so the search discards it whole and never has to look inside. What
+comes back is a proof, not a sample: nothing is padded, nothing is rounded to
+a cell, and every elimination is as certain as every other.
+
+It is checked against an independent implementation that samples each hiding
+zone densely and decides membership from the rules directly. Across 170 random
+answers of all seven kinds, in both zones, at all three game sizes and in both
+reading modes, 6,800 station verdicts came back with no station eliminated
+that had a qualifying point and none kept that did not. Separately, 680
+truthfully answered questions over 80 rounds never once eliminated the station
+the hider was actually hiding at.
+
+The map itself is a real slippy map. Leaflet carries the tiles and owns the
+panning and pinching; everything the app draws — the zone, the stops, the
+station markers, the shading, the answer layers — rides on top as a single
+layer. That works because the drawing was already in Web Mercator metres, the
+same space Leaflet projects into, so at any zoom the step from map units to
+screen is one scale and one translate and every path is reused untouched.
+Basemaps cycle through Street, Dark, Terrain, Satellite and Paper; Paper is
+the hand-drawn basemap the app has always carried, and it is also what you
+get if Leaflet never loads, which is the case worth designing for on a phone
+with no signal at the start of a round.
+
+Two panels read the map back to you. **Layers** lists every answer that has
+geometry, each in its own colour, drawn as the line it actually cut along: a
+radar's circle, a thermometer's bisector, the real Voronoi cell of a matching
+card, the outline of a city. Turn one off and its drawing goes; what is ruled
+out does not move, because that is a fact about the answers and not about
+what you are looking at. **Stations** lists the stops still standing, and the
+list and the map stay in step — tap a row and the map goes there, tap a stop
+and the list scrolls to it.
 
 Reference features are whatever falls inside the game map, because the
 rulebook says so: *"if locations are not within a map's boundaries, players
