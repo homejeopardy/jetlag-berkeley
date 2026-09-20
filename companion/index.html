@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Hide + Seek Relay</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;800&family=Barlow:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <style>
 :root{
   --ink:#15171B; --ink-2:#3C4048; --ink-3:#6E737C; --line:#D9D5CB;
@@ -115,6 +117,17 @@ nav.tabs button .n{position:absolute;top:6px;right:calc(50% - 26px);min-width:18
 .toast{position:fixed;left:50%;bottom:calc(72px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:8px 14px;font-weight:600;z-index:6;max-width:90vw;box-shadow:var(--shadow)}
 /* map */
 #mapview{flex:1;position:relative;overflow:hidden;background:#EDEAE1;touch-action:none;cursor:grab}
+#mapleaf{position:absolute;inset:0;background:#EDEAE1;z-index:0}
+/* Without Leaflet the drawing is a plain static SVG, which a positioned
+   sibling would paint straight over. */
+#mapview:not(.leaf) #mapleaf{display:none}
+#mapleaf .leaflet-container{background:#EDEAE1;font-family:'Barlow',system-ui,sans-serif}
+#mapleaf .leaflet-control-attribution{font-size:9px;background:rgba(255,255,255,.72)}
+/* The drawing is a Leaflet layer once Leaflet is up, so Leaflet owns panning
+   and the overlay must not swallow the gestures. Taps are resolved against
+   the stop list by position instead. */
+#mapview.leaf #mapsvg{position:absolute;width:auto;height:auto;pointer-events:none}
+#mapview.leaf{cursor:default}
 #mapview.drag{cursor:grabbing}
 #mapsvg{width:100%;height:100%;display:block}
 #mapsvg .m-road{fill:none;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke}
@@ -146,13 +159,26 @@ nav.tabs button .n{position:absolute;top:6px;right:calc(50% - 26px);min-width:18
 #mapsvg .m-me{fill:#1E88E5;stroke:#fff;stroke-width:3px;vector-effect:non-scaling-stroke}
 #mapsvg .m-me-acc{fill:#1E88E5;fill-opacity:.15;stroke:none}
 #mapsvg .m-pin{fill:var(--red);stroke:#fff;stroke-width:2px;vector-effect:non-scaling-stroke;cursor:pointer}
-#mapctl{position:absolute;right:10px;bottom:calc(52px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:6px;z-index:2}
+#mapctl{position:absolute;right:10px;z-index:401;bottom:calc(52px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:6px}
 #mapctl button{width:40px;height:36px;border:1.5px solid var(--ink);background:var(--card);font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:15px;cursor:pointer;box-shadow:2px 2px 0 var(--ink);padding:0}
 #mapctl button.on{background:var(--yellow);color:#15171B}
-#mapbar{position:absolute;left:10px;top:10px;right:60px;display:flex;flex-wrap:wrap;gap:6px;z-index:2}
+#mapbar{position:absolute;left:10px;top:10px;right:60px;display:flex;flex-wrap:wrap;gap:6px;z-index:401}
 #mapbar .chip{background:var(--card);opacity:.96}
 #mapbar .chip.on{background:var(--ink);color:var(--card)}
-#maptip{position:absolute;left:10px;bottom:calc(52px + env(safe-area-inset-bottom,0px));max-width:calc(100% - 70px);background:var(--ink);color:var(--bg);padding:7px 10px;font-size:13px;line-height:1.3;z-index:3;border-left:4px solid var(--yellow);display:none}
+#mappanel{position:absolute;right:10px;top:auto;bottom:calc(52px + env(safe-area-inset-bottom,0px));left:10px;max-height:46%;background:var(--card);border:1px solid var(--line);box-shadow:0 6px 22px rgba(0,0,0,.18);z-index:403;display:flex;flex-direction:column}
+@media (min-width:620px){#mappanel{left:auto;top:46px;width:300px;max-height:none}}
+#mappanel .ph{display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--line);font-family:'Barlow Condensed',sans-serif;font-size:17px;letter-spacing:.02em}
+#mappanel .ph b{flex:1}
+#mappanel .ph button{border:1px solid var(--line);background:var(--card-2);font:inherit;font-size:12px;padding:2px 8px;cursor:pointer}
+#mappanel .pb{flex:1;overflow:auto;-webkit-overflow-scrolling:touch}
+#mappanel .lrow{display:flex;align-items:center;gap:8px;padding:7px 10px;border-bottom:1px solid var(--line);font-size:13px;cursor:pointer;background:none;border-left:0;border-right:0;border-top:0;width:100%;text-align:left;font-family:inherit}
+#mappanel .lrow:hover{background:var(--card-2)}
+#mappanel .lrow.off{opacity:.45}
+#mappanel .lrow.on{background:var(--yellow-2)}
+#mappanel .sw{width:14px;height:14px;flex:0 0 14px;border-radius:2px;border:1px solid rgba(0,0,0,.25)}
+#mappanel .lrow .sub{display:block;font-size:11px;color:var(--ink-3)}
+#mappanel .empty{padding:12px 10px;font-size:13px;color:var(--ink-3)}
+#maptip{position:absolute;left:10px;bottom:calc(52px + env(safe-area-inset-bottom,0px));max-width:calc(100% - 70px);background:var(--ink);color:var(--bg);padding:7px 10px;font-size:13px;line-height:1.3;z-index:402;border-left:4px solid var(--yellow);display:none}
 #maptip b{font-family:'Barlow Condensed',sans-serif;font-size:15px;display:block}
 #maptip .r{color:var(--yellow-2)}
 #maptip .act{margin-top:6px;display:flex;gap:6px}
@@ -179,11 +205,15 @@ table.sb th{font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;l
   </header>
   <main id="main"></main>
   <div id="mapview" hidden>
+    <div id="mapleaf"></div>
     <svg id="mapsvg"></svg>
     <div id="mapbar">
+      <button class="chip" id="mp-base" type="button"></button>
       <button class="chip on" id="mp-stops" type="button">Stops</button>
       <button class="chip" id="mp-circles" type="button">Zones</button>
       <button class="chip" id="mp-map" type="button"></button>
+      <button class="chip" id="mp-layers" type="button">Layers</button>
+      <button class="chip" id="mp-list" type="button">Stations</button>
       <button class="chip" id="mp-pin" type="button">Drop pin</button>
       <button class="chip" id="mp-zone" type="button" hidden>Set my zone</button>
       <span class="chip" id="mp-count" hidden></span>
@@ -194,6 +224,7 @@ table.sb th{font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;l
       <button id="mp-out" aria-label="Zoom out">−</button>
       <button id="mp-fit" aria-label="Fit the zone">Fit</button>
     </div>
+    <div id="mappanel" hidden><div class="ph"><b id="pnl-title"></b><button id="pnl-x" type="button">close</button></div><div class="pb" id="pnl-body"></div></div>
     <div id="maptip"></div>
   </div>
 </div>
@@ -1051,6 +1082,34 @@ function latAt(y){ const o=M().origin; return (2*Math.atan(Math.exp((o[1]-y)/R))
 function metres(m,y){ return m/Math.cos(latAt(y)*Math.PI/180); }
 const hideKey=()=>'hs-hide-'+code;
 
+// ---------- the slippy map ----------
+// The drawing is already in Web Mercator metres, offset from a per-zone
+// origin, which is the same space Leaflet projects into. So the whole SVG
+// goes on the map as one layer and every path, circle and label is reused
+// untouched: at any zoom the transform from map units to screen is a single
+// scale and translate. If Leaflet never loads — a phone with no signal at
+// the start of a round — the old hand-drawn basemap and its own pan and
+// zoom are still there underneath.
+const BASEMAPS={
+  street:{n:'Street',u:'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+          a:'&copy; OpenStreetMap contributors',max:19},
+  dark:{n:'Dark',u:'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+          a:'&copy; OpenStreetMap contributors',max:19,invert:true},
+  terrain:{n:'Terrain',u:'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
+          a:'&copy; OpenStreetMap contributors, SRTM | OpenTopoMap (CC-BY-SA)',sub:'abc',max:17},
+  satellite:{n:'Satellite',u:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+          a:'Imagery &copy; Esri',max:19},
+  paper:{n:'Paper',u:null,a:'&copy; OpenStreetMap contributors'}
+};
+let lmap=null, lrend=null, ltiles=null, paperBase=null, lscale=1;
+let basemap=load('hs-basemap')||'street';
+const useLeaf=()=>!!lmap;
+// The inverse of project(): map units back to a latitude and longitude.
+function unproject(x,y){ const o=M().origin;
+  const xm=x+o[0], ym=o[1]-y;
+  return [(2*Math.atan(Math.exp(ym/R))-Math.PI/2)*180/Math.PI, xm/R*180/Math.PI]; }
+const unprojLL=(x,y)=>{ const a=unproject(x,y); return L.latLng(a[0],a[1]); };
+
 function build(){
   const m=M();
   svg=document.getElementById('mapsvg');
@@ -1060,9 +1119,12 @@ function build(){
   const order=['parks','campus','water','residential','tertiary','secondary','primary','motorway','rail','cut','bart','amtrak'];
   const fills={parks:'#CFD9B8',campus:'#E6D9BF',water:'#A8C3D1'};
   gRes=null;
+  // The hand-drawn basemap is its own group so a tile layer can stand in for
+  // it without touching anything drawn on top.
+  paperBase=el('g',{},root);
   for(const k of order){ const d=m.layers[k]; if(!d) continue;
-    if(fills[k]) el('path',{d,fill:fills[k]},root);
-    else { const e=el('path',{d,class:'m-road m-'+k},root); if(k==='residential') gRes=e; } }
+    if(fills[k]) el('path',{d,fill:fills[k]},paperBase);
+    else { const e=el('path',{d,class:'m-road m-'+k},paperBase); if(k==='residential') gRes=e; } }
   // Everything outside the zone is out of bounds, including the area beyond
   // the basemap's own extent — so the mask is a very large rectangle with the
   // zone punched out of it, not the basemap rectangle.
@@ -1087,13 +1149,89 @@ function build(){
     el('text',{class:'m-place'},g).textContent=pl.n; }
   gDyn=el('g',{},root);
   built=zoneKey();
+  if(lmap){ lrend.redraw&&lrend.redraw(); syncTransform(); setBasemap(basemap,true); }
   fit();
+}
+// Map units to screen, as one scale and translate, recomputed per view.
+function syncTransform(){
+  if(!lmap||!root) return;
+  const z=lmap.getZoom();
+  lscale=256*Math.pow(2,z)/(2*Math.PI*R);
+  const p=lmap.project(unprojLL(0,0),z).subtract(lmap.getPixelOrigin());
+  root.setAttribute('transform','translate('+p.x+' '+p.y+') scale('+lscale+')');
+  scaleBits(lscale,z);
+}
+// Everything that has to keep a constant size on screen, and the two layers
+// that only earn their space once you are zoomed in.
+function scaleBits(px,z){
+  const inv=1/px;
+  if(gStops) for(const c of gStops.children) c.setAttribute('r',Math.max(2.4,Math.min(6,px*45))*inv);
+  const showPlaces=z>=14;
+  if(gRes) gRes.style.display=z>=15?'':'none';
+  for(const sc of scaled){ sc.g.setAttribute('transform','translate('+sc.x+' '+sc.y+') scale('+inv+')');
+    if(sc.place) sc.g.style.display=showPlaces?'':'none'; }
+  redraw();
+}
+function setBasemap(k,quiet){
+  if(!BASEMAPS[k]) k='street';
+  basemap=k; save('hs-basemap',k);
+  const chip=document.getElementById('mp-base'); if(chip) chip.textContent=BASEMAPS[k].n;
+  if(!lmap) return;
+  if(ltiles){ lmap.removeLayer(ltiles); ltiles=null; }
+  const b=BASEMAPS[k];
+  if(b.u){ ltiles=L.tileLayer(b.u,{attribution:b.a,maxZoom:20,maxNativeZoom:b.max||19,
+      subdomains:b.sub||'abc'}).addTo(lmap); ltiles.bringToBack(); }
+  const tp=document.querySelector('#mapleaf .leaflet-tile-pane');
+  if(tp) tp.style.filter=b.invert?'invert(1) hue-rotate(180deg) brightness(.95)':'';
+  if(paperBase) paperBase.style.display=b.u?'none':'';
+  document.getElementById('mapleaf').style.background=k==='dark'?'#20232A':(k==='satellite'?'#1A1C20':'#EDEAE1');
+  if(!quiet) toast(b.n+' basemap');
+}
+function initLeaflet(){
+  if(lmap||!window.L) return false;
+  const host=document.getElementById('mapleaf');
+  lmap=L.map(host,{zoomControl:false,attributionControl:true,preferCanvas:false,
+    zoomSnap:0.25,wheelPxPerZoomLevel:90,maxZoom:20,minZoom:9});
+  // Leaflet refuses to place layers or tiles before it has a view, so give it
+  // the zone's centre now; fit() frames it properly a moment later.
+  const mv=M().vb;
+  lmap.setView(unprojLL(mv[0]+mv[2]/2, mv[1]+mv[3]/2), 13);
+  const Rend=L.Renderer.extend({
+    _initContainer(){ this._container=document.getElementById('mapsvg'); },
+    _destroyContainer(){},
+    _update(){
+      // Mid zoom-animation Leaflet is driving the container's own transform;
+      // moving it here as well makes the drawing jump.
+      if(this._map._animatingZoom&&this._bounds) return;
+      L.Renderer.prototype._update.call(this);
+      const b=this._bounds, sz=b.getSize(), c=this._container;
+      c.setAttribute('width',sz.x); c.setAttribute('height',sz.y);
+      c.setAttribute('viewBox',[b.min.x,b.min.y,sz.x,sz.y].join(' '));
+      c.removeAttribute('preserveAspectRatio');
+      L.DomUtil.setPosition(c,b.min);
+      syncTransform();
+    }
+  });
+  lrend=new Rend({padding:0.35}); lmap.addLayer(lrend);
+  lmap.on('zoomend viewreset moveend resize',syncTransform);
+  lmap.on('click',onMapClick);
+  for(const id of ['mapbar','mapctl','maptip','mappanel']){ const e=document.getElementById(id);
+    if(e){ L.DomEvent.disableClickPropagation(e); L.DomEvent.disableScrollPropagation(e); } }
+  document.getElementById('mapview').classList.add('leaf');
+  return true;
 }
 
 function fit(){
   // Frame the game zone, not the whole basemap: on a phone the zone is what
   // you are actually looking at.
-  const m=M(), r=svg.getBoundingClientRect();
+  const m=M();
+  if(lmap){
+    let x=m.vb[0],y=m.vb[1],w=m.vb[2],h=m.vb[3];
+    if(zonePath){ try{ const b=zonePath.getBBox(); if(b.width){x=b.x;y=b.y;w=b.width;h=b.height;} }catch(e){} }
+    lmap.fitBounds(L.latLngBounds(unprojLL(x,y),unprojLL(x+w,y+h)),{padding:[14,14],animate:false});
+    syncTransform(); return;
+  }
+  const r=svg.getBoundingClientRect();
   let x,y,w,h;
   svg.setAttribute('viewBox',m.vb.join(' '));
   if(zonePath){ const b=zonePath.getBBox(); x=b.x; y=b.y; w=b.width; h=b.height; }
@@ -1122,9 +1260,14 @@ function apply(){
     if(sc.place) sc.g.style.display=showPlaces?'':'none'; }
   redraw();
 }
-function client2map(cx,cy){ const r=svg.getBoundingClientRect();
+function client2map(cx,cy){
+  if(lmap){ const r=document.getElementById('mapleaf').getBoundingClientRect();
+    const ll=lmap.containerPointToLatLng(L.point(cx-r.left,cy-r.top));
+    return project(ll.lng,ll.lat); }
+  const r=svg.getBoundingClientRect();
   return [vb.x+(cx-r.left)/r.width*vb.w, vb.y+(cy-r.top)/r.height*vb.h]; }
 function zoomAt(f,cx,cy){
+  if(lmap){ lmap.setZoom(lmap.getZoom()+Math.log2(f)); return; }
   const m=M(), [mx,my]=client2map(cx,cy);
   const maxW=m.vb[2]*1.6, minW=400;
   const nw=Math.min(maxW,Math.max(minW,vb.w/f)), k=vb.w/nw;
@@ -1133,9 +1276,9 @@ function zoomAt(f,cx,cy){
 
 // Dynamic overlay: hiding zone, pins, your fix.
 function redraw(){
-  if(!gDyn) return;
+  if(!gDyn||(!lmap&&!vb)) return;
   gDyn.innerHTML='';
-  const px=(svg.getBoundingClientRect().width||1)/vb.w;
+  const px=lmap?lscale:((svg.getBoundingClientRect().width||1)/(vb?vb.w:1));
   syncShade();
   const hz=load(hideKey());
   if(hz&&isHider()){
@@ -1162,6 +1305,7 @@ function redraw(){
       chip.hidden=false; chip.textContent=left+' of '+keep.length+' possible'; }
     else chip.hidden=true;
   }
+  if(panelTab) drawPanel();
 }
 
 // The hider has to be within a hiding zone of one of the stations that are
@@ -1199,10 +1343,94 @@ function syncShade(){
     const st=m.stops[i];
     el('circle',{cx:st[0],cy:st[1],r:zoneRadius(st[1]),class:'m-zonering'},gShade); }
 }
+// ---------- the side panel ----------
+// Two lists that both point at the same map: the answers, and the stations
+// they have left standing.
+function openPanel(which){
+  panelTab = panelTab===which ? null : which;
+  const el0=document.getElementById('mappanel');
+  document.getElementById('mp-layers').classList.toggle('on',panelTab==='layers');
+  document.getElementById('mp-list').classList.toggle('on',panelTab==='list');
+  if(!panelTab){ el0.hidden=true; return; }
+  el0.hidden=false; drawPanel(true);
+}
+let panelKey='';
+function drawPanel(force){
+  if(!panelTab) return;
+  const cs=cons(), keep=panelTab==='list'?survivors():null;
+  // Rebuilt only when what it is showing actually changes: the map redraws
+  // on every tick, and replacing these rows underneath a finger loses both
+  // the scroll position and the tap.
+  const key=panelTab+'|'+cs.map(conLabel).join('~')+'|'+Object.keys(conOff).sort().join(',')
+    +'|'+listSel+'|'+(keep?keep.join(''):'');
+  if(!force&&key===panelKey) return;
+  panelKey=key;
+  const body=document.getElementById('pnl-body');
+  document.getElementById('pnl-title').textContent=panelTab==='layers'?'Answers on the map':'Stations still possible';
+  if(panelTab==='layers'){
+    body.innerHTML = cs.length ? cs.map((c,i)=>
+      `<button class="lrow ${conOff[i]?'off':''}" data-layer="${i}">
+        <span class="sw" style="background:${conColor(i)}"></span>
+        <span>${esc(conLabel(c))}<span class="sub">${conOff[i]?'hidden':'drawn'}</span></span>
+      </button>`).join('')
+      : '<div class="empty">No answers yet that the map can draw. Radars, thermometers, matching and measuring questions all show up here once they are answered.</div>';
+    return;
+  }
+  const m=M();
+  if(!keep){ body.innerHTML='<div class="empty">Every stop is still in play — nothing has been ruled out yet.</div>'; return; }
+  const rows=[];
+  for(let i=0;i<keep.length;i++){ if(!keep[i]) continue;
+    const st=m.stops[i];
+    rows.push(`<button class="lrow ${listSel===i?'on':''}" data-stop="${i}" id="lrow-${i}">
+      <span>${esc(st[2]||'Unnamed stop')}<span class="sub">${esc((st[3]||'').split(';').join(' · ')||'no route data')}</span></span></button>`); }
+  body.innerHTML = rows.length?rows.join('')
+    : '<div class="empty">Nothing is left standing. The answers contradict each other — check the feed for one that was recorded wrong.</div>';
+  const cur=document.getElementById('lrow-'+listSel);
+  if(cur) cur.scrollIntoView({block:'nearest'});
+}
+function focusStop(i){
+  const st=M().stops[i];
+  if(lmap) lmap.panTo(unprojLL(st[0],st[1]),{animate:true});
+  showStop(i);
+}
+// A tap is resolved against the data rather than the DOM: under Leaflet the
+// drawing takes no pointer events at all, so there is no element to hit.
+function nearStop(x,y,px){
+  if(gStops&&gStops.style.display==='none') return -1;
+  const m=M(), lim=18/px; let bi=-1,bd=Infinity;
+  for(let i=0;i<m.stops.length;i++){ const st=m.stops[i];
+    const d=Math.hypot(st[0]-x,st[1]-y); if(d<bd){ bd=d; bi=i; } }
+  return bd<=lim?bi:-1;
+}
+function nearPin(x,y,px){
+  const lim=20/px; let best=null,bd=Infinity;
+  for(const p of pins){ const d=Math.hypot(p.x-x,p.y-y); if(d<bd){ bd=d; best=p; } }
+  return bd<=lim?best:null;
+}
+function tapAt(x,y){
+  if(pickLoc){ const which=pickLoc; pickLoc=false;
+    setLoc(which,[Math.round(x),Math.round(y)],'map');
+    tab='ask'; save('hs-tab',tab); render(); toast('Location set'); return; }
+  if(pinMode){ pinMode=false;
+    document.getElementById('mp-pin').classList.remove('on'); askPin(x,y); return; }
+  const px=lmap?lscale:((svg.getBoundingClientRect().width||1)/(vb?vb.w:1));
+  const i=nearStop(x,y,px);
+  if(i>=0){
+    if(zoneMode&&isHider()){ const st=M().stops[i]; save(hideKey(),{x:st[0],y:st[1],n:st[2]}); zoneMode=false;
+      document.getElementById('mp-zone').classList.remove('on'); redraw();
+      toast('Hiding zone set at '+(st[2]||'this stop')); return; }
+    showStop(i); return; }
+  const pn=nearPin(x,y,px);
+  if(pn){ tip('<b>'+esc(pn.label||'Pin')+'</b><span class="r">'+esc(pn.by||'')+'</span>'+
+    (pn.by===me.name?'<div class="act"><button data-delpin="'+pn.id+'">Remove</button></div>':'')); return; }
+  sel=null; if(gStops) for(const c of gStops.children) c.classList.remove('sel'); tip(null);
+}
+function onMapClick(e){ const p=project(e.latlng.lng,e.latlng.lat); tapAt(p[0],p[1]); }
 function tip(html){ const t=document.getElementById('maptip'); if(!html){t.style.display='none';return;} t.innerHTML=html; t.style.display='block'; }
 function showStop(i){
   const s=M().stops[i];
-  sel=i;
+  sel=i; listSel=i;
+  if(panelTab==='list') drawPanel();
   for(const c of gStops.children) c.classList.toggle('sel',+c.dataset.i===i);
   const routes=s[3]?`<span class="r">${esc(s[3].split(';').join(' · '))}</span>`:'<span style="opacity:.7">no route data</span>';
   const off=!!crossed[i];
@@ -1246,9 +1474,12 @@ function bind(){
   const view=document.getElementById('mapview');
   if(view.dataset.bound) return; view.dataset.bound='1';
   const pts=new Map(); let drag=null, pinch=null, moved=0;
+  // Leaflet owns panning and zooming when it is there; these handlers are the
+  // fallback for a phone that never loaded it.
+  if(!lmap){
   view.addEventListener('wheel',e=>{ e.preventDefault(); zoomAt(Math.exp(-e.deltaY*0.0016),e.clientX,e.clientY); },{passive:false});
   view.addEventListener('pointerdown',e=>{
-    if(e.target.closest('#mapctl,#mapbar,#maptip')) return;
+    if(e.target.closest('#mapctl,#mapbar,#maptip,#mappanel')) return;
     view.setPointerCapture(e.pointerId); pts.set(e.pointerId,e); moved=0;
     if(pts.size===1) drag={x:e.clientX,y:e.clientY,vx:vb.x,vy:vb.y};
     else if(pts.size===2){ const a=[...pts.values()]; drag=null; pinch={d:Math.hypot(a[0].clientX-a[1].clientX,a[0].clientY-a[1].clientY),vb:{...vb}}; }
@@ -1268,27 +1499,11 @@ function bind(){
     pts.delete(e.pointerId); if(pts.size<2) pinch=null;
     if(pts.size===0){ drag=null; view.classList.remove('drag'); }
     if(!wasTap) return;
-    // Pointer capture retargets this event to #mapview, so the element under
-    // the finger has to be looked up by position.
-    if(pickLoc){ const [lx,ly]=client2map(e.clientX,e.clientY);
-      const which=pickLoc; pickLoc=false;
-      setLoc(which,[Math.round(lx),Math.round(ly)],'map');
-      tab='ask'; save('hs-tab',tab); render(); toast('Location set'); return; }
-    if(pinMode){ const [px0,py0]=client2map(e.clientX,e.clientY); pinMode=false;
-      document.getElementById('mp-pin').classList.remove('on'); askPin(px0,py0); return; }
-    const hit=document.elementFromPoint(e.clientX,e.clientY)||e.target;
-    const stop=hit.closest&&hit.closest('.m-stop');
-    const pin=hit.closest&&hit.closest('[data-pin]');
-    if(stop){ const i=+stop.dataset.i;
-      if(zoneMode&&isHider()){ const s=M().stops[i]; save(hideKey(),{x:s[0],y:s[1],n:s[2]}); zoneMode=false;
-        document.getElementById('mp-zone').classList.remove('on'); redraw(); toast('Hiding zone set at '+(s[2]||'this stop')); return; }
-      showStop(i); return; }
-    if(pin){ const p=pins.find(q=>q.id===pin.dataset.pin); if(p)
-      tip(`<b>${esc(p.label||'Pin')}</b><span class="r">${esc(p.by||'')}</span>${p.by===me.name?`<div class="act"><button data-delpin="${p.id}">Remove</button></div>`:''}`);
-      return; }
-    sel=null; for(const c of gStops.children) c.classList.remove('sel'); tip(null);
+    const [lx,ly]=client2map(e.clientX,e.clientY);
+    tapAt(lx,ly);
   };
   view.addEventListener('pointerup',up); view.addEventListener('pointercancel',e=>{pts.delete(e.pointerId);drag=null;pinch=null;view.classList.remove('drag');});
+  }
   document.getElementById('maptip').addEventListener('click',async e=>{
     const sh=e.target.dataset.sethide, dp=e.target.dataset.delpin, cr=e.target.dataset.cross;
     if(cr!==undefined){ const i=+cr, on=!crossed[i];
@@ -1314,10 +1529,27 @@ function bind(){
   document.getElementById('mp-pin').addEventListener('click',e=>{ pinMode=e.currentTarget.classList.toggle('on'); zoneMode=false; document.getElementById('mp-zone').classList.remove('on'); if(pinMode) toast('Tap the map to place a pin'); });
   document.getElementById('mp-zone').addEventListener('click',e=>{ zoneMode=e.currentTarget.classList.toggle('on'); pinMode=false; document.getElementById('mp-pin').classList.remove('on'); if(zoneMode) toast('Tap the stop you are hiding near'); });
   document.getElementById('mp-loc').addEventListener('click',locate);
-  document.getElementById('mp-in').addEventListener('click',()=>{const r=svg.getBoundingClientRect();zoomAt(1.6,r.left+r.width/2,r.top+r.height/2);});
-  document.getElementById('mp-out').addEventListener('click',()=>{const r=svg.getBoundingClientRect();zoomAt(1/1.6,r.left+r.width/2,r.top+r.height/2);});
+  document.getElementById('mp-in').addEventListener('click',()=>{ if(lmap) lmap.zoomIn(1); else {const r=svg.getBoundingClientRect();zoomAt(1.6,r.left+r.width/2,r.top+r.height/2);} });
+  document.getElementById('mp-out').addEventListener('click',()=>{ if(lmap) lmap.zoomOut(1); else {const r=svg.getBoundingClientRect();zoomAt(1/1.6,r.left+r.width/2,r.top+r.height/2);} });
   document.getElementById('mp-fit').addEventListener('click',fit);
-  window.addEventListener('resize',()=>{ if(!document.getElementById('mapview').hidden&&vb) fit(); });
+  document.getElementById('mp-layers').addEventListener('click',()=>openPanel('layers'));
+  document.getElementById('mp-list').addEventListener('click',()=>openPanel('list'));
+  document.getElementById('pnl-x').addEventListener('click',()=>openPanel(panelTab));
+  document.getElementById('pnl-body').addEventListener('click',e=>{
+    const L0=e.target.closest('[data-layer]'), S0=e.target.closest('[data-stop]');
+    if(L0){ const i=+L0.dataset.layer; if(conOff[i]) delete conOff[i]; else conOff[i]=1;
+      redraw(); drawPanel(true); return; }
+    if(S0){ focusStop(+S0.dataset.stop); }
+  });
+  const bb=document.getElementById('mp-base');
+  bb.textContent=BASEMAPS[basemap].n;
+  bb.title='Change the basemap';
+  bb.hidden=!lmap;
+  bb.addEventListener('click',()=>{ const ks=Object.keys(BASEMAPS);
+    setBasemap(ks[(ks.indexOf(basemap)+1)%ks.length]); });
+  window.addEventListener('resize',()=>{ const mv=document.getElementById('mapview');
+    if(mv.hidden) return;
+    if(lmap) lmap.invalidateSize(); else if(vb) fit(); });
 }
 
 // --- what an answer rules out ------------------------------------------
@@ -1333,9 +1565,7 @@ function bind(){
 // exact Euclidean distance transform turns that set into a distance field,
 // and the station survives iff the field at the station is inside its zone
 // radius. Nothing is padded, and nothing possible is ever greyed out.
-const GRID_M=25;                 // true metres per grid cell
-let gridCache={}, poiCache={};
-
+let poiCache={};
 function poiPts(k){
   const z=zoneKey(), c=poiCache[z]||(poiCache[z]={});
   if(c[k]) return c[k];
@@ -1344,129 +1574,6 @@ function poiPts(k){
   return c[k];
 }
 const nameLen=s=>(s||'').length;   // hyphens and spaces count, per the card
-
-function grid(){
-  const z=zoneKey(); if(gridCache[z]) return gridCache[z];
-  const m=M(), pad=6000;
-  const x0=m.vb[0]-pad, y0=m.vb[1]-pad, w=m.vb[2]+pad*2, h=m.vb[3]+pad*2;
-  const cell=metres(GRID_M,m.vb[1]+m.vb[3]/2);
-  const gw=Math.ceil(w/cell), gh=Math.ceil(h/cell);
-  return gridCache[z]={x0,y0,cell,gw,gh,n:gw*gh,fields:{},
-    cx:i=>x0+(i%gw+0.5)*cell, cy:i=>y0+((i/gw|0)+0.5)*cell,
-    at(x,y){ const gx=Math.floor((x-x0)/cell), gy=Math.floor((y-y0)/cell);
-      return (gx<0||gy<0||gx>=gw||gy>=gh)?-1:gy*gw+gx; }};
-}
-
-// Exact 1-D squared distance transform (Felzenszwalb & Huttenlocher). The
-// winning source is carried along, so one pass also yields Voronoi labels.
-function edt1d(f,lbl,n,stride,base,v,zz,ff,ll){
-  for(let i=0;i<n;i++){ const p=base+i*stride; ff[i]=f[p]; ll[i]=lbl?lbl[p]:0; }
-  let k=0; v[0]=0; zz[0]=-Infinity; zz[1]=Infinity;
-  for(let q=1;q<n;q++){
-    let s;
-    for(;;){ const p=v[k];
-      s=((ff[q]+q*q)-(ff[p]+p*p))/(2*q-2*p);
-      if(s<=zz[k]&&k>0) k--; else break; }
-    k++; v[k]=q; zz[k]=s; zz[k+1]=Infinity;
-  }
-  k=0;
-  for(let q=0;q<n;q++){
-    while(zz[k+1]<q) k++;
-    const p=v[k], d=q-p, o=base+q*stride;
-    f[o]=d*d+ff[p];
-    if(lbl) lbl[o]=ll[p];
-  }
-}
-function edt(g,f,lbl){
-  const {gw,gh}=g, mx=Math.max(gw,gh);
-  const v=new Int32Array(mx), zz=new Float64Array(mx+1), ff=new Float64Array(mx), ll=new Int32Array(mx);
-  for(let y=0;y<gh;y++) edt1d(f,lbl,gw,1,y*gw,v,zz,ff,ll);
-  for(let x=0;x<gw;x++) edt1d(f,lbl,gh,gw,x,v,zz,ff,ll);
-  return f;
-}
-const FAR=1e12;
-function blank(g){ const f=new Float64Array(g.n); f.fill(FAR); return f; }
-function toMetres(g,f){ const d=new Float32Array(g.n);
-  for(let i=0;i<g.n;i++) d[i]=Math.sqrt(f[i])*g.cell; return d; }
-
-// Nearest-reference-point field: distance, and which one won. Computed cell
-// by cell rather than by distance transform — the separable transform gets
-// the distance right but mislabels a thin band along the Voronoi boundaries,
-// and a station can turn on whether a sliver of its zone fell in that band.
-// The reference sets are clipped to the map, so they are small enough to do
-// this honestly.
-function pointField(key,pts){
-  const g=grid(); if(g.fields[key]) return g.fields[key];
-  const d=new Float32Array(g.n), lbl=new Int32Array(g.n).fill(-1), n=pts.length;
-  if(!n){ d.fill(Infinity); return g.fields[key]={d,lbl,pts}; }
-  const px=new Float64Array(n), py=new Float64Array(n);
-  for(let i=0;i<n;i++){ px[i]=pts[i][0]; py[i]=pts[i][1]; }
-  for(let gy=0,c=0;gy<g.gh;gy++){
-    const y=g.y0+(gy+0.5)*g.cell;
-    for(let gx=0;gx<g.gw;gx++,c++){
-      const x=g.x0+(gx+0.5)*g.cell;
-      let bi=0,bd=Infinity;
-      for(let i=0;i<n;i++){
-        const dx=x-px[i], dy=y-py[i], dd=dx*dx+dy*dy;
-        if(dd<bd){ bd=dd; bi=i; }
-      }
-      d[c]=Math.sqrt(bd); lbl[c]=bi;
-    }
-  }
-  return g.fields[key]={d,lbl,pts};
-}
-const poiField=k=>pointField('p:'+k,poiPts(k));
-// Distance to the edge of a shape — a park, a lake, the shoreline — by
-// rasterising its outline and running the same transform over it.
-function shapeField(k){
-  const g=grid(), key='s:'+k; if(g.fields[key]) return g.fields[key];
-  const f=blank(g);
-  for(const line of (SHAPE_SRC[k]?SHAPE_SRC[k]:[].concat(...((AREA_OF(zoneKey())[k])||[]).map(a=>a.r)))){
-    let px=null,py=null;
-    for(const ll of line){
-      const [x,y]=project(ll[0],ll[1]);
-      if(px!==null){
-        const steps=Math.max(1,Math.ceil(Math.hypot(x-px,y-py)/g.cell));
-        for(let s=0;s<=steps;s++){ const c=g.at(px+(x-px)*s/steps,py+(y-py)*s/steps); if(c>=0) f[c]=0; }
-      } else { const c=g.at(x,y); if(c>=0) f[c]=0; }
-      px=x; py=y;
-    }
-  }
-  edt(g,f,null);
-  return g.fields[key]={d:toMetres(g,f)};
-}
-// Which named area (city, council district) each cell falls in.
-function areaField(k){
-  const g=grid(), key='a:'+k; if(g.fields[key]) return g.fields[key];
-  const list=AREA_OF(zoneKey())[k]||[], lbl=new Int32Array(g.n).fill(-1);
-  for(let ai=0;ai<list.length;ai++){
-    for(const ring of list[ai].r){
-      const pr=ring.map(ll=>project(ll[0],ll[1]));
-      let minx=1e18,maxx=-1e18,miny=1e18,maxy=-1e18;
-      for(const p of pr){ if(p[0]<minx)minx=p[0]; if(p[0]>maxx)maxx=p[0];
-        if(p[1]<miny)miny=p[1]; if(p[1]>maxy)maxy=p[1]; }
-      const gx0=Math.max(0,Math.floor((minx-g.x0)/g.cell)), gx1=Math.min(g.gw-1,Math.ceil((maxx-g.x0)/g.cell));
-      const gy0=Math.max(0,Math.floor((miny-g.y0)/g.cell)), gy1=Math.min(g.gh-1,Math.ceil((maxy-g.y0)/g.cell));
-      for(let gy=gy0;gy<=gy1;gy++){
-        const y=g.y0+(gy+0.5)*g.cell;
-        // Scanline crossings: every span between an odd and an even crossing
-        // is inside the ring.
-        const xs=[];
-        for(let i=0,j=pr.length-1;i<pr.length;j=i++){
-          const [xi,yi]=pr[i], [xj,yj]=pr[j];
-          if((yi>y)!==(yj>y)) xs.push(xi+(y-yi)/(yj-yi)*(xj-xi));
-        }
-        xs.sort((a,b)=>a-b);
-        for(let s=0;s+1<xs.length;s+=2){
-          let a=Math.max(gx0,Math.ceil((xs[s]-g.x0)/g.cell-0.5));
-          let b=Math.min(gx1,Math.floor((xs[s+1]-g.x0)/g.cell-0.5));
-          for(let gx=a;gx<=b;gx++) lbl[gy*g.gw+gx]=ai;
-        }
-      }
-    }
-  }
-  return g.fields[key]={lbl,names:list.map(a=>a.n)};
-}
 
 // Every answered question that carries geometry, as a light description —
 // light enough to double as the cache key.
@@ -1533,79 +1640,160 @@ function pointInRings(rings,p){
   }
   return inside;
 }
+// ---------- exact survival ----------
+// A station survives an answer when some point of its hiding zone could have
+// produced that answer. Every answer is expressed as a clearance function
+// phi(p): at or above zero exactly where the answer is possible, and never
+// changing faster than distance itself. That Lipschitz bound is what makes
+// the search below a proof rather than a sample: a square whose centre sits
+// further below zero than its own half-diagonal cannot contain a qualifying
+// point anywhere, so it is discarded whole. No grid, no padding, and no
+// elimination that a finer mesh would undo.
+const PHI_EPS_M=0.01;            // certify down to a centimetre
+function reaches(phi,S,rho,eps){
+  const p0=phi(S);
+  if(p0>=0) return true;         // the station itself could have answered
+  if(p0+rho<0) return false;     // and no point of its zone can reach
+  // g is >=0 exactly at a point that is both inside the zone and qualifying.
+  // Both halves are evaluated everywhere, never short-circuited: the bound
+  // below is only sound while g itself is Lipschitz, and a g that ignored
+  // phi outside the zone would let the search crawl along the zone's rim
+  // and mistake nearness to that rim for nearness to an answer.
+  const g=p=>{ const a=rho-Math.hypot(p[0]-S[0],p[1]-S[1]), b=phi(p); return a<b?a:b; };
+  const st=[S[0],S[1],rho]; let top=3, guard=400000;
+  while(top>0){
+    if(--guard<0) return true;   // never eliminate because the search ran long
+    const hs=st[--top], cy=st[--top], cx=st[--top];
+    const v=g([cx,cy]);
+    if(v>=0) return true;
+    if(v+hs*Math.SQRT2<0) continue;
+    if(hs<eps) return true;      // indistinguishable from the boundary: keep
+    const q=hs/2;
+    st[top++]=cx-q; st[top++]=cy-q; st[top++]=q;
+    st[top++]=cx+q; st[top++]=cy-q; st[top++]=q;
+    st[top++]=cx-q; st[top++]=cy+q; st[top++]=q;
+    st[top++]=cx+q; st[top++]=cy+q; st[top++]=q;
+  }
+  return false;
+}
+// Rings projected once per zone rather than per distance query.
+let ringCache={};
+function projRings(key,rings){
+  const k=zoneKey()+'|'+key; if(ringCache[k]) return ringCache[k];
+  return ringCache[k]=rings.map(r=>r.map(ll=>project(ll[0],ll[1])));
+}
+const shapeRings=k=>projRings('s:'+k, SHAPE_SRC[k]?SHAPE_SRC[k]:[].concat(...((AREA_OF(zoneKey())[k])||[]).map(a=>a.r)));
+function ringsDist(pr,p){
+  let best=Infinity;
+  for(const line of pr){
+    for(let i=1;i<line.length;i++){ const d=segDist(p,line[i-1],line[i]); if(d<best) best=d; }
+    if(line.length===1){ const d=Math.hypot(p[0]-line[0][0],p[1]-line[0][1]); if(d<best) best=d; }
+  }
+  return best;
+}
+function ringsInside(pr,p){
+  let inside=false;
+  for(const line of pr) for(let i=0,j=line.length-1;i<line.length;j=i++){
+    const [xi,yi]=line[i], [xj,yj]=line[j];
+    if((yi>p[1])!==(yj>p[1]) && p[0] < xi+(p[1]-yi)/(yj-yi)*(xj-xi)) inside=!inside;
+  }
+  return inside;
+}
+// Signed clearance of a filled shape: positive inside.
+const ringsPhi=(pr,p)=>(ringsInside(pr,p)?1:-1)*ringsDist(pr,p);
+// Only sites that could be nearest to some point of the zone can matter.
+function nearby(pts,S,rho){
+  let a=Infinity;
+  for(const t of pts){ const d=Math.hypot(S[0]-t[0],S[1]-t[1]); if(d<a) a=d; }
+  // The search ranges over the zone's bounding square, not just the zone, so
+  // the margin has to cover its corners: anything further than this can never
+  // be the nearest reference to a point the search will visit.
+  const lim=a+3*rho, out=[];
+  for(const t of pts) if(Math.hypot(S[0]-t[0],S[1]-t[1])<=lim) out.push(t);
+  return out;
+}
+const minDist=(pts,p)=>{ let b=Infinity;
+  for(let i=0;i<pts.length;i++){ const dx=p[0]-pts[i][0], dy=p[1]-pts[i][1];
+    const d=dx*dx+dy*dy; if(d<b) b=d; } return Math.sqrt(b); };
+// The clearance function for one answer, specialised to one station so the
+// reference sets stay small.
+function phiFor(c,S,rho){
+  if(c.t==='radar'){ const R=metres(c.r,c.y);
+    return c.inside ? p=>R-Math.hypot(p[0]-c.x,p[1]-c.y)
+                    : p=>Math.hypot(p[0]-c.x,p[1]-c.y)-R; }
+  if(c.t==='thermo'){
+    const mx=(c.a[0]+c.b[0])/2, my=(c.a[1]+c.b[1])/2;
+    let ux=c.b[0]-c.a[0], uy=c.b[1]-c.a[1];
+    const L=Math.hypot(ux,uy)||1; ux/=L; uy/=L; const sg=c.hotter?1:-1;
+    return p=>sg*((p[0]-mx)*ux+(p[1]-my)*uy); }
+  if(c.t==='dist'){
+    if(!isFinite(c.ds)) return null;
+    const sg=c.closer?1:-1;
+    if(c.k[0]==='@'){ const pr=shapeRings(c.k[0]==='@'?c.k.slice(1):c.k);
+      return p=>sg*(c.ds-ringsDist(pr,p)); }
+    const sub=nearby(poiPts(c.k),S,rho);
+    if(!sub.length) return null;
+    return p=>sg*(c.ds-minDist(sub,p)); }
+  if(c.t==='near'){
+    if(c.j<0) return null;
+    const all=poiPts(c.k), mine=all[c.j];
+    if(!mine) return null;
+    const others=nearby(all.filter((t,i)=>i!==c.j),S,rho);
+    // Nothing else can ever be nearer, so the answer is settled outright.
+    if(!others.length) return c.same?(()=>Infinity):(()=>-Infinity);
+    const sg=c.same?1:-1;
+    // Half the gap to the runner-up: zero exactly on the cell boundary.
+    return p=>{ const dm=Math.hypot(p[0]-mine[0],p[1]-mine[1]);
+      return sg*(minDist(others,p)-dm)/2; }; }
+  if(c.t==='tent'){
+    const R=c.R;
+    if(c.j<0) return p=>Math.hypot(p[0]-c.x,p[1]-c.y)-R;   // not within reach
+    const mine=c.sub[c.j]; if(!mine) return null;
+    const others=nearby(c.sub.filter((t,i)=>i!==c.j),S,rho);
+    return p=>{ const inR=R-Math.hypot(p[0]-c.x,p[1]-c.y);
+      const dm=Math.hypot(p[0]-mine[0],p[1]-mine[1]);
+      const cl=others.length?(minDist(others,p)-dm)/2:Infinity;
+      return inR<cl?inR:cl; }; }
+  if(c.t==='area'){
+    const list=AREA_OF(zoneKey())[c.k]||[];
+    if(c.j<0) return c.same?null:(()=>Infinity);
+    const pr=projRings('a:'+c.k+':'+c.j,list[c.j].r), sg=c.same?1:-1;
+    return p=>sg*ringsPhi(pr,p); }
+  if(c.t==='namelen'){
+    if(c.L<0) return null;
+    const all=nearby(poiPts('station'),S,rho);
+    const hit=all.filter(t=>nameLen(t[2])===c.L), miss=all.filter(t=>nameLen(t[2])!==c.L);
+    // No station of that name length can be nearest anywhere near here.
+    if(!hit.length) return c.same?(()=>-Infinity):(()=>Infinity);
+    if(!miss.length) return c.same?(()=>Infinity):(()=>-Infinity);
+    const sg=c.same?1:-1;
+    return p=>sg*(minDist(miss,p)-minDist(hit,p))/2; }
+  return null;
+}
+
 function prep(c){
   const p=Object.assign({},c), here=[c.x,c.y];
   if(c.t==='dist'){
-    if(c.k[0]==='@'){ p.F=shapeField(c.k.slice(1)).d; p.ds=exactShapeDist(c.k.slice(1),here); }
-    else { const f=poiField(c.k); p.F=f.d; p.ds=exactNearest(f.pts,here).d; }
+    p.ds = c.k[0]==='@' ? ringsDist(shapeRings(c.k.slice(1)),here)
+                        : exactNearest(poiPts(c.k),here).d;
   } else if(c.t==='near'){
-    const f=poiField(c.k); p.lbl=f.lbl; p.j=exactNearest(f.pts,here).i;
+    p.j=exactNearest(poiPts(c.k),here).i;
   } else if(c.t==='tent'){
-    // A tentacle's Voronoi covers only the places in range of where the
-    // seeker asked, so it is built per question.
+    // A tentacle's answer only ranges over what was in reach of the ask.
     const all=poiPts(c.k), R=metres(c.r,c.y), sub=[];
     for(const t of all) if(t[2]&&Math.hypot(c.x-t[0],c.y-t[1])<=R) sub.push(t);
     p.sub=sub; p.R=R;
     p.j=c.name==null?-1:sub.findIndex(t=>t[2]===c.name);
-    p.lbl=sub.length?pointField('t:'+c.k+':'+Math.round(c.x)+':'+Math.round(c.y)+':'+c.r,sub).lbl:null;
   } else if(c.t==='area'){
-    const f=areaField(c.k), list=AREA_OF(zoneKey())[c.k]||[];
-    p.lbl=f.lbl; p.j=-1;
-    for(let i=0;i<list.length;i++) if(pointInRings(list[i].r,here)){ p.j=i; break; }
+    const list=AREA_OF(zoneKey())[c.k]||[];
+    p.j=-1;
+    for(let i=0;i<list.length;i++) if(ringsInside(projRings('a:'+c.k+':'+i,list[i].r),here)){ p.j=i; break; }
   } else if(c.t==='namelen'){
-    const f=poiField('station'); p.lbl=f.lbl; p.pts=f.pts;
-    const n=exactNearest(f.pts,here);
-    p.L=n.i<0?-1:nameLen(f.pts[n.i][2]);
+    const n=exactNearest(poiPts('station'),here);
+    p.L=n.i<0?-1:nameLen(poiPts('station')[n.i][2]);
   }
   return p;
 }
-// The set of points that could have given this answer.
-function regionMask(g,c){
-  const n=g.n, mask=new Uint8Array(n);
-  if(c.t==='radar'){
-    const R=metres(c.r,c.y), R2=R*R;
-    for(let i=0;i<n;i++){ const dx=g.cx(i)-c.x, dy=g.cy(i)-c.y;
-      mask[i]=((dx*dx+dy*dy<=R2)===c.inside)?1:0; }
-  } else if(c.t==='thermo'){
-    // Hotter means the pin the seeker finished on is nearer the hider than
-    // the pin they started from — the hider is past the bisector of the two.
-    const mx=(c.a[0]+c.b[0])/2, my=(c.a[1]+c.b[1])/2;
-    let ux=c.b[0]-c.a[0], uy=c.b[1]-c.a[1];
-    const L=Math.hypot(ux,uy)||1; ux/=L; uy/=L;
-    for(let i=0;i<n;i++){ const s=(g.cx(i)-mx)*ux+(g.cy(i)-my)*uy;
-      mask[i]=(c.hotter? s>=0 : s<=0)?1:0; }
-  } else if(c.t==='dist'){
-    if(!isFinite(c.ds)) { mask.fill(1); return mask; }
-    for(let i=0;i<n;i++) mask[i]=(c.closer? c.F[i]<=c.ds : c.F[i]>=c.ds)?1:0;
-  } else if(c.t==='near'){
-    if(c.j<0){ mask.fill(1); return mask; }
-    for(let i=0;i<n;i++) mask[i]=((c.lbl[i]===c.j)===c.same)?1:0;
-  } else if(c.t==='tent'){
-    const R2=c.R*c.R;
-    for(let i=0;i<n;i++){
-      const dx=g.cx(i)-c.x, dy=g.cy(i)-c.y, inR=dx*dx+dy*dy<=R2;
-      mask[i]=(c.j<0 ? !inR : (inR && c.lbl && c.lbl[i]===c.j))?1:0;
-    }
-    if(c.j<0===false&&!c.lbl) mask.fill(1);
-  } else if(c.t==='area'){
-    for(let i=0;i<n;i++) mask[i]=((c.lbl[i]===c.j)===c.same)?1:0;
-  } else if(c.t==='namelen'){
-    if(c.L<0){ mask.fill(1); return mask; }
-    for(let i=0;i<n;i++){ const j=c.lbl[i];
-      mask[i]=((j>=0&&nameLen(c.pts[j][2])===c.L)===c.same)?1:0; }
-  } else mask.fill(1);
-  return mask;
-}
-// How far a point must move to reach the region this answer allows.
-function reachField(g,c){
-  const mask=regionMask(g,c), f=blank(g);
-  let any=false;
-  for(let i=0;i<g.n;i++) if(mask[i]){ f[i]=0; any=true; }
-  if(!any) return null;
-  edt(g,f,null);
-  return f;
-}
-
 function zoneRadius(y){ return metres(HIDE_RADIUS[(game&&game.size)||'S'], y); }
 
 // Each answer's verdict on each station is kept, so a new answer only costs
@@ -1615,18 +1803,15 @@ const strictMode=()=>!!(game&&game.strict===true);
 function stopMask(c){
   const key=zoneKey()+'|'+((game&&game.size)||'S')+'|'+strictMode()+'|'+JSON.stringify(c);
   if(stopMaskCache[key]) return stopMaskCache[key];
-  const g=grid(), m=M(), f=reachField(g,prep(c)), out=new Uint8Array(m.stops.length);
-  if(!f){ out.fill(1); return stopMaskCache[key]=out; }
-  // A cell's centre stands for the whole cell, so allow half a diagonal.
-  const slop=g.cell*Math.SQRT1_2;
+  const m=M(), p=prep(c), strict=strictMode(), out=new Uint8Array(m.stops.length);
   for(let i=0;i<m.stops.length;i++){
-    const st=m.stops[i], c2=g.at(st[0],st[1]);
-    if(c2<0){ out[i]=1; continue; }
-    // Strict reads the answer against the station itself; the loose setting
-    // gives the hider the whole zone to have been standing in, which is what
-    // the rules allow and what almost nothing then rules out.
-    const lim=((strictMode()?0:zoneRadius(st[1]))+slop)/g.cell;
-    out[i]=f[c2]<=lim*lim?1:0;
+    const st=m.stops[i], S=[st[0],st[1]];
+    // Strict reads the answer against the station itself; by the book the
+    // hider could have been anywhere in their zone when they answered.
+    const rho=strict?0:zoneRadius(st[1]);
+    const phi=phiFor(p,S,rho);
+    if(!phi){ out[i]=1; continue; }   // nothing here to narrow with
+    out[i]=reaches(phi,S,rho,metres(PHI_EPS_M,st[1]))?1:0;
   }
   return stopMaskCache[key]=out;
 }
@@ -1641,24 +1826,104 @@ function survivors(){
   for(const k in crossed){ const i=+k; if(i>=0&&i<keep.length) keep[i]=0; }
   return keep;
 }
-function drawCons(g,px){
-  for(const c of cons()){
-    if(c.t==='radar'){
-      el('circle',{cx:c.x,cy:c.y,r:metres(c.r,c.y),class:'m-con '+(c.inside?'in':'out')},g);
-    } else if(c.t==='thermo'){
-      const mx=(c.a[0]+c.b[0])/2, my=(c.a[1]+c.b[1])/2;
-      let ux=c.b[0]-c.a[0], uy=c.b[1]-c.a[1];
-      const L=Math.hypot(ux,uy)||1; ux/=L; uy/=L;
-      const S=200000;   // long enough to cross any view
-      el('line',{x1:mx-uy*S,y1:my+ux*S,x2:mx+uy*S,y2:my-ux*S,class:'m-con thermo'},g);
-      el('line',{x1:c.a[0],y1:c.a[1],x2:c.b[0],y2:c.b[1],class:'m-leg'},g);
-      el('circle',{cx:c.a[0],cy:c.a[1],r:4/px,class:'m-from'},g);
-      el('circle',{cx:c.b[0],cy:c.b[1],r:4/px,class:'m-from'},g);
-    } else if(c.t==='tent'){
-      el('circle',{cx:c.x,cy:c.y,r:metres(c.r,c.y),class:'m-con in'},g);
-    }
-    if(c.x!=null) el('circle',{cx:c.x,cy:c.y,r:4/px,class:'m-from'},g);
+// ---------- per-answer layers ----------
+// Each answer gets its own drawing of the line it actually cut along, so the
+// grey on the map can be read back to the question that caused it. These are
+// the real boundaries — a Voronoi cell really is a polygon of bisectors —
+// not sketches, and turning one off hides the drawing only. What is ruled
+// out never depends on what you are looking at.
+const CON_COLORS=['#D62828','#0077B6','#1F8A5B','#B5179E','#E4572E','#5A189A','#0F7B8A','#9A6A00'];
+let conOff={}, panelTab=null, listSel=-1;
+const conColor=i=>CON_COLORS[i%CON_COLORS.length];
+function conLabel(c){
+  const d=k=>{ for(const n in REF) if(REF[n]===k) return n.toLowerCase(); return k; };
+  if(c.t==='radar') return (c.inside?'Within ':'Not within ')+fmtDist(metres(c.r,c.y)*Math.cos(latAt(c.y)*Math.PI/180));
+  if(c.t==='thermo') return c.hotter?'Hotter after travelling':'Colder after travelling';
+  if(c.t==='dist') return (c.closer?'Closer to ':'Further from ')+d(c.k);
+  if(c.t==='near') return (c.same?'Same nearest ':'Different nearest ')+d(c.k);
+  if(c.t==='tent') return c.name?('Nearest '+d(c.k)+': '+c.name):('No '+d(c.k)+' in reach');
+  if(c.t==='area') return c.same?'Same city':'Different city';
+  if(c.t==='namelen') return c.same?'Same station-name length':'Different station-name length';
+  return c.t;
+}
+// A Voronoi cell is the intersection of the half-planes that beat every other
+// reference, so it is built by clipping a big rectangle with each bisector.
+function clipHalf(poly,nx,ny,mx,my){
+  const f=pt=>(pt[0]-mx)*nx+(pt[1]-my)*ny, out=[];
+  for(let i=0;i<poly.length;i++){
+    const a=poly[i], b=poly[(i+1)%poly.length], fa=f(a), fb=f(b);
+    if(fa<=0) out.push(a);
+    if((fa<0&&fb>0)||(fa>0&&fb<0)){ const t=fa/(fa-fb);
+      out.push([a[0]+t*(b[0]-a[0]),a[1]+t*(b[1]-a[1])]); }
   }
+  return out;
+}
+function cellPoly(pts,j){
+  const p=pts[j]; if(!p) return null;
+  const m=M(), S=Math.max(m.vb[2],m.vb[3])*1.5;
+  let poly=[[m.vb[0]-S,m.vb[1]-S],[m.vb[0]+m.vb[2]+S,m.vb[1]-S],
+            [m.vb[0]+m.vb[2]+S,m.vb[1]+m.vb[3]+S],[m.vb[0]-S,m.vb[1]+m.vb[3]+S]];
+  for(let i=0;i<pts.length&&poly.length>2;i++){
+    if(i===j) continue;
+    poly=clipHalf(poly,pts[i][0]-p[0],pts[i][1]-p[1],(p[0]+pts[i][0])/2,(p[1]+pts[i][1])/2);
+  }
+  return poly.length>2?poly:null;
+}
+const polyD=pl=>'M'+pl.map(q=>q[0].toFixed(1)+' '+q[1].toFixed(1)).join('L')+'Z';
+const MAX_ARCS=220;    // past this the circles are noise, not information
+function drawOne(c,i,g,px){
+  const col=conColor(i), gg=el('g',{class:'con-layer','data-ci':i,stroke:col},g);
+  const ring=(x,y,r,dash)=>el('circle',{cx:x,cy:y,r,fill:'none',stroke:col,
+    'stroke-width':2,'stroke-dasharray':dash||'6 4','vector-effect':'non-scaling-stroke',opacity:.9},gg);
+  if(c.t==='radar') ring(c.x,c.y,metres(c.r,c.y),c.inside?'6 4':'2 5');
+  else if(c.t==='thermo'){
+    const mx=(c.a[0]+c.b[0])/2, my=(c.a[1]+c.b[1])/2;
+    let ux=c.b[0]-c.a[0], uy=c.b[1]-c.a[1];
+    const L=Math.hypot(ux,uy)||1; ux/=L; uy/=L; const S=200000;
+    el('line',{x1:mx-uy*S,y1:my+ux*S,x2:mx+uy*S,y2:my-ux*S,stroke:col,'stroke-width':2.5,
+      'stroke-dasharray':'9 6','vector-effect':'non-scaling-stroke'},gg);
+    el('line',{x1:c.a[0],y1:c.a[1],x2:c.b[0],y2:c.b[1],stroke:col,'stroke-width':2,
+      opacity:.55,'vector-effect':'non-scaling-stroke'},gg);
+    el('circle',{cx:c.b[0],cy:c.b[1],r:4/px,fill:col,stroke:'#fff','stroke-width':2,
+      'vector-effect':'non-scaling-stroke'},gg);
+  } else if(c.t==='dist'){
+    const p=prep(c); if(!isFinite(p.ds)) return gg;
+    if(c.k[0]==='@'){ for(const line of shapeRings(c.k.slice(1)))
+        for(const q of line.filter((_,n)=>n%6===0).slice(0,MAX_ARCS)) ring(q[0],q[1],p.ds,'3 5'); }
+    else { const pts=poiPts(c.k);
+      for(const q of pts.slice(0,MAX_ARCS)) ring(q[0],q[1],p.ds,'3 5'); }
+  } else if(c.t==='near'){
+    const pts=poiPts(c.k), p=prep(c), pl=p.j>=0?cellPoly(pts,p.j):null;
+    if(pl) el('path',{d:polyD(pl),fill:col,'fill-opacity':c.same?0.07:0.0,stroke:col,
+      'stroke-width':2.5,'stroke-dasharray':c.same?'':'5 5','vector-effect':'non-scaling-stroke'},gg);
+    if(p.j>=0) el('circle',{cx:pts[p.j][0],cy:pts[p.j][1],r:5/px,fill:col,stroke:'#fff',
+      'stroke-width':2,'vector-effect':'non-scaling-stroke'},gg);
+  } else if(c.t==='namelen'){
+    const pts=poiPts('station'), p=prep(c);
+    if(p.L>=0){ let n=0;
+      for(let j=0;j<pts.length&&n<40;j++){ if(nameLen(pts[j][2])!==p.L) continue;
+        const pl=cellPoly(pts,j); n++;
+        if(pl) el('path',{d:polyD(pl),fill:col,'fill-opacity':c.same?0.07:0,stroke:col,
+          'stroke-width':1.6,'vector-effect':'non-scaling-stroke',opacity:.8},gg); } }
+  } else if(c.t==='tent'){
+    ring(c.x,c.y,metres(c.r,c.y),'6 4');
+    const p=prep(c);
+    if(p.j>=0&&p.sub.length){ const pl=cellPoly(p.sub,p.j);
+      if(pl) el('path',{d:polyD(pl),fill:col,'fill-opacity':.07,stroke:col,'stroke-width':2.5,
+        'vector-effect':'non-scaling-stroke'},gg); }
+  } else if(c.t==='area'){
+    const list=AREA_OF(zoneKey())[c.k]||[], p=prep(c);
+    if(p.j>=0) for(const r of projRings('a:'+c.k+':'+p.j,list[p.j].r))
+      el('path',{d:polyD(r),fill:col,'fill-opacity':c.same?0.07:0,stroke:col,'stroke-width':2.5,
+        'stroke-dasharray':c.same?'':'5 5','vector-effect':'non-scaling-stroke'},gg);
+  }
+  if(c.x!=null) el('circle',{cx:c.x,cy:c.y,r:4/px,fill:'#15171B',stroke:'#fff','stroke-width':2,
+    'vector-effect':'non-scaling-stroke'},gg);
+  return gg;
+}
+function drawCons(g,px){
+  const cs=cons();
+  for(let i=0;i<cs.length;i++){ if(conOff[i]) continue; drawOne(cs[i],i,g,px); }
 }
 
 return {
@@ -1732,8 +1997,10 @@ return {
     return {cons:cs.length,left,total:keep.length};
   },
   show(){
+    initLeaflet();
     bind();
     if(built!==zoneKey()) build(); else { fit(); }
+    if(lmap) setTimeout(()=>{ lmap.invalidateSize(); fit(); },0);
     const zb=document.getElementById('mp-zone'); zb.hidden=!isHider();
     document.getElementById('mp-circles').classList.toggle('on',showCircles);
     const mb=document.getElementById('mp-map');
@@ -1743,7 +2010,7 @@ return {
   },
   syncPins(){ if(built&&!document.getElementById('mapview').hidden) redraw(); },
   reset(){ built=null; fix=null; sel=null; shadeKey='';
-    gridCache={}; poiCache={}; stopMaskCache={};
+    poiCache={}; ringCache={}; stopMaskCache={};
     if(watchId!==null){ try{navigator.geolocation.clearWatch(watchId);}catch(e){} watchId=null;
       const b=document.getElementById('mp-loc'); if(b) b.classList.remove('on'); } }
 };
