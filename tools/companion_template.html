@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#D7263D">
 <title>Hide + Seek Relay</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;800&family=Barlow:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
@@ -14,25 +15,61 @@
   --yellow:#F5C400; --yellow-2:#FFE27A; --red:#D62828; --green:#1F8A5B; --blue:#0077B6;
   --hider:#8338EC; --seeker:#0077B6;
   --shadow:4px 4px 0 var(--ink);
+  --brand-bg:#F5C400; --brand-fg:#15171B; --top-bg:var(--bg); --top-fg:var(--ink);
+  --stripe:linear-gradient(90deg,#FDB913 0 33.4%,#F58220 33.4% 66.7%,#E23B2E 66.7%);
+  --zone-glow:#F5C400; --zone-line:#15171B; --ruled:#2B2A27; --ruled-op:.42;
+  --ans-fill:#5F5A52; --hatch-op:.26;
 }
-@media (prefers-color-scheme:dark){ :root:not([data-theme="light"]){
-  --ink:#F2EFE6; --ink-2:#C9C5BA; --ink-3:#8E9299; --line:#3A3D44;
-  --bg:#17181C; --card:#23252B; --card-2:#2B2E35; --yellow:#F5C400; --yellow-2:#5A4A00; --shadow:4px 4px 0 #000;
-}}
+/* Hide + Seek: the red of the box, the sunset stripe, warm paper. */
+:root[data-theme="hideseek"]{
+  --ink:#1C1A1F; --ink-2:#48424C; --ink-3:#7C7580; --line:#E4DAD1;
+  --bg:#F6F0EA; --card:#FFFFFF; --card-2:#FBF6F1;
+  --yellow:#FFC20E; --yellow-2:#FFE39A; --red:#D7263D;
+  --brand-bg:#FFFFFF; --brand-fg:#D7263D; --top-bg:#D7263D; --top-fg:#FFFFFF;
+  --zone-glow:#FFC20E; --zone-line:#1C1A1F; --ruled:#2A1C22; --ruled-op:.44; --ans-fill:#5E4A52; --hatch-op:.26;
+  --shadow:4px 4px 0 var(--ink);
+}
+/* Jet Lag Night: the show's dark navy with the stripe as the accent. */
+:root[data-theme="night"]{
+  --ink:#F3F1EC; --ink-2:#C8C6D0; --ink-3:#8F93A3; --line:#2E3447;
+  --bg:#10131D; --card:#191E2C; --card-2:#212737;
+  --yellow:#FDB913; --yellow-2:#5A4300; --red:#E23B2E;
+  --brand-bg:var(--stripe); --brand-fg:#10131D; --top-bg:#10131D; --top-fg:#F3F1EC;
+  --zone-glow:#F58220; --zone-line:#FDB913; --ruled:#04050A; --ruled-op:.56; --ans-fill:#000; --hatch-op:.34;
+  --shadow:4px 4px 0 #000;
+}
+/* Sunset: light, with orange doing the work yellow used to. */
+:root[data-theme="sunset"]{
+  --ink:#1D1B26; --ink-2:#4A4556; --ink-3:#827C8C; --line:#F0DCC4;
+  --bg:#FFF6EA; --card:#FFFFFF; --card-2:#FFF0DC;
+  --yellow:#F58220; --yellow-2:#FFD6AE; --red:#E23B2E;
+  --brand-bg:var(--stripe); --brand-fg:#1D1B26; --top-bg:#1D1B26; --top-fg:#FFF6EA;
+  --zone-glow:#F58220; --zone-line:#1D1B26; --ruled:#3A2716; --ruled-op:.42; --ans-fill:#6B5238; --hatch-op:.26;
+  --shadow:4px 4px 0 var(--ink);
+}
+/* Classic: the app as it was. */
+:root[data-theme="classic"]{ --top-bg:var(--bg); --top-fg:var(--ink); }
 :root[data-theme="dark"]{
   --ink:#F2EFE6; --ink-2:#C9C5BA; --ink-3:#8E9299; --line:#3A3D44;
   --bg:#17181C; --card:#23252B; --card-2:#2B2E35; --yellow:#F5C400; --yellow-2:#5A4A00; --shadow:4px 4px 0 #000;
+  --top-bg:#17181C; --top-fg:#F2EFE6; --ruled:#000; --ruled-op:.55;
 }
 *{box-sizing:border-box}
+.themes{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+.themes button{display:flex;align-items:center;gap:8px;padding:8px;border:1.5px solid var(--line);background:var(--card);cursor:pointer;text-align:left;font-family:'Barlow Condensed',sans-serif;font-weight:700;text-transform:uppercase;letter-spacing:.03em}
+.themes button.on{border-color:var(--ink);box-shadow:3px 3px 0 var(--ink)}
+.themes .sw4{display:flex;width:44px;height:22px;flex:0 0 44px;border:1px solid rgba(0,0,0,.2)}
+.themes .sw4 i{flex:1}
 [hidden]{display:none!important}
 html,body{height:100%}
 body{margin:0;background:var(--bg);color:var(--ink);font-family:'Barlow',system-ui,-apple-system,'Segoe UI',sans-serif;font-size:15px;line-height:1.4;-webkit-font-smoothing:antialiased}
 button{font:inherit;color:inherit}
 h1,h2,h3{font-family:'Barlow Condensed','Arial Narrow',sans-serif;text-transform:uppercase;letter-spacing:.02em;margin:0;text-wrap:balance}
 .app{height:100%;display:flex;flex-direction:column;max-width:720px;margin:0 auto}
-header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:3;display:flex;align-items:center;gap:10px;padding:10px 16px;background:var(--bg);border-bottom:1.5px solid var(--ink)}
-header.top .brand{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:20px;text-transform:uppercase;background:var(--yellow);color:#15171B;padding:2px 8px;line-height:1.2}
-header.top .sub{font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:15px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-2);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:3;display:flex;align-items:center;gap:10px;padding:10px 16px 13px;background:var(--top-bg);color:var(--top-fg);border-bottom:0}
+header.top::after{content:'';position:absolute;left:0;right:0;bottom:0;height:4px;background:var(--stripe)}
+header.top .brand{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:20px;text-transform:uppercase;background:var(--brand-bg);color:var(--brand-fg);padding:2px 8px;line-height:1.2}
+header.top .sub{font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:15px;text-transform:uppercase;letter-spacing:.06em;color:var(--top-fg);opacity:.82;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pill{display:inline-flex;align-items:center;gap:6px;border:1.5px solid var(--ink);padding:2px 8px;font-family:'Barlow Condensed',sans-serif;font-weight:800;text-transform:uppercase;font-size:13px;letter-spacing:.04em;background:var(--card);white-space:nowrap}
 .pill.hider{background:var(--hider);color:#fff;border-color:var(--hider)}
 .pill.seeker{background:var(--seeker);color:#fff;border-color:var(--seeker)}
@@ -90,6 +127,22 @@ label.f{display:block;font-family:'Barlow Condensed',sans-serif;font-weight:600;
 .msg .ans b{font-family:'Barlow Condensed',sans-serif;font-size:19px;text-transform:uppercase}
 .msg .ans.veto{border-left-color:var(--red)}
 .msg.curse{border-left:6px solid var(--hider)}
+.bonus{margin-top:4px;font-size:14px;color:var(--ink-2)}
+.bonus b{color:var(--ink)} .bonus span{color:var(--ink-3)}
+.ctimers{display:grid;gap:6px;margin-top:10px}
+.ct{display:flex;align-items:center;gap:8px;border:1.5px solid var(--ink);background:var(--card-2);padding:6px 8px;border-left:6px solid var(--yellow)}
+.ct .ctl{flex:1;font-size:13px}
+.ct .ctv{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:20px;letter-spacing:.02em}
+.ct.over{border-left-color:var(--red);opacity:.75}
+.ct .x{border:0;background:none;font-size:18px;cursor:pointer;color:var(--ink-3)}
+.bcards{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.bcards button{border:1.5px solid var(--ink);padding:5px 9px;cursor:pointer;font-family:'Barlow Condensed',sans-serif;font-weight:800;color:#fff;text-shadow:0 1px 0 rgba(0,0,0,.25)}
+.pcard{border:1.5px solid var(--ink);background:var(--card);margin:10px 0;box-shadow:3px 3px 0 var(--ink)}
+.pcard .pc-top{display:flex;justify-content:space-between;background:var(--top-bg);color:var(--top-fg);padding:5px 10px;font-family:'Barlow Condensed',sans-serif;font-weight:800;text-transform:uppercase;letter-spacing:.05em;font-size:13px;border-bottom:4px solid transparent;border-image:var(--stripe) 1}
+.pcard .pc-q{padding:9px 10px 2px;font-size:16px}
+.pcard p{margin:6px 10px;font-size:14px;line-height:1.45}
+.pcard details{margin:6px 10px 10px;font-size:13px;color:var(--ink-2)}
+.pcard summary{cursor:pointer;font-weight:600}
 details.curse{border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin:6px 0;background:var(--card)}
 details.curse>summary{cursor:pointer;font-family:'Barlow Condensed',system-ui,sans-serif;font-weight:700;font-size:17px;letter-spacing:.01em;list-style:none}
 details.curse>summary::-webkit-details-marker{display:none}
@@ -140,12 +193,13 @@ nav.tabs button .n{position:absolute;top:6px;right:calc(50% - 26px);min-width:18
 #mapsvg .m-cut{stroke:#15171B;stroke-width:9px;opacity:.13}
 #mapsvg .m-bart{fill:none;stroke:#F7941D;stroke-width:5px;vector-effect:non-scaling-stroke}
 #mapsvg .m-amtrak{fill:none;stroke:#1F3F8A;stroke-width:3px;vector-effect:non-scaling-stroke}
-#mapsvg .m-zone{fill:none;stroke:#15171B;stroke-width:3px;stroke-dasharray:13 7;vector-effect:non-scaling-stroke;stroke-linejoin:round}
-#mapsvg .m-zone-glow{fill:none;stroke:#F5C400;stroke-width:8px;vector-effect:non-scaling-stroke;stroke-linejoin:round}
+#mapsvg .m-zone{fill:none;stroke:var(--zone-line);stroke-width:3px;stroke-dasharray:13 7;vector-effect:non-scaling-stroke;stroke-linejoin:round}
+#mapsvg .m-zone-glow{fill:none;stroke:var(--zone-glow);stroke-width:8px;vector-effect:non-scaling-stroke;stroke-linejoin:round}
 #mapsvg .m-oob{fill:#8C8A84;fill-opacity:.42;fill-rule:evenodd;pointer-events:none}
 #mapsvg .m-stop{fill:#fff;stroke:#15171B;stroke-width:1.5px;vector-effect:non-scaling-stroke;cursor:pointer}
 #mapsvg .m-stop.sel{fill:var(--yellow)}
-#mapsvg .m-ruled{fill:#4A4842;fill-opacity:.38;pointer-events:none}
+#mapsvg .m-ruled{fill:var(--ruled);fill-opacity:var(--ruled-op);pointer-events:none}
+#mapsvg .m-ansl{pointer-events:none;opacity:var(--hatch-op)}
 #mapsvg .m-zonering{fill:none;stroke:#15171B;stroke-width:1px;stroke-dasharray:4 4;opacity:.35;vector-effect:non-scaling-stroke;pointer-events:none}
 #mapsvg .m-con{fill:none;vector-effect:non-scaling-stroke;stroke-width:2px}
 #mapsvg .m-con.in{stroke:#1F8A5B;stroke-dasharray:6 4}
@@ -496,6 +550,114 @@ const CURSES=[
   d:'“Bug” in this context refers to any insect, arachnid, diplopoda, chilopoda, or anything else that would be colloquially and commonly referred to as a “bug.” “Wild” in this context means undomesticated and not kept in human captivity, including large-scale outdoor facilities.'},
 ];
 const CURSE_BY=Object.fromEntries(CURSES.map(c=>[c.k,c]));
+// ---------- curse timers and time bonuses ----------
+// What a curse sets running, read from the card. 'auto' timers start the
+// moment the curse is cast; 'manual' ones start when the seekers say so
+// (you only start the travel agent's clock once you have arrived).
+const CURSE_TIMER={
+  gamblers_feet:{m:'{20|40|60}',l:'Gambler’s Feet — roll before every step',auto:1},
+  right_turn:{m:'{20|40|60}',l:'Right Turn — right turns only',auto:1},
+  jammed_door:{m:'{30|60|180}',l:'Jammed Door — roll 7+ to go through a door',auto:1},
+  mediocre_travel_agent:{m:'{5|5|10}',l:'Travel Agent — time at the destination'},
+  hidden_hangman:{m:'10',l:'Hangman — cooldown after a loss'}
+};
+// Bonus minutes a curse can award the hider, straight off the card.
+const CURSE_AWARD={egg_partner:'{30|45|60}',endless_tumble:'{10|20|30}',lemon_phylactery:'{30|45|60}',
+  mediocre_travel_agent:'{30|45|60}',water_weight:'{30|30|60}'};
+// The five time-bonus cards, by the colour on their face.
+const BONUS_CARDS={red:[2,3,5],orange:[4,6,10],yellow:[6,9,15],green:[8,12,20],blue:[12,18,30]};
+const BONUS_HEX={red:'#E23B2E',orange:'#F58220',yellow:'#F2B705',green:'#2E9E48',blue:'#3B7BE0'};
+const sizeIdx=()=>({S:0,M:1,L:2}[(game&&game.size)||'S']||0);
+const minsOf=spec=>+szPlain(spec);
+function bonusCardMins(c){ if(!c||c.kind!=='Time bonus') return 0;
+  const v=BONUS_CARDS[c.bonus]; if(v) return v[sizeIdx()];
+  const n=parseFloat(String(c.text||'').replace(/[^\d.]/g,'')); return isFinite(n)?n:0; }
+// Held time-bonus cards count at the end of the round; curse awards are
+// banked the moment they are earned.
+function bonusMinutes(){
+  let held=0; for(const c of (game.hand||[])) held+=bonusCardMins(c);
+  let won=0; for(const a of (game.awards||[])) won+=+a.min||0;
+  return {held,won,total:held+won};
+}
+function bonusLine(){
+  if(!isHider()||!game||!(game.phase==='seeking'||game.phase==='endgame'||game.phase==='found')) return '';
+  const b=game.phase==='found'&&game.bonusAtFound?game.bonusAtFound:bonusMinutes();
+  return `<div class="bonus" id="bonusline">${bonusText(b)}</div>`;
+}
+function bonusText(b){
+  const base=game.phase==='found'?(game.foundAt-game.seekingStartAt):(Date.now()-game.seekingStartAt);
+  const parts=[];
+  if(b.held) parts.push(b.held+' in hand');
+  if(b.won) parts.push(b.won+' from curses');
+  return `<b>+${b.total} min</b> time bonus${parts.length?' <span>('+parts.join(', ')+')</span>':''} · <b>${fmtT(base+b.total*60000)}</b> total`;
+}
+// Timers live on the game, so every phone counts down the same clock.
+function startTimer(key,by){
+  const t=CURSE_TIMER[key]; if(!t) return;
+  const now=Date.now(), id=key+'-'+now;
+  const timers=Object.assign({},game.timers||{});
+  for(const k in timers) if(timers[k].end<now-60000) delete timers[k];   // tidy old ones
+  timers[id]={l:t.l,start:now,end:now+minsOf(t.m)*60000,by:by||me.name};
+  patch({timers});
+}
+function timersHtml(){
+  const now=Date.now(), ts=Object.entries(game.timers||{}).filter(([,t])=>t.end>now-60000).sort((a,b)=>a[1].end-b[1].end);
+  if(!ts.length) return '';
+  return `<div class="ctimers">${ts.map(([id,t])=>`<div class="ct ${t.end<=now?'over':''}" data-end="${t.end}" data-tid="${id}">
+    <span class="ctl">${esc(t.l)}</span><span class="ctv">${t.end<=now?'over':fmtT(t.end-now)}</span>
+    <button class="x" data-stop-timer="${id}" title="Clear">×</button></div>`).join('')}</div>`;
+}
+let timerFired={};
+function tickTimers(){
+  const now=Date.now();
+  document.querySelectorAll('.ct[data-end]').forEach(e=>{ const end=+e.dataset.end, v=e.querySelector('.ctv');
+    if(end<=now){ if(!e.classList.contains('over')){ e.classList.add('over'); v.textContent='over'; }
+      const id=e.dataset.tid; if(!timerFired[id]&&now-end<5000){ timerFired[id]=1; beep(); toast(e.querySelector('.ctl').textContent.split(' — ')[0]+' is over'); } }
+    else v.textContent=fmtT(end-now); });
+  const bl=document.getElementById('bonusline');
+  if(bl&&game&&game.phase!=='found') bl.innerHTML=bonusText(bonusMinutes());
+}
+
+
+// ---------- photo cards ----------
+// The rulebook's specification for each photo, word for word, so the hider
+// knows exactly what counts and the seekers know what they are owed. The
+// book is the metric edition; its two metres are given in feet first.
+const PHOTO_RULES='Valid answers are a photo that meets the full specifications of the photo question, or “I cannot answer the question,” in situations where the subject of the photograph doesn’t exist in the hiding zone. Hiders have ten minutes to answer in small and medium games, and twenty minutes to answer in large games. All photos must be sent in your phone’s normal aspect ratio. Photos are a useful way of getting a general sense of where the hider is, or for verifying that you’ve arrived at the right location, but you cannot use Google Street View to assess photos or verify stations from afar.';
+const TRACE_HOW='This can be a little tricky to do; we have a few methods. One is to screenshot this on your phone, then use the drawing tools on your phone’s photo editing app to black out everything but the street. Another is to put a piece of paper over your phone and trace with a pen/pencil/marker.';
+const TALLEST='This is the tallest building from your perspective, not the objectively tallest building. If you can see the Burj Khalifa a long way away, but a nearby apartment building is taller from your perspective/sightline, you would send the apartment building.';
+const OUTSIDE_STATION='Must stand directly outside a station entrance. If there are multiple entrances, you may choose. Must include roof and both sides, with the top of the building in the top ⅓ of the frame.';
+const THREE_ELEMENTS='Must include a 6½ ft × 6½ ft (2 m × 2 m) section with three distinct elements. The litmus test for the distinct elements is: if someone went to that place and found what you took a picture of, they could confidently match it, and be sure it wasn’t taken somewhere else.';
+const PHOTO_SPEC={
+ 'Any building visible from your transit station':[OUTSIDE_STATION],
+ 'The widest street near you':['Must include both sides of the street; does not have to include background.'],
+ 'A tree':['Must include the entire tree.'],
+ 'The tallest structure in your current sightline':[TALLEST,'Must include top and both sides. The top must be in the top ⅓ of the frame.'],
+ 'You (selfie)':['Selfie mode. Phone perpendicular to ground, arm fully extended, using your phone’s default lens with no zoom.'],
+ 'The sky':['Place phone on ground, shoot directly up using your phone’s default lens with no zoom.'],
+ 'Tallest building visible from your transit station':[TALLEST,OUTSIDE_STATION,'In general, the transit station itself cannot count as the tallest building visible from the transit station. The exception would be if atop the transit station is a tall building whose purpose is unrelated to the transit station. For example, atop Grand Central Station is the MetLife building. This would count as the tallest building visible from the transit station.'],
+ 'Trace your nearest street/path':['Street/path must be visible on mapping app; trace intersection to intersection.',TRACE_HOW],
+ '2 buildings':['Must include bottom and up to four stories.'],
+ 'A restaurant interior':['No zoom. Must take the picture through the window from outside the restaurant.'],
+ 'A park':['No zoom, phone perpendicular to ground. Must stand 6½ ft (2 m) from any obstruction.'],
+ 'A grocery store aisle':['No zoom. Stand at the end of the aisle, shoot directly down.'],
+ 'A place of worship':[THREE_ELEMENTS],
+ 'Your train platform':[THREE_ELEMENTS],
+ '½ mile of streets traced':['Must be continuous, include 5 turns, with no doubling back. Send north-south oriented. Streets must appear on mapping app.',TRACE_HOW],
+ 'Tallest mountain visible from your station':['Tallest from your perspective/sightline. If you could see Mount Everest many many kilometers away, but another nearby mountain looks taller from your perspective, you would send the nearby mountain.','Max 3x zoom; top of mountain must be in top ⅓ of frame.'],
+ 'Biggest body of water in your zone':['Max 3x zoom. Must include either both sides of body of water or the horizon. If a body of water is visible from the hider’s zone, but no part of it touches the zone, it does not count. However, if a large body of water partially touches the hider’s zone, but the part of it inside the zone is smaller than another body of water in the zone, the larger overall body water would still be considered the largest in the zone.'],
+ '5 buildings':['Must include bottom and up to four stories.']
+};
+const CANNOT_PHOTO='I cannot answer the question';
+function photoCard(name,open){
+  const sp=PHOTO_SPEC[name]; if(!sp) return '';
+  const mins=game&&SIZES[game.size]?SIZES[game.size].photo:10;
+  return `<div class="pcard"><div class="pc-top"><span>Photo</span><span>${mins} min · draw 1, keep 1</span></div>
+    <div class="pc-q">Send me a photo of <b>${esc(name.replace(/^./,c=>c.toLowerCase()))}</b>.</div>
+    ${sp.map(t=>`<p>${esc(t)}</p>`).join('')}
+    <details${open?' open':''}><summary>Rules for every photo</summary><p>${esc(PHOTO_RULES)}</p></details></div>`;
+}
+
 // {a|b|c} → the value for this round's size, bolded.
 function szv(s){ const i={S:0,M:1,L:2}[(game&&game.size)||'M']||0;
   return String(s).replace(/\{([^}]*)\}/g,(m,g)=>{const p=g.split('|');return '<b>'+esc(p[i]!==undefined?p[i]:p[0])+'</b>';}); }
@@ -513,8 +675,8 @@ function curseDeck(){
     <div id="curse-list">${CURSES.map(c=>curseBlock(c)).join('')}</div></div>`;
 }
 const CATS=[
- {id:'matching',name:'Matching',fmt:'Is your nearest ___ the same as my ___?',draw:3,keep:1,ans:['Yes','No'],
-  qs:[['Commercial airport'],['Transit line'],['Station name length (characters)'],['Street or path'],['1st administrative division (state)'],['2nd administrative division (county)'],['3rd administrative division (city)'],['4th administrative division'],['Mountain'],['Landmass'],['Park'],['Amusement park'],['Zoo'],['Aquarium'],['Golf course'],['Museum'],['Movie theater'],['Hospital'],['Library'],['Foreign consulate']]},
+ {id:'matching',name:'Matching',fmt:'Is your nearest ___ the same as my ___?',draw:3,keep:1,ans:['Yes','No'],loc:1,
+  qs:[['Commercial airport'],['Transit line'],['Station name length (characters)'],['Street or path'],['1st administrative division (state)'],['2nd administrative division (county)'],['3rd administrative division (city)'],['4th administrative division (district)'],['Mountain'],['Landmass'],['Park'],['Amusement park'],['Zoo'],['Aquarium'],['Golf course'],['Museum'],['Movie theater'],['Hospital'],['Library'],['Foreign consulate']]},
  {id:'measuring',name:'Measuring',fmt:'Compared to me, are you closer to or further from ___?',draw:3,keep:1,ans:['Closer','Further'],loc:1,
   qs:[['Commercial airport'],['High-speed train line'],['Rail station'],['International border'],['1st administrative division border (state)'],['2nd administrative division border (county)'],['Sea level'],['Body of water'],['Coastline'],['Mountain'],['Park'],['Amusement park'],['Zoo'],['Aquarium'],['Golf course'],['Museum'],['Movie theater'],['Hospital'],['Library'],['Foreign consulate']]},
  {id:'radar',name:'Radar',fmt:'Are you within ___ of me?',draw:2,keep:1,ans:['Yes','No'],loc:1,
@@ -536,7 +698,8 @@ const REF={
  'Foreign consulate':'consulate','Rail station':'station',
  'Coastline':'@coast','Body of water':'water','Park':'park',
  'Station name length (characters)':'#namelen',
- '3rd administrative division (city)':'!city'};
+ '3rd administrative division (city)':'!city',
+ '4th administrative division (district)':'!district'};
 const NOT_IN_REACH='Not within reach';
 // "If locations are not within a map's boundaries, players must operate as if
 // they do not exist" — the answer is null. It still counts as a question and
@@ -579,6 +742,27 @@ let askState={cat:null,q:null,custom:'',loc:null,locHow:''};
 let pickLoc=false;   // map is waiting for a tap to set the seeker's position
 let thermoFinish={qid:null,loc:null,how:''};
 let seenCount=load('hs-seen-'+code)||0;
+// ---------- colours ----------
+// Per phone, like the basemap: it is a matter of taste, not of the game.
+const THEMES={
+  hideseek:{n:'Hide + Seek',sw:['#D7263D','#FFC20E','#F6F0EA','#1C1A1F']},
+  night:{n:'Jet Lag Night',sw:['#10131D','#FDB913','#F58220','#E23B2E']},
+  sunset:{n:'Sunset',sw:['#1D1B26','#F58220','#FFF6EA','#E23B2E']},
+  classic:{n:'Classic',sw:['#F5C400','#15171B','#EDEAE1','#FFFFFF']}
+};
+function themeNow(){ const t=load('hs-theme');
+  if(THEMES[t]) return t;
+  return (window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches)?'night':'hideseek'; }
+function applyTheme(t){ document.documentElement.setAttribute('data-theme',t);
+  const mc=document.querySelector('meta[name="theme-color"]');
+  const bar=getComputedStyle(document.documentElement).getPropertyValue('--top-bg').trim();
+  if(mc) mc.setAttribute('content',bar); }
+applyTheme(themeNow());
+function themePicker(){
+  const cur=themeNow();
+  return `<div class="themes" id="sel-theme">${Object.entries(THEMES).map(([k,t])=>
+    `<button type="button" data-theme-pick="${k}" class="${k===cur?'on':''}"><span class="sw4">${t.sw.map(c=>`<i style="background:${c}"></i>`).join('')}</span>${esc(t.n)}</button>`).join('')}</div>`;
+}
 let tick=null;
 
 function load(k){ try{ const v=localStorage.getItem(k); return v?JSON.parse(v):null; }catch(e){ return null; } }
@@ -734,7 +918,7 @@ async function answerQ(id,answer,extra){
   try{ await db.doc('games/'+code+'/questions/'+id).update(Object.assign({status:'answered',answer,answeredAt:Date.now()},extra||{})); }catch(e){ toast('Could not answer: '+(e.code||e.message)); }
 }
 async function vetoQ(id){ try{ await db.doc('games/'+code+'/questions/'+id).update({status:'vetoed',answer:'Vetoed',answeredAt:Date.now()}); }catch(e){ toast('Could not veto'); } }
-async function sendMessage(kind,title,text){ try{ await db.doc('games/'+code).collection('messages').add({kind,title,text,from:me.name,role:me.role,at:Date.now()}); }catch(e){ toast('Send failed'); } }
+async function sendMessage(kind,title,text,extra){ try{ await db.doc('games/'+code).collection('messages').add(Object.assign({kind,title,text,from:me.name,role:me.role,at:Date.now()},extra||{})); }catch(e){ toast('Send failed'); } }
 // A photo has to cross a public MQTT broker, which takes small messages and
 // nothing else, so it is re-encoded down to something that fits rather than
 // being sent as the multi-megabyte file the camera produced. The artifact
@@ -806,7 +990,7 @@ function render(){
     else html+=gameTab();
     m.innerHTML=html; wire();
   }
-  if(!tick) tick=setInterval(()=>{ const t=$('#timer'); if(t) t.textContent=timerText(); const t2=$('#timer2'); if(t2) t2.textContent=timerText2(); },1000);
+  if(!tick) tick=setInterval(()=>{ const t=$('#timer'); if(t) t.textContent=timerText(); const t2=$('#timer2'); if(t2) t2.textContent=timerText2(); tickTimers(); },1000);
 }
 function narrowChip(){
   const c=Map3.count();
@@ -825,7 +1009,7 @@ function rulesNotes(){
   return `<div class="card flat"><h3>Four rules people forget</h3>
     <p class="small"><b>Asking twice costs more.</b> A question that has already been asked can only be asked again for its additional cost — double the second time, triple the third, quadruple the fourth. A veto still counts as having asked it; a randomize does not. The Ask tab marks these and scales the draw.</p>
     <p class="small"><b>Six cards.</b> The hider holds at most six. The “Draw 1, expand maximum hand size by 1” powerup raises that to seven, or eight if two are played.</p>
-    <p class="small"><b>Found means found.</b> A seeker has to be within 2 metres of the hider <i>and</i> have actually spotted them. Being in the right building, or knowing the station, is not enough.</p>
+    <p class="small"><b>Found means found.</b> A seeker has to be within 6½ feet (2 m) of the hider <i>and</i> have actually spotted them. Being in the right building, or knowing the station, is not enough.</p>
     <p class="small"><b>No Street View.</b> Seekers may research with anything they like except Google Street View. (The Unguided Tourist is the exception that proves it: there the <i>hider</i> sends a Street View shot, and the seekers have to find it without the internet.)</p></div>`;
 }
 function lobby(){
@@ -845,7 +1029,7 @@ function lobby(){
     <div class="seg" id="new-size"><button type="button" data-size="S" class="on">Small</button><button type="button" data-size="M">Medium</button><button type="button" data-size="L">Large</button></div>
     <p class="small muted">Small fits Berkeley: 30-minute hiding period, ¼-mile hiding zone, no tentacles. One round = one hider; start a new round when you swap.</p>
     <button class="btn primary block" id="btn-create" style="margin-top:8px">Create round</button>
-  </div>${rulesCard()}`;
+  </div><div class="card"><h2>Colours</h2>${themePicker()}</div>${rulesCard()}`;
 }
 function timerText(){
   const now=Date.now();
@@ -867,6 +1051,7 @@ function statusCard(){
   const warn=game.phase==='hiding'&&(game.hidingStartAt+S.hide*60000-Date.now())<120000;
   return `<div class="card"><div class="phase">${label}</div>
     <div class="row" style="align-items:flex-end"><div class="timer ${warn?'warn':''}" id="timer">${timerText()}</div>${game.phase==='endgame'?`<div class="muted small">endgame <span id="timer2">${timerText2()}</span></div>`:''}</div>
+    ${bonusLine()}${timersHtml()}
     <div class="stat"><div><b>${esc(game.hider||'?')}</b><span>hider</span></div><div><b>${S.name}</b><span>${S.zone} zone</span></div>${isHider()?`<div><b>${(game.hand||[]).length}</b><span>cards in hand</span></div>`:''}<div><b>${questions.length}</b><span>questions</span></div>${narrowChip()}</div>
     <div class="row" style="margin-top:12px">${ctl}</div></div>`;
 }
@@ -908,6 +1093,7 @@ function ask(){
       const mtag=mu>1?`<span class="fmt" style="color:var(--hider)">${MULT_WORD[mu]} cost</span>`:'';
       return `<button class="q ${askState.q===i?'on':''}" data-q="${i}"><span>${esc(q[0])}</span>${mtag}<span class="fmt">${tag}</span></button>`; }).join('')}</div>
     ${sel&&sel[1]==='custom'?`<label class="f" for="ask-custom">Distance</label><input type="text" id="ask-custom" value="${esc(askState.custom)}" placeholder="e.g. 2 miles">`:''}
+    ${cat.id==='photo'&&sel?photoCard(sel[0],false):''}
     ${needLoc?locRow('ask',askState.loc,askState.locHow):''}
     <button class="btn primary block" id="btn-send" style="margin-top:12px" ${askState.q==null||(needLoc&&!askState.loc)?'disabled':''}>${cat.two?'Start thermometer':'Send to hider'}</button></div>`;
 }
@@ -929,10 +1115,13 @@ function qCard(q,mine){
     <div class="txt">${started?`Starting a thermometer — travelling <b>${esc(q.q)}</b>`:esc(q.fmt).replace('___','<b>'+esc(q.q)+'</b>')}</div>`;
   if(q.loc) body+=`<div class="small muted">From ${esc(Map3.near(q.loc))}${q.loc2?` to ${esc(Map3.near(q.loc2))}${q.travelled?` · ${fmtDist(q.travelled)} apart`:''}`:''}</div>`;
   if(started){ body+=`<p class="small muted">${mine?'Waiting for them to travel and ask.':'Travel the distance, then ask from the Ask tab.'}</p>`; return body+'</div>'; }
+  // Everyone can see what the photo has to show; the hider gets it open below.
+  if(q.cat==='photo'&&!(pending&&mine)&&PHOTO_SPEC[q.q]) body+=`<details class="small" style="margin-top:6px"><summary>Show the card</summary>${photoCard(q.q,false)}</details>`;
   if(pending&&mine){
     body+=`<p class="small muted">Draw ${q.draw}, keep ${q.keep} — answer first, then log the card you kept in Hand.</p>`;
     if(q.ans&&q.ans.length) body+=`<div class="answers">${q.ans.map(a=>`<button class="btn primary" data-ans="${esc(a)}" data-qid="${q.id}">${esc(a)}</button>`).join('')}</div>`;
-    else if(q.cat==='photo') body+=`<div class="row" style="margin-top:8px"><label class="btn primary" style="display:inline-block">Take / choose photo<input type="file" accept="image/*" capture="environment" data-photo="${q.id}" hidden></label><button class="btn" data-textans="${q.id}">Describe instead</button></div>
+    else if(q.cat==='photo') body+=`${photoCard(q.q,true)}<div class="row" style="margin-top:8px"><label class="btn primary" style="display:inline-block">Take / choose photo<input type="file" accept="image/*" capture="environment" data-photo="${q.id}" hidden></label><button class="btn" data-ans="${CANNOT_PHOTO}" data-qid="${q.id}">${CANNOT_PHOTO}</button></div>
+      <div class="row" style="margin-top:6px"><button class="btn sm ghost" data-textans="${q.id}">Camera not working? Describe it instead</button></div>
       <div class="row" id="ta-row-${q.id}" hidden style="margin-top:8px"><input type="text" class="grow" id="ta-${q.id}" placeholder="Describe what the photo would show"><button class="btn primary" data-sendtext="${q.id}">Answer</button></div>
       <p class="small muted">Photo time limit: ${SIZES[game.size].photo} min.</p>`;
     else { const opts=q.cat==='tentacle'?Map3.tentacleOptions(q):[];
@@ -947,7 +1136,7 @@ function qCard(q,mine){
 function feed(){
   const items=[...questions.map(q=>({t:q.askedAt,k:'q',q})),...messages.map(m=>({t:m.at,k:'m',m}))].sort((a,b)=>b.t-a.t);
   if(!items.length) return `<div class="card"><h2>Feed</h2><p class="muted">Every question, answer, curse and note shows up here, newest first, on every phone.</p></div>`;
-  return items.map(it=> it.k==='q'? qCard(it.q,isHider()) : `<div class="msg ${it.m.kind}"><div class="who"><span><span class="tag">${esc(it.m.kind)}</span>${esc(it.m.from)}</span><time>${fmtClock(it.m.at)}</time></div><div class="txt"><b>${esc(it.m.title)}</b></div>${it.m.text?`<div class="mtext">${esc(it.m.text)}</div>`:''}</div>`).join('');
+  return items.map(it=> it.k==='q'? qCard(it.q,isHider()) : `<div class="msg ${it.m.kind}"><div class="who"><span><span class="tag">${esc(it.m.kind)}</span>${esc(it.m.from)}</span><time>${fmtClock(it.m.at)}</time></div><div class="txt"><b>${esc(it.m.title)}</b></div>${it.m.text?`<div class="mtext">${esc(it.m.text)}</div>`:''}${curseActs(it.m)}</div>`).join('');
 }
 // The rulebook: a question that has been asked can only be asked again for
 // its additional cost. A veto still counts as having been asked; a randomize
@@ -956,6 +1145,16 @@ const MULT_WORD=['','','double','triple','quadruple'];
 function askedBefore(catId,text){ return questions.filter(q=>q.cat===catId&&q.q===text&&q.status!=='randomized').length; }
 function multOf(catId,text){ return Math.min(askedBefore(catId,text)+1,4); }
 function handLimit(){ return (game&&game.handMax)||6; }
+function curseActs(m){
+  const k=m.curse; if(!k) return '';
+  let h='';
+  const t=CURSE_TIMER[k];
+  if(t&&!t.auto) h+=`<button class="btn sm" data-start-timer="${k}">Start the ${minsOf(t.m)}-minute timer</button>`;
+  if(CURSE_AWARD[k]&&isHider()){ const done=(game.awards||[]).some(a=>a.msg===m.id);
+    h+=done?`<span class="small muted">+${minsOf(CURSE_AWARD[k])} min banked</span>`
+      :`<button class="btn sm" data-award="${k}|${m.id}">They broke it — bank +${minsOf(CURSE_AWARD[k])} min</button>`; }
+  return h?`<div class="row" style="margin-top:8px;gap:8px;flex-wrap:wrap">${h}</div>`:'';
+}
 function hand(){
   const h=game.hand||[];
   // The hider's deck is private information — seekers see neither the cards
@@ -964,12 +1163,13 @@ function hand(){
   const lim=handLimit(), full=h.length>=lim;
   return `<div class="card"><h2>Your hand · ${h.length}/${lim}</h2><p class="small muted">Log what you keep after each draw so the seekers can see your card count (not the cards). Six is the limit; the “Draw 1, expand maximum hand size by 1” powerup raises it for the rest of the round.</p>
     <div class="row" style="align-items:center;gap:8px"><span class="small muted">Hand limit</span><div class="seg" id="sel-handmax">${[6,7,8].map(n=>`<button type="button" data-handmax="${n}" class="${lim===n?'on':''}">${n}</button>`).join('')}</div></div>
-    <div class="hand">${h.map(c=>`<div class="hcard"><b>${esc(c.kind)}</b><span class="small">${esc(c.text)}</span>${c.curse?`<button class="btn sm cast" data-cast="${esc(c.id)}">cast</button>`:''}<button class="x" data-discard="${esc(c.id)}">discard</button></div>`).join('')}</div>
+    <div class="hand">${h.map(c=>`<div class="hcard"${c.bonus?` style="border-left:6px solid ${BONUS_HEX[c.bonus]}"`:''}><b>${esc(c.kind)}</b><span class="small">${c.bonus?'+'+bonusCardMins(c)+' min':esc(c.text)}</span>${c.curse?`<button class="btn sm cast" data-cast="${esc(c.id)}">cast</button>`:''}<button class="x" data-discard="${esc(c.id)}">discard</button></div>`).join('')}</div>
     <h3>Add a card</h3>
     <div class="row"><select id="card-kind">${CARD_KINDS.map(k=>`<option>${k}</option>`).join('')}</select>
       <select id="card-curse" class="grow" hidden><option value="">— which curse —</option>${CURSES.map(c=>`<option value="${c.k}">${esc(c.n)}</option>`).join('')}</select>
-      <input type="text" class="grow" id="card-text" placeholder="e.g. +5 min, Veto, Randomize">
+      <input type="text" class="grow" id="card-text" placeholder="e.g. Veto, Randomize, Move" hidden>
       <button class="btn" id="btn-card" ${full?'disabled':''}>Keep</button></div>
+    <div class="bcards" id="card-bonus">${Object.entries(BONUS_CARDS).map(([k,v])=>`<button type="button" data-bonus-card="${k}" style="background:${BONUS_HEX[k]}" ${full?'disabled':''}>+${v[sizeIdx()]} min</button>`).join('')}</div>
     ${full?`<p class="small" style="margin-top:6px">Hand is full at ${lim}. Discard or play something before you keep another.</p>`:''}
     <p class="small muted" style="margin-top:6px">Casting a curse posts its full text to the feed and discards the card.</p></div>`+curseDeck();
 }
@@ -989,9 +1189,11 @@ function gameTab(){
     <p class="small muted" style="margin-top:6px">${game.strict===true
       ? 'House rule: answers are read against the station itself, so a radar rules out every station inside its circle. Sharper, but it can rule out a hider who had wandered across their zone.'
       : 'The rulebook: “radars are asking about your location, not your hiding zone. If the radar would encompass part of your hiding zone, but not your location at the time of answering, it would be a miss.” So a station falls only when no point of its zone could have given the answer.'}</p>
+    <h3>Colours on this phone</h3>${themePicker()}
     <h3>Round note</h3><textarea id="game-note" rows="2" placeholder="House rules, meeting point, transit passes…">${esc(game.note||'')}</textarea><button class="btn sm" id="btn-note" style="margin-top:6px">Save note</button>
     <div class="row" style="margin-top:14px"><button class="btn sm" id="btn-switch">Switch name / role</button><button class="btn sm" id="btn-leave">Leave game</button><button class="btn sm danger" id="btn-delete">Delete round</button></div></div>
-    ${past.length?`<div class="card"><h2>Scoreboard</h2><table class="sb"><tr><th>Round</th><th>Hider</th><th>Time hidden</th></tr>${past.map(g=>`<tr><td>${esc(g.name)}</td><td>${esc(g.hider)}</td><td>${fmtT(g.foundAt-g.seekingStartAt)}</td></tr>`).join('')}</table></div>`:''}`+rulesNotes();
+    ${past.length?`<div class="card"><h2>Scoreboard</h2><table class="sb"><tr><th>Round</th><th>Hider</th><th>Hidden</th><th>Bonus</th><th>Score</th></tr>${past.map(g=>{ const bm=(g.bonusAtFound&&g.bonusAtFound.total)||0, base=g.foundAt-g.seekingStartAt;
+      return `<tr><td>${esc(g.name)}</td><td>${esc(g.hider)}</td><td>${fmtT(base)}</td><td>${bm?'+'+bm+' min':'—'}</td><td><b>${fmtT(base+bm*60000)}</b></td></tr>`; }).join('')}</table></div>`:''}`+rulesNotes();
 }
 
 // ---------- wiring ----------
@@ -1007,7 +1209,7 @@ function wire(){
   on('#btn-start-hiding','click',()=>{ if(!game.hider){ toast('Pick the hider in the Game tab first'); tab='game'; save('hs-tab',tab); render(); return; } patch({phase:'hiding',hidingStartAt:Date.now()}); });
   on('#btn-start-seeking','click',()=>patch({phase:'seeking',seekingStartAt:Date.now()}));
   on('#btn-endgame','click',()=>patch({phase:'endgame',endgameAt:Date.now()}));
-  on('#btn-found','click',()=>{ if(confirm('Found means a seeker is within 2 metres of the hider AND has actually spotted them \u2014 being in the right building is not enough.\n\nEnd the round?')) patch({phase:'found',foundAt:Date.now()}); });
+  on('#btn-found','click',()=>{ if(confirm('Found means a seeker is within 6\u00bd feet (2 m) of the hider AND has actually spotted them \u2014 being in the right building is not enough.\n\nEnd the round?')) patch({phase:'found',foundAt:Date.now(),bonusAtFound:bonusMinutes()}); });
   on('[data-strict]','click',e=>{ patch({strict:e.currentTarget.dataset.strict==='1'}); });
   on('#btn-leave','click',leave);
   on('#btn-switch','click',()=>{ leave(); });
@@ -1030,9 +1232,26 @@ function wire(){
     const row=document.getElementById('ta-row-'+id); if(row){ row.hidden=false; const i=document.getElementById('ta-'+id); if(i) i.focus(); } });
   on('[data-photo]','change',e=>{ const f=e.target.files[0]; if(f) uploadPhoto(f,e.target.dataset.photo); });
   on('[data-veto]','click',e=>{ if(confirm('Veto this question? (Play a Veto card.)')) vetoQ(e.currentTarget.dataset.veto); });
-  on('#btn-msg','click',()=>{ const t=$('#msg-title').value.trim(); if(!t){ toast('Give it a title'); return; } sendMessage($('#msg-kind').value,t,$('#msg-text').value.trim()); $('#msg-title').value=''; $('#msg-text').value=''; toast('Sent to seekers'); });
-  on('#card-kind','change',()=>{ const isC=$('#card-kind').value==='Curse';
-    $('#card-curse').hidden=!isC; $('#card-text').hidden=isC; });
+  on('#btn-msg','click',()=>{ const t=$('#msg-title').value.trim(); if(!t){ toast('Give it a title'); return; }
+    const ck=$('#msg-curse')?$('#msg-curse').value:'';
+    const key=ck&&CURSE_BY[ck]&&t==='Curse of the '+CURSE_BY[ck].n?ck:'';
+    sendMessage($('#msg-kind').value,t,$('#msg-text').value.trim(),key?{curse:key}:null);
+    if(key&&CURSE_TIMER[key]&&CURSE_TIMER[key].auto) setTimeout(()=>startTimer(key),400);
+    $('#msg-title').value=''; $('#msg-text').value=''; if($('#msg-curse')) $('#msg-curse').value=''; toast('Sent to seekers'); });
+  on('[data-stop-timer]','click',e=>{ const id=e.currentTarget.dataset.stopTimer; const timers=Object.assign({},game.timers||{}); delete timers[id]; patch({timers}); });
+  on('[data-start-timer]','click',e=>{ startTimer(e.currentTarget.dataset.startTimer); toast('Timer started on every phone'); });
+  on('[data-award]','click',e=>{ const [key,mid]=e.currentTarget.dataset.award.split('|'); const aw=game.awards||[];
+    if(aw.some(a=>a.msg===mid)){ toast('Already awarded'); return; }
+    const min=minsOf(CURSE_AWARD[key]);
+    patch({awards:[...aw,{curse:key,min,msg:mid,at:Date.now()}]}); toast('+'+min+' min banked'); });
+  on('#card-kind','change',()=>{ const k=$('#card-kind').value;
+    $('#card-curse').hidden=k!=='Curse'; $('#card-text').hidden=k!=='Powerup';
+    $('#card-bonus').hidden=k!=='Time bonus'; $('#btn-card').hidden=k==='Time bonus'; });
+  if($('#card-kind')){ $('#card-text').hidden=true; $('#card-curse').hidden=true; $('#btn-card').hidden=true; }
+  on('[data-bonus-card]','click',e=>{ const h=game.hand||[];
+    if(h.length>=handLimit()){ toast('Hand is full \u2014 discard or play something first'); return; }
+    const k=e.currentTarget.dataset.bonusCard;
+    patch({hand:[...h,{id:uid(),kind:'Time bonus',bonus:k,text:'+'+BONUS_CARDS[k][sizeIdx()]+' min'}]}); });
   on('#btn-card','click',()=>{ const kind=$('#card-kind').value;
     const h=game.hand||[];
     if(h.length>=handLimit()){ toast('Hand is full \u2014 discard or play something first'); return; }
@@ -1046,8 +1265,9 @@ function wire(){
   on('[data-cast]','click',e=>{ const id=e.currentTarget.dataset.cast;
     const card=(game.hand||[]).find(c=>c.id===id); if(!card||!card.curse) return;
     const c=CURSE_BY[card.curse]; if(!c) return;
-    sendMessage('curse','Curse of the '+c.n, szPlain(c.t)+'\n\nCasting cost: '+szPlain(c.c));
+    sendMessage('curse','Curse of the '+c.n, szPlain(c.t)+'\n\nCasting cost: '+szPlain(c.c),{curse:c.k});
     patch({hand:(game.hand||[]).filter(x=>x.id!==id)});
+    if(CURSE_TIMER[c.k]&&CURSE_TIMER[c.k].auto) setTimeout(()=>startTimer(c.k),400);
     toast('Cast \u2014 the seekers have the full text'); });
   on('#msg-curse','change',()=>{ const k=$('#msg-curse').value; if(!k) return;
     const c=CURSE_BY[k]; $('#msg-kind').value='curse';
@@ -1057,6 +1277,8 @@ function wire(){
     const list=document.getElementById('curse-list'); if(!list) return;
     [...list.children].forEach((el,i)=>{ const c=CURSES[i];
       el.hidden=!!q&&!((c.n+' '+c.t+' '+c.c).toLowerCase().includes(q)); }); });
+  on('[data-theme-pick]','click',e=>{ const t=e.currentTarget.dataset.themePick;
+    save('hs-theme',t); applyTheme(t); render(); });
   on('[data-discard]','click',e=>{ const id=e.currentTarget.dataset.discard; patch({hand:(game.hand||[]).filter(c=>c.id!==id)}); });
 }
 // ---------- map ----------
@@ -1101,7 +1323,7 @@ const BASEMAPS={
           a:'Imagery &copy; Esri',max:19},
   paper:{n:'Paper',u:null,a:'&copy; OpenStreetMap contributors'}
 };
-let lmap=null, lrend=null, ltiles=null, paperBase=null, lscale=1;
+let lmap=null, lrend=null, ltiles=null, paperBase=null, lscale=1, fitDone=0;
 let basemap=load('hs-basemap')||'street';
 const useLeaf=()=>!!lmap;
 // The inverse of project(): map units back to a latitude and longitude.
@@ -1129,12 +1351,14 @@ function build(){
   // the basemap's own extent — so the mask is a very large rectangle with the
   // zone punched out of it, not the basemap rectangle.
   if(m.layers.zone){
-    el('path',{d:'M-9999999 -9999999H9999999V9999999H-9999999Z'+m.layers.zone,class:'m-oob'},root);
+    el('path',{d:boxD()+m.layers.zone,class:'m-oob'},root);
     el('path',{d:m.layers.zone,class:'m-zone-glow'},root);
     zonePath=el('path',{d:m.layers.zone,class:'m-zone'},root);
   }
   gShade=el('g',{},root); shadeKey='';
+  gAns=el('g',{class:'m-ansl'},root); ansKey='';
   gStops=el('g',{},root);
+  gCons=el('g',{},root);
   for(let i=0;i<m.stops.length;i++){ const st=m.stops[i];
     el('circle',{cx:st[0],cy:st[1],r:3,class:'m-stop','data-i':i},gStops); }
   // Markers and type are counter-scaled so they stay a readable size on
@@ -1190,8 +1414,13 @@ function setBasemap(k,quiet){
 function initLeaflet(){
   if(lmap||!window.L) return false;
   const host=document.getElementById('mapleaf');
+  // Continuous zoom: nothing snaps to a whole level at the end of a pinch or
+  // a wheel, which is what made it lurch. The overlay rides Leaflet's own
+  // zoom animation, and everything heavy is redrawn only once it settles.
   lmap=L.map(host,{zoomControl:false,attributionControl:true,preferCanvas:false,
-    zoomSnap:0.25,wheelPxPerZoomLevel:90,maxZoom:20,minZoom:9});
+    zoomSnap:0,zoomDelta:0.75,wheelPxPerZoomLevel:110,wheelDebounceTime:20,
+    bounceAtZoomLimits:false,inertia:true,inertiaDeceleration:2600,easeLinearity:0.2,
+    maxZoom:20,minZoom:9});
   // Leaflet refuses to place layers or tiles before it has a view, so give it
   // the zone's centre now; fit() frames it properly a moment later.
   const mv=M().vb;
@@ -1228,7 +1457,7 @@ function fit(){
   if(lmap){
     let x=m.vb[0],y=m.vb[1],w=m.vb[2],h=m.vb[3];
     if(zonePath){ try{ const b=zonePath.getBBox(); if(b.width){x=b.x;y=b.y;w=b.width;h=b.height;} }catch(e){} }
-    lmap.fitBounds(L.latLngBounds(unprojLL(x,y),unprojLL(x+w,y+h)),{padding:[14,14],animate:false});
+    lmap.fitBounds(L.latLngBounds(unprojLL(x,y),unprojLL(x+w,y+h)),{padding:[14,14],animate:!!fitDone}); fitDone=1;
     syncTransform(); return;
   }
   const r=svg.getBoundingClientRect();
@@ -1298,7 +1527,7 @@ function redraw(){
     el('circle',{cx:fix.x,cy:fix.y,r:metres(fix.acc,fix.y),class:'m-me-acc'},gDyn);
     el('circle',{cx:fix.x,cy:fix.y,r:7/px,class:'m-me'},gDyn);
   }
-  drawCons(gDyn,px);
+  syncAnswers(); sizeHatch(px); drawMarkers(gDyn,px);
   const keep=survivors(), chip=document.getElementById('mp-count');
   if(chip){
     if(keep){ let left=0; for(let i=0;i<keep.length;i++) left+=keep[i];
@@ -1321,10 +1550,10 @@ function syncShade(){
   if(key===shadeKey) return;
   shadeKey=key; gShade.innerHTML='';
   if(!keep) return;
-  const m=M(), S=9999999, id='m-poss-'+(++maskSeq);
-  const mask=el('mask',{id,maskUnits:'userSpaceOnUse',x:-S,y:-S,width:S*2,height:S*2},
+  const m=M(), B=extentBox(), id='m-poss-'+(++maskSeq);
+  const mask=el('mask',{id,maskUnits:'userSpaceOnUse',x:B.x,y:B.y,width:B.w,height:B.h},
                 el('defs',{},gShade));
-  el('rect',{x:-S,y:-S,width:S*2,height:S*2,fill:'#fff'},mask);
+  el('rect',{x:B.x,y:B.y,width:B.w,height:B.h,fill:'#fff'},mask);
   let live=0;
   for(let i=0;i<keep.length;i++){
     if(!keep[i]) continue;
@@ -1336,7 +1565,7 @@ function syncShade(){
   // the whole map would just hide it, so leave it clear and let the counter
   // say so.
   if(!live){ gShade.innerHTML=''; return; }
-  el('rect',{x:-S,y:-S,width:S*2,height:S*2,class:'m-ruled',mask:'url(#'+id+')'},gShade);
+  el('rect',{x:B.x,y:B.y,width:B.w,height:B.h,class:'m-ruled',mask:'url(#'+id+')'},gShade);
   // The same zones, outlined, for when you want to see each one rather than
   // just the shape their union makes.
   if(showCircles) for(let i=0;i<keep.length;i++){ if(!keep[i]) continue;
@@ -1368,7 +1597,8 @@ function drawPanel(force){
   const body=document.getElementById('pnl-body');
   document.getElementById('pnl-title').textContent=panelTab==='layers'?'Answers on the map':'Stations still possible';
   if(panelTab==='layers'){
-    body.innerHTML = cs.length ? cs.map((c,i)=>
+    const keyHtml=`<div class="empty" style="padding:8px 10px 4px"><b>Dark grey</b>: no station left can be there. <b>Light grey</b>: where an answer says they weren't when they gave it.</div>`;
+    body.innerHTML = cs.length ? keyHtml+cs.map((c,i)=>
       `<button class="lrow ${conOff[i]?'off':''}" data-layer="${i}">
         <span class="sw" style="background:${conColor(i)}"></span>
         <span>${esc(conLabel(c))}<span class="sub">${conOff[i]?'hidden':'drawn'}</span></span>
@@ -1529,8 +1759,8 @@ function bind(){
   document.getElementById('mp-pin').addEventListener('click',e=>{ pinMode=e.currentTarget.classList.toggle('on'); zoneMode=false; document.getElementById('mp-zone').classList.remove('on'); if(pinMode) toast('Tap the map to place a pin'); });
   document.getElementById('mp-zone').addEventListener('click',e=>{ zoneMode=e.currentTarget.classList.toggle('on'); pinMode=false; document.getElementById('mp-pin').classList.remove('on'); if(zoneMode) toast('Tap the stop you are hiding near'); });
   document.getElementById('mp-loc').addEventListener('click',locate);
-  document.getElementById('mp-in').addEventListener('click',()=>{ if(lmap) lmap.zoomIn(1); else {const r=svg.getBoundingClientRect();zoomAt(1.6,r.left+r.width/2,r.top+r.height/2);} });
-  document.getElementById('mp-out').addEventListener('click',()=>{ if(lmap) lmap.zoomOut(1); else {const r=svg.getBoundingClientRect();zoomAt(1/1.6,r.left+r.width/2,r.top+r.height/2);} });
+  document.getElementById('mp-in').addEventListener('click',()=>{ if(lmap) lmap.zoomIn(0.75,{animate:true}); else {const r=svg.getBoundingClientRect();zoomAt(1.6,r.left+r.width/2,r.top+r.height/2);} });
+  document.getElementById('mp-out').addEventListener('click',()=>{ if(lmap) lmap.zoomOut(0.75,{animate:true}); else {const r=svg.getBoundingClientRect();zoomAt(1/1.6,r.left+r.width/2,r.top+r.height/2);} });
   document.getElementById('mp-fit').addEventListener('click',fit);
   document.getElementById('mp-layers').addEventListener('click',()=>openPanel('layers'));
   document.getElementById('mp-list').addEventListener('click',()=>openPanel('list'));
@@ -1577,27 +1807,27 @@ const nameLen=s=>(s||'').length;   // hyphens and spaces count, per the card
 
 // Every answered question that carries geometry, as a light description —
 // light enough to double as the cache key.
-function cons(){
-  const out=[];
-  for(const q of questions){
-    if(q.status!=='answered'||!q.loc||!q.answer) continue;
-    const x=q.loc[0], y=q.loc[1], ref0=q.ref||REF[q.q]||null;
-    const ref=(ref0&&refEmpty(ref0))?null:ref0;
-    if(q.cat==='radar'&&q.distM) out.push({t:'radar',x,y,r:q.distM,inside:q.answer==='Yes'});
-    else if(q.cat==='thermo'&&q.loc2) out.push({t:'thermo',a:q.loc,b:q.loc2,hotter:q.answer==='Hotter'});
-    else if(q.cat==='measuring'&&ref&&(q.answer==='Closer'||q.answer==='Further'))
-      out.push({t:'dist',k:ref,x,y,closer:q.answer==='Closer'});
-    else if(q.cat==='matching'&&ref&&(q.answer==='Yes'||q.answer==='No')){
-      const same=q.answer==='Yes';
-      if(ref[0]==='!') out.push({t:'area',k:ref.slice(1),x,y,same});
-      else if(ref==='#namelen') out.push({t:'namelen',x,y,same});
-      else out.push({t:'near',k:ref,x,y,same});
-    }
-    else if(q.cat==='tentacle'&&ref&&q.distM)
-      out.push({t:'tent',k:ref,x,y,r:q.distM,name:q.answer===NOT_IN_REACH?null:q.answer});
+function conFromQ(q){
+  if(q.status!=='answered'||!q.loc||!q.answer) return null;
+  const x=q.loc[0], y=q.loc[1], ref0=q.ref||REF[q.q]||null;
+  const ref=(ref0&&refEmpty(ref0))?null:ref0;
+  if(q.cat==='radar'&&q.distM) return {t:'radar',x,y,r:q.distM,inside:q.answer==='Yes'};
+  if(q.cat==='thermo'&&q.loc2) return {t:'thermo',a:q.loc,b:q.loc2,hotter:q.answer==='Hotter'};
+  if(q.cat==='measuring'&&ref&&(q.answer==='Closer'||q.answer==='Further'))
+    return {t:'dist',k:ref,x,y,closer:q.answer==='Closer'};
+  if(q.cat==='matching'&&ref&&(q.answer==='Yes'||q.answer==='No')){
+    const same=q.answer==='Yes';
+    if(ref[0]==='!') return {t:'area',k:ref.slice(1),x,y,same};
+    if(ref==='#namelen') return {t:'namelen',x,y,same};
+    return {t:'near',k:ref,x,y,same};
   }
-  return out;
+  if(q.cat==='tentacle'&&ref&&q.distM)
+    return {t:'tent',k:ref,x,y,r:q.distM,name:q.answer===NOT_IN_REACH?null:q.answer};
+  return null;
 }
+// Every answered question that carries geometry, as a light description —
+// light enough to double as the cache key.
+function cons(){ const out=[]; for(const q of questions){ const c=conFromQ(q); if(c) out.push(c); } return out; }
 
 // Resolve the seeker's own side of a comparison. The seeker's position is
 // known exactly, so it is measured exactly rather than read off the grid —
@@ -1832,7 +2062,7 @@ function survivors(){
 // the real boundaries — a Voronoi cell really is a polygon of bisectors —
 // not sketches, and turning one off hides the drawing only. What is ruled
 // out never depends on what you are looking at.
-const CON_COLORS=['#D62828','#0077B6','#1F8A5B','#B5179E','#E4572E','#5A189A','#0F7B8A','#9A6A00'];
+const CON_COLORS=['#E23B2E','#1F6FEB','#F58220','#16A34A','#8B3FD9','#0E9AA7','#D6336C','#B98900'];
 let conOff={}, panelTab=null, listSel=-1;
 const conColor=i=>CON_COLORS[i%CON_COLORS.length];
 function conLabel(c){
@@ -1842,7 +2072,7 @@ function conLabel(c){
   if(c.t==='dist') return (c.closer?'Closer to ':'Further from ')+d(c.k);
   if(c.t==='near') return (c.same?'Same nearest ':'Different nearest ')+d(c.k);
   if(c.t==='tent') return c.name?('Nearest '+d(c.k)+': '+c.name):('No '+d(c.k)+' in reach');
-  if(c.t==='area') return c.same?'Same city':'Different city';
+  if(c.t==='area'){ const w=c.k==='district'?'district':'city'; return (c.same?'Same ':'Different ')+w; }
   if(c.t==='namelen') return c.same?'Same station-name length':'Different station-name length';
   return c.t;
 }
@@ -1882,10 +2112,6 @@ function drawOne(c,i,g,px){
     const L=Math.hypot(ux,uy)||1; ux/=L; uy/=L; const S=200000;
     el('line',{x1:mx-uy*S,y1:my+ux*S,x2:mx+uy*S,y2:my-ux*S,stroke:col,'stroke-width':2.5,
       'stroke-dasharray':'9 6','vector-effect':'non-scaling-stroke'},gg);
-    el('line',{x1:c.a[0],y1:c.a[1],x2:c.b[0],y2:c.b[1],stroke:col,'stroke-width':2,
-      opacity:.55,'vector-effect':'non-scaling-stroke'},gg);
-    el('circle',{cx:c.b[0],cy:c.b[1],r:4/px,fill:col,stroke:'#fff','stroke-width':2,
-      'vector-effect':'non-scaling-stroke'},gg);
   } else if(c.t==='dist'){
     const p=prep(c); if(!isFinite(p.ds)) return gg;
     if(c.k[0]==='@'){ for(const line of shapeRings(c.k.slice(1)))
@@ -1896,8 +2122,6 @@ function drawOne(c,i,g,px){
     const pts=poiPts(c.k), p=prep(c), pl=p.j>=0?cellPoly(pts,p.j):null;
     if(pl) el('path',{d:polyD(pl),fill:col,'fill-opacity':c.same?0.07:0.0,stroke:col,
       'stroke-width':2.5,'stroke-dasharray':c.same?'':'5 5','vector-effect':'non-scaling-stroke'},gg);
-    if(p.j>=0) el('circle',{cx:pts[p.j][0],cy:pts[p.j][1],r:5/px,fill:col,stroke:'#fff',
-      'stroke-width':2,'vector-effect':'non-scaling-stroke'},gg);
   } else if(c.t==='namelen'){
     const pts=poiPts('station'), p=prep(c);
     if(p.L>=0){ let n=0;
@@ -1917,13 +2141,121 @@ function drawOne(c,i,g,px){
       el('path',{d:polyD(r),fill:col,'fill-opacity':c.same?0.07:0,stroke:col,'stroke-width':2.5,
         'stroke-dasharray':c.same?'':'5 5','vector-effect':'non-scaling-stroke'},gg);
   }
-  if(c.x!=null) el('circle',{cx:c.x,cy:c.y,r:4/px,fill:'#15171B',stroke:'#fff','stroke-width':2,
-    'vector-effect':'non-scaling-stroke'},gg);
   return gg;
 }
 function drawCons(g,px){
   const cs=cons();
   for(let i=0;i<cs.length;i++){ if(conOff[i]) continue; drawOne(cs[i],i,g,px); }
+}
+// ---------- where each answer says the hider was not ----------
+// Two different things get greyed, and they are kept apart on purpose.
+// Solid grey: ground no surviving hiding zone reaches — the stations there
+// are out, whatever the hider does next. Hatched: ground a single answer
+// excludes for the moment it was given — a radar's "no" means the hider was
+// not inside that circle then. The hider may walk anywhere in their own zone
+// between questions, so the hatch is exact about that moment and says no
+// more than that. Turning an answer off in Layers takes its hatch with it.
+let gAns=null, gCons=null, ansKey='', patW=0;
+// Everything is drawn inside a box well past the map, never an unbounded
+// one: a mask or a fill the size of a continent is what makes zooming stutter.
+function extentBox(){ const m=M(), P=25000;
+  return {x:m.vb[0]-P,y:m.vb[1]-P,w:m.vb[2]+2*P,h:m.vb[3]+2*P}; }
+function boxD(){ const b=extentBox(); return 'M'+b.x+' '+b.y+'h'+b.w+'v'+b.h+'h'+(-b.w)+'Z'; }
+// The region an answer excludes, as SVG, in one of two senses: 'in' means
+// the drawn shape is the excluded ground; 'out' means everything but it is.
+function excluded(c){
+  const P=prep(c), sh=[];
+  const circ=(x,y,r)=>({t:'circle',a:{cx:x,cy:y,r}});
+  const poly=pl=>({t:'path',a:{d:polyD(pl)}});
+  if(c.t==='radar'){ sh.push(circ(c.x,c.y,metres(c.r,c.y))); return {mode:c.inside?'out':'in',sh}; }
+  if(c.t==='thermo'){
+    const mx=(c.a[0]+c.b[0])/2, my=(c.a[1]+c.b[1])/2;
+    let ux=c.b[0]-c.a[0], uy=c.b[1]-c.a[1]; const L=Math.hypot(ux,uy)||1; ux/=L; uy/=L;
+    // the colder half is on the start side for "hotter", the finish side otherwise
+    const sg=c.hotter?-1:1, S=400000;
+    const px=-uy, py=ux;
+    sh.push(poly([[mx+px*S,my+py*S],[mx+px*S+sg*ux*S,my+py*S+sg*uy*S],
+                  [mx-px*S+sg*ux*S,my-py*S+sg*uy*S],[mx-px*S,my-py*S]]));
+    return {mode:'in',sh}; }
+  if(c.t==='dist'){
+    if(!isFinite(P.ds)) return null;
+    // The ground within ds of the reference: discs round points, and for a
+    // coastline the line itself stroked 2*ds wide with round ends, which is
+    // exactly the set of points within ds of it.
+    if(c.k[0]==='@'){ for(const line of shapeRings(c.k.slice(1)))
+        sh.push({t:'path',stroke:2*P.ds,a:{d:'M'+line.map(q=>q[0].toFixed(1)+' '+q[1].toFixed(1)).join('L')}}); }
+    else for(const q of poiPts(c.k)) sh.push(circ(q[0],q[1],P.ds));
+    return {mode:c.closer?'out':'in',sh}; }
+  if(c.t==='near'){
+    if(P.j<0) return null;
+    const pl=cellPoly(poiPts(c.k),P.j); if(!pl) return null;
+    sh.push(poly(pl)); return {mode:c.same?'out':'in',sh}; }
+  if(c.t==='tent'){
+    const R=metres(c.r,c.y);
+    if(P.j<0){ sh.push(circ(c.x,c.y,R)); return {mode:'in',sh}; }
+    const pl=P.sub.length?cellPoly(P.sub,P.j):null; if(!pl) return null;
+    sh.push({t:'path',clipCircle:[c.x,c.y,R],a:{d:polyD(pl)}});
+    return {mode:'out',sh}; }
+  if(c.t==='area'){
+    const list=AREA_OF(zoneKey())[c.k]||[]; if(P.j<0) return null;
+    for(const r of projRings('a:'+c.k+':'+P.j,list[P.j].r)) sh.push(poly(r));
+    return {mode:c.same?'out':'in',sh}; }
+  if(c.t==='namelen'){
+    if(P.L<0) return null;
+    const pts=poiPts('station');
+    // The cells whose station has the matching length; "same" keeps only
+    // those, "different" excludes exactly those.
+    for(let j=0;j<pts.length;j++) if(nameLen(pts[j][2])===P.L){ const pl=cellPoly(pts,j); if(pl) sh.push(poly(pl)); }
+    return {mode:c.same?'out':'in',sh}; }
+  return null;
+}
+let clipSeq=0;
+function putShape(s,parent,fill){
+  const a=Object.assign({},s.a);
+  if(s.stroke){ a.fill='none'; a.stroke=fill; a['stroke-width']=s.stroke; a['stroke-linecap']='round'; a['stroke-linejoin']='round'; }
+  else a.fill=fill;
+  if(s.clipCircle){ const id='jl-cc-'+(++clipSeq);
+    const cp=el('clipPath',{id,clipPathUnits:'userSpaceOnUse'},el('defs',{},parent));
+    el('circle',{cx:s.clipCircle[0],cy:s.clipCircle[1],r:s.clipCircle[2]},cp);
+    a['clip-path']='url(#'+id+')'; }
+  return el(s.t,a,parent);
+}
+function syncAnswers(){
+  if(!gAns) return;
+  const cs=cons();
+  const key=zoneKey()+'|'+JSON.stringify(cs)+'|'+Object.keys(conOff).sort().join(',');
+  if(key===ansKey) return;
+  ansKey=key; gAns.innerHTML=''; gCons.innerHTML='';
+  // A flat tint, not a hatch pattern: patterns are re-rasterised on every
+  // frame of a zoom and were the whole of the stutter. Full-strength fills
+  // inside one translucent group read as a single union however many
+  // answers overlap.
+  const B=extentBox();
+  for(let i=0;i<cs.length;i++){
+    if(conOff[i]) continue;
+    const ex=excluded(cs[i]);
+    if(ex&&ex.sh.length){
+      const g=el('g',{class:'m-ans','data-ci':i},gAns);
+      if(ex.mode==='in') for(const s of ex.sh) putShape(s,g,'var(--ans-fill)');
+      else { const id='jl-am-'+i;
+        const mk=el('mask',{id,maskUnits:'userSpaceOnUse',x:B.x,y:B.y,width:B.w,height:B.h},el('defs',{},g));
+        el('rect',{x:B.x,y:B.y,width:B.w,height:B.h,fill:'#fff'},mk);
+        for(const s of ex.sh) putShape(s,mk,'#000');
+        el('rect',{x:B.x,y:B.y,width:B.w,height:B.h,fill:'var(--ans-fill)',mask:'url(#'+id+')'},g); }
+    }
+    drawOne(cs[i],i,gCons,1e9);   // outlines only; markers live in the dynamic layer
+  }
+}
+// The hatch keeps a constant spacing on screen however far you zoom.
+function sizeHatch(){}
+function drawMarkers(g,px){
+  const cs=cons();
+  for(let i=0;i<cs.length;i++){ if(conOff[i]) continue; const c=cs[i], col=conColor(i);
+    if(c.t==='thermo'){
+      el('circle',{cx:c.a[0],cy:c.a[1],r:4.5/px,fill:'#fff',stroke:col,'stroke-width':2.5,'vector-effect':'non-scaling-stroke'},g);
+      el('circle',{cx:c.b[0],cy:c.b[1],r:4.5/px,fill:col,stroke:'#fff','stroke-width':2,'vector-effect':'non-scaling-stroke'},g);
+    } else if(c.x!=null) el('circle',{cx:c.x,cy:c.y,r:4.5/px,fill:col,stroke:'#fff','stroke-width':2,'vector-effect':'non-scaling-stroke'},g);
+  }
 }
 
 return {
@@ -1941,38 +2273,32 @@ return {
   },
   cutBy(q){
     if(q.status!=='answered'||q.cat==='photo') return '';
-    if(!q.loc) return 'Not drawn on the map — no location was recorded with it.';
-    const ref=q.ref||REF[q.q]||null, n=REF_NOUN[ref]||'it';
-    const none='Not drawn on the map — there is no reference data for that here.';
-    if(q.cat==='radar') return q.distM?(q.answer==='Yes'
-      ? `Rules out everywhere more than ${fmtDist(q.distM)} from there.`
-      : `Rules out everywhere within ${fmtDist(q.distM)} of there.`):none;
-    if(q.cat==='thermo') return q.loc2?(q.answer==='Hotter'
-      ? 'Rules out the half of the map nearer where they set off.'
-      : 'Rules out the half of the map nearer where they ended up.'):none;
-    if(q.cat==='measuring') return (ref&&ref[0]!=='!'&&ref[0]!=='#')?(q.answer==='Closer'
-      ? `Rules out everywhere further from ${n} than they were.`
-      : `Rules out everywhere nearer ${n} than they were.`):none;
-    if(q.cat==='matching'){
-      if(!ref) return none;
-      if(ref==='#namelen') return q.answer==='Yes'
-        ? 'Rules out everywhere whose nearest station has a different name length.'
-        : 'Rules out everywhere whose nearest station matches theirs for length.';
-      if(ref[0]==='!') return q.answer==='Yes'
-        ? `Rules out every other ${ref==='!city'?'city':'district'}.`
-        : `Rules out the ${ref==='!city'?'city':'district'} they are in.`;
-      return q.answer==='Yes'
-        ? `Rules out everywhere whose nearest ${esc(q.q).toLowerCase()} is a different one.`
-        : `Rules out everywhere that shares their nearest ${esc(q.q).toLowerCase()}.`;
-    }
-    if(q.cat==='tentacle'){
-      if(!ref) return none;
-      return q.answer===NOT_IN_REACH
-        ? 'Rules out everywhere inside that circle.'
-        : `Rules out everywhere closer to another of those than to ${q.answer}.`;
-    }
-    return none;
+    if(q.status==='vetoed') return '';
+    const ref0=q.ref||REF[q.q]||null;
+    const nullHere=(q.cat==='matching'||q.cat==='measuring'||q.cat==='tentacle')&&(!ref0||refEmpty(ref0));
+    if(nullHere) return 'Null here — '+(ref0&&REF_NOUN[ref0]?'there is no '+REF_NOUN[ref0].replace(/^an? /,'')+' on this map':'this map has nothing to measure it against')+
+      ', so by the rules the answer tells you nothing. It still counts as asked.';
+    if(!q.loc) return 'Not drawn — no location was recorded with it.';
+    const c=conFromQ(q); if(!c) return '';
+    const mk=stopMask(c); let out=0; for(let i=0;i<mk.length;i++) if(!mk[i]) out++;
+    const n=REF_NOUN[ref0]||'it';
+    let what='';
+    if(q.cat==='radar') what=q.answer==='Yes'?`They were within ${fmtDist(q.distM)} of there when they answered; everything beyond is shaded.`
+      :`They were not within ${fmtDist(q.distM)} of there when they answered; the inside of that circle is shaded.`;
+    else if(q.cat==='thermo') what=q.answer==='Hotter'?'They were nearer the finish than the start; the start side of the line is shaded.'
+      :'They were nearer the start than the finish; the finish side of the line is shaded.';
+    else if(q.cat==='measuring') what=q.answer==='Closer'?`They were closer to ${n} than this was; everywhere further is shaded.`
+      :`They were further from ${n} than this was; everywhere nearer is shaded.`;
+    else if(q.cat==='matching'){
+      const thing=ref0==='#namelen'?'station-name length':ref0==='!city'?'city':ref0==='!district'?'district':'nearest '+esc(q.q).toLowerCase();
+      what=q.answer==='Yes'?`Same ${thing} as here; everywhere else is shaded.`:`A different ${thing} from here; this one is shaded.`;
+    } else if(q.cat==='tentacle') what=q.answer===NOT_IN_REACH?'None of them in reach; the circle is shaded.'
+      :`Nearest to ${q.answer}; everywhere nearer another is shaded.`;
+    const st=out?` Rules out ${out} station${out===1?'':'s'}.`
+      :' Rules out no station on its own — every hiding zone near that line still reaches ground on the right side of it.';
+    return what+st;
   },
+
 
   // The candidates a tentacle question can honestly be answered with: the
   // ones of that type within range of where the seeker asked from.
@@ -2010,7 +2336,7 @@ return {
   },
   syncPins(){ if(built&&!document.getElementById('mapview').hidden) redraw(); },
   reset(){ built=null; fix=null; sel=null; shadeKey='';
-    poiCache={}; ringCache={}; stopMaskCache={};
+    poiCache={}; ringCache={}; stopMaskCache={}; ansKey='';
     if(watchId!==null){ try{navigator.geolocation.clearWatch(watchId);}catch(e){} watchId=null;
       const b=document.getElementById('mp-loc'); if(b) b.classList.remove('on'); } }
 };

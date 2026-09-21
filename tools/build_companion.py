@@ -114,7 +114,27 @@ def main():
         parts = [q for q in getattr(g, "geoms", [g])
                  if q.geom_type == "Polygon" and q.area > 1e-8]
         return [[[round(x, 5), round(y, 5)] for x, y in
-                 p.exterior.simplify(0.00012).coords] for p in parts]
+                 p.exterior.simplify(0.00002).coords] for p in parts]
+
+    def load_districts():
+        # Delta-encoded integer degrees x 1e5, one district per line.
+        out = []
+        path = DATA / "districts.enc"
+        if not path.exists():
+            return out
+        for line in path.read_text().strip().split("\n"):
+            nm, body = line.split("|")
+            rings = []
+            for part in body.split(";"):
+                v = [int(t) for t in part.split(",")]
+                x = y = 0
+                ring = []
+                for i in range(0, len(v), 2):
+                    x += v[i]; y += v[i + 1]
+                    ring.append([x / 1e5, y / 1e5])
+                rings.append(ring)
+            out.append({"n": nm, "r": rings})
+        return out
 
     maps = {}
     for name, cfg in ZONES.items():
@@ -139,6 +159,16 @@ def main():
             if r:
                 cities.append({"n": nm, "r": r})
         areas = {"city": cities}
+        # Council districts: Berkeley's 2022 plan and Oakland's current
+        # districts, clipped only to a box well beyond the map, so no
+        # artificial edge ever falls within reach of a hiding zone.
+        dists = []
+        for d in load_districts():
+            g = shape({"type": "MultiPolygon", "coordinates": [[r] for r in d["r"]]})
+            if g.intersects(area):
+                dists.append(d)
+        if dists:
+            areas["district"] = dists
         for extra, path in (("county", DATA / "counties.json"),):
             if path.exists():
                 got = [a for a in json.loads(path.read_text())
