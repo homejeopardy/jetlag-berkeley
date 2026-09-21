@@ -165,6 +165,25 @@ what you are looking at. **Stations** lists the stops still standing, and the
 list and the map stay in step — tap a row and the map goes there, tap a stop
 and the list scrolls to it.
 
+Two kinds of grey, kept apart on purpose. **Solid** grey is ground no
+surviving hiding zone reaches: the stations there are out for good.
+**Light grey** is what a single answer excludes for the moment it was
+given — a radar's "no" means the hider was not inside that circle *then*. The
+rules let the hider move anywhere within their own zone between questions, so
+the light grey is exact about that moment and claims nothing beyond it. That is why
+a quarter-mile radar answered "no" shades its whole circle while ruling out
+no station on its own — every zone near the circle still has ground outside
+it — and the feed says both of those things under the answer.
+
+Matching questions now take the seeker's position, because "is your nearest
+___ the same as *my* ___" is meaningless without it; before, they were being
+sent without one and could never narrow anything. The **4th administrative
+division** is the city council district: Berkeley's eight from the 2022
+redistricting (City of Berkeley open data) and Oakland's from the city's live
+OakGIS service, clipped only to a box three kilometres past the map so no
+artificial edge ever falls inside a hiding zone. City outlines are now kept to
+about two metres rather than thirteen.
+
 Reference features are whatever falls inside the game map, because the
 rulebook says so: *"if locations are not within a map's boundaries, players
 must operate as if they do not exist"*, and the question comes back **null** —
@@ -213,6 +232,26 @@ Swapping in Firebase, Supabase or your own server means writing one more
 `io` object in `tools/companion_template.html`: `publish`, `watchDoc`,
 `watchCollection`, `attach` and `settle`. The data model is four
 collections: `games/{code}` and its `questions`, `messages` and `pins`.
+
+### Cards, clocks and colours
+
+Every photo question carries its full card from the rulebook — what must be in
+frame, zoom limits, where to stand — on the ask screen, on the hider's answer
+card, and behind a "show the card" link in the feed. The book's two valid
+answers are both there: a photo, or *I cannot answer the question*.
+
+Timed curses start a shared countdown the moment they are cast (Gambler's
+Feet, Right Turn, Jammed Door), and the Travel Agent and Hangman cooldown get a
+start button, since those clocks begin when the seekers say so. Curses that
+award the hider minutes get a button on the hider's phone to bank them.
+
+The hider — and only the hider — sees their time bonus under the running
+clock: the time-bonus cards in hand at their printed value for the game size
+(red 2/3/5, orange 4/6/10, yellow 6/9/15, green 8/12/20, blue 12/18/30) plus
+anything banked from curses, and the total score. The scoreboard adds it in.
+
+Colours are a per-phone choice on the Game tab: Hide + Seek, Jet Lag Night,
+Sunset, or Classic.
 
 ## Building
 
