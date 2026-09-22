@@ -138,17 +138,29 @@ comes back is a proof, not a sample: nothing is padded, nothing is rounded to
 a cell, and every elimination is as certain as every other.
 
 It is checked against an independent implementation that samples each hiding
-zone densely and decides membership from the rules directly. Across 170 random
-answers of all seven kinds, in both zones, at all three game sizes and in both
-reading modes, 6,800 station verdicts came back with no station eliminated
-that had a qualifying point and none kept that did not. Separately, 680
-truthfully answered questions over 80 rounds never once eliminated the station
-the hider was actually hiding at.
+zone densely and decides membership from the rules directly — for streets,
+water and metro lines by brute force over every segment rather than through
+the app's indexes. Across 260 random answers of every kind, in both zones, at
+all three game sizes and in both reading modes, 9,000 station verdicts came
+back with no station eliminated that had a qualifying point. Separately, every
+card in the deck was asked and answered truthfully by the app's own hider
+helper, round after round — about 5,400 answers across 148 rounds, seekers
+both far from the hider and right next to them — and not one eliminated the
+station the hider was actually hiding at.
 
-The map itself is a real slippy map. Leaflet carries the tiles and owns the
-panning and pinching; everything the app draws — the zone, the stops, the
-station markers, the shading, the answer layers — rides on top as a single
-layer. That works because the drawing was already in Web Mercator metres, the
+The map itself is a real slippy map. Leaflet carries the tiles; everything
+the app draws rides on top in two layers. The shading, zone and answer
+outlines are one SVG that the compositor scales during a gesture and that is
+redrawn once when it ends. The stations, labels, pins and markers are a
+second SVG re-placed on every frame, with each stop a dot of one round-capped
+path whose width is set in screen pixels, so nothing swells and snaps back.
+Every zoom — mouse wheel, trackpad pinch and scroll, two-finger pinch,
+double-tap, the buttons — moves the map frame by frame through one path
+(Leaflet's own pinch, or a small controller using the same per-frame move),
+never by a CSS jump between two levels. It is tested by driving each gesture
+through the browser's input pipeline and checking every frame: zoom changes
+in steps of under a tenth of a level, markers stay exactly 13 px, and the
+drawing lands within a pixel or two of where Leaflet puts the same point. That works because the drawing was already in Web Mercator metres, the
 same space Leaflet projects into, so at any zoom the step from map units to
 screen is one scale and one translate and every path is reused untouched.
 Basemaps cycle through Street, Dark, Terrain, Satellite and Paper; Paper is
@@ -175,31 +187,61 @@ a quarter-mile radar answered "no" shades its whole circle while ruling out
 no station on its own — every zone near the circle still has ground outside
 it — and the feed says both of those things under the answer.
 
-Matching questions now take the seeker's position, because "is your nearest
-___ the same as *my* ___" is meaningless without it; before, they were being
-sent without one and could never narrow anything. The **4th administrative
-division** is the city council district: Berkeley's eight from the 2022
-redistricting (City of Berkeley open data) and Oakland's from the city's live
-OakGIS service, clipped only to a box three kilometres past the map so no
-artificial edge ever falls inside a hiding zone. City outlines are now kept to
-about two metres rather than thirteen.
+### Every card, and what it reads
+
+Every question shows the seeker their own side before it is sent — your
+nearest park and how far, the line you are riding, your station and its
+length, your elevation — and that side travels with the question, so the
+hider and the feed see exactly what was compared. The hider's inbox works
+out the hider's side from the same data, from their hiding station by
+default or from GPS or a tap on the map, and highlights the answer that
+follows. The hider's position never leaves their phone. Both sides run the
+same code, and comparisons are made in the same units the map narrows in, so
+a truthful answer can never rule out the station it came from.
+
+**Matching.** Parks, mountains, museums, cinemas, hospitals and libraries
+are the nearest one, and narrow by its Voronoi cell. **Transit line** follows
+the card: the seeker has to be riding it, picks it from the lines that stop
+near them, and Yes means it stops at the hider's station — read off each
+station's own route list, with BART and Amtrak stations carrying their lines.
+**Station name length** is the hider's station against the one the seeker
+picks (spaces and hyphens count). **Street or path** follows the rulebook's
+definition: a named street runs for as long as its name does — pieces of one
+name within 1 km of each other are one street, because Berkeley's traffic
+diverters break the mapped line every few blocks — and an unnamed one ends
+at every intersection; sidewalks, crossings and driveways belong to the
+street beside them. The chosen street is drawn on the map. **City** and
+**district** are the containing outline. **State**, **county** and
+**landmass** are always Yes on this map — all of it is in California, in
+Alameda County (Contra Costa's line runs along the map's own edge in the
+hills), on one landmass — and the app says so before you spend one.
+
+**Measuring.** Distances to the nearest museum, park and so on, to the
+nearest **rail station**, and to the **county line**, which runs along the
+ridge. **Body of water** is any named water on the map — Aquatic Park's
+lagoons, the Botanical Garden's pond, and San Francisco Bay measured to its
+shoreline — excluding pools and fountains, per the card. **Sea level** is
+elevation from a terrain model (AWS terrain tiles, USGS 3DEP). Because height
+is not a distance, the engine divides it by the steepest slope anywhere in
+the hiding zone, which keeps the search exact. **Coastline** is null: by the
+rulebook's definition water only counts as coast if it reaches the ocean
+without narrowing under 2 km, and the Bay reaches it through the Golden Gate.
+High-speed rail, international and state borders are null too.
+
+**Tentacles** list what is in reach of the seeker. **Metro lines** are BART's
+Yellow, Orange and Red; Orange and Red share every metre of track here, so
+either is a true answer wherever one is. When nothing of the kind is in reach
+there is nothing to name, and the hider can only say whether they are within
+the distance — both answers are offered and both narrow exactly. Zoos,
+aquariums and amusement parks are null: none is on the map.
+
+**Radar** and **Thermometer** show the hider their distance from the ask and
+from both ends of the trip.
 
 Reference features are whatever falls inside the game map, because the
 rulebook says so: *"if locations are not within a map's boundaries, players
 must operate as if they do not exist"*, and the question comes back **null** —
-it still counts, the hider still draws, and it tells the seekers nothing. In
-the Berkeley zone that means commercial airports, zoos, aquariums, amusement
-parks, golf courses and consulates are all null, and the app marks them in
-the question list before you spend one. Museums, libraries, hospitals,
-cinemas, mountains, parks, named water and rail stations are live. Parks and
-bodies of water are measured to their map icon, as their cards say; the
-coastline is measured to itself.
-
-The cards it leaves alone, and says so in the feed: transit line, street or
-path, landmass, high-speed train line, international border, sea level, and
-the state and county divisions — the county line runs right along the
-Berkeley ridge and would be a good constraint, but the boundary data is not
-in the extract yet.
+it still counts, the hider still draws, and it tells the seekers nothing.
 
 Distances are the imperial edition's: a quarter-mile hiding zone for small
 and medium games, half a mile for large, hiding periods of 30, 60 and 180
@@ -270,6 +312,13 @@ To refresh against current OpenStreetMap data:
 ```
 python3 tools/fetch_osm.py      # re-runs the Overpass queries
 ```
+
+The companion's question data comes from three more files in `data/`,
+reduced by `tools/build_extras.py`: `fetched_2026-09.json` (every named and
+unnamed street and path, named parks and water, and the county line, from
+Overpass), `sidewalks_2026-09.json` (sidewalks, crossings and driveways,
+which are dropped from Street or path) and `terrain_2026-09.json` (the
+elevation grid for Sea level, sampled from AWS terrain tiles).
 
 Overpass is a shared public service; the fetch script pauses between
 queries and backs off on rate limits. The queries themselves are in
