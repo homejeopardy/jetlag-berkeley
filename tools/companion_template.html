@@ -157,6 +157,12 @@ details.curse .cn{margin-top:8px;font-size:13px;line-height:1.45;opacity:.75;bor
 .tag{display:inline-block;font-size:11px;padding:1px 6px;border:1px solid var(--ink-3);color:var(--ink-3);text-transform:uppercase;letter-spacing:.08em;margin-right:6px}
 .answers{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
 .answers .btn{font-size:18px;padding:12px}
+.answers .btn.sugg{outline:3px solid var(--green);outline-offset:2px}
+.refbox{margin-top:10px;padding:10px 12px;border-radius:10px;background:var(--chip-bg,rgba(127,127,127,.12));font-size:14px;line-height:1.35}
+.refbox b{font-weight:700}
+.refbox.nul{border-left:4px solid var(--red)}
+.refbox.ok{border-left:4px solid var(--green)}
+.refbox select{margin-top:6px;width:100%}
 /* nav */
 nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:4;display:flex;justify-content:center;background:var(--bg);border-top:1.5px solid var(--ink);padding:0 0 env(safe-area-inset-bottom,0px)}
 nav.tabs .in{display:flex;width:100%;max-width:720px}
@@ -183,36 +189,45 @@ nav.tabs button .n{position:absolute;top:6px;right:calc(50% - 26px);min-width:18
 #mapview.leaf{cursor:default}
 #mapview.drag{cursor:grabbing}
 #mapsvg{width:100%;height:100%;display:block}
-#mapsvg .m-road{fill:none;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke}
-#mapsvg .m-residential{stroke:#fff;stroke-width:.8px;opacity:.7}
-#mapsvg .m-tertiary{stroke:#fff;stroke-width:1.1px;opacity:.9}
-#mapsvg .m-secondary{stroke:#fff;stroke-width:2.1px}
-#mapsvg .m-primary{stroke:#fff;stroke-width:2.9px}
-#mapsvg .m-motorway{stroke:#B9B4A8;stroke-width:5px}
-#mapsvg .m-rail{stroke:#8F8A80;stroke-width:1.4px;stroke-dasharray:6 4}
-#mapsvg .m-cut{stroke:#15171B;stroke-width:9px;opacity:.13}
-#mapsvg .m-bart{fill:none;stroke:#F7941D;stroke-width:5px;vector-effect:non-scaling-stroke}
-#mapsvg .m-amtrak{fill:none;stroke:#1F3F8A;stroke-width:3px;vector-effect:non-scaling-stroke}
-#mapsvg .m-zone{fill:none;stroke:var(--zone-line);stroke-width:3px;stroke-dasharray:13 7;vector-effect:non-scaling-stroke;stroke-linejoin:round}
-#mapsvg .m-zone-glow{fill:none;stroke:var(--zone-glow);stroke-width:8px;vector-effect:non-scaling-stroke;stroke-linejoin:round}
-#mapsvg .m-oob{fill:#8C8A84;fill-opacity:.42;fill-rule:evenodd;pointer-events:none}
-#mapsvg .m-stop{fill:#fff;stroke:#15171B;stroke-width:1.5px;vector-effect:non-scaling-stroke;cursor:pointer}
-#mapsvg .m-stop.sel{fill:var(--yellow)}
-#mapsvg .m-ruled{fill:var(--ruled);fill-opacity:var(--ruled-op);pointer-events:none}
-#mapsvg .m-ansl{pointer-events:none;opacity:var(--hatch-op)}
-#mapsvg .m-zonering{fill:none;stroke:#15171B;stroke-width:1px;stroke-dasharray:4 4;opacity:.35;vector-effect:non-scaling-stroke;pointer-events:none}
-#mapsvg .m-con{fill:none;vector-effect:non-scaling-stroke;stroke-width:2px}
-#mapsvg .m-con.in{stroke:#1F8A5B;stroke-dasharray:6 4}
-#mapsvg .m-con.out{stroke:#D62828;stroke-dasharray:6 4}
-#mapsvg .m-con.thermo{stroke:#E4572E;stroke-dasharray:9 6}
-#mapsvg .m-leg{stroke:#E4572E;stroke-width:2px;vector-effect:non-scaling-stroke;opacity:.6}
-#mapsvg .m-from{fill:#15171B;stroke:#fff;stroke-width:2px;vector-effect:non-scaling-stroke}
-#mapsvg .m-label{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:11px;fill:#15171B;paint-order:stroke;stroke:#fff;stroke-width:4px;stroke-linejoin:round;text-transform:uppercase;letter-spacing:.04em;pointer-events:none;text-anchor:middle}
-#mapsvg .m-place{font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:10px;fill:#3C4048;letter-spacing:.12em;text-transform:uppercase;paint-order:stroke;stroke:#EDEAE1;stroke-width:3px;pointer-events:none;text-anchor:middle}
-#mapsvg .m-hz{fill:var(--hider);fill-opacity:.16;stroke:var(--hider);stroke-width:2.5px;vector-effect:non-scaling-stroke}
-#mapsvg .m-me{fill:#1E88E5;stroke:#fff;stroke-width:3px;vector-effect:non-scaling-stroke}
-#mapsvg .m-me-acc{fill:#1E88E5;fill-opacity:.15;stroke:none}
-#mapsvg .m-pin{fill:var(--red);stroke:#fff;stroke-width:2px;vector-effect:non-scaling-stroke;cursor:pointer}
+/* The drawing that scales with the map rides the compositor during a
+   gesture; the markers that must stay one size on screen live in their own
+   layer, re-placed every frame. */
+#mapview.leaf #mapsvg{will-change:transform}
+#mapfg{position:absolute;left:0;top:0;width:1px;height:1px;overflow:visible;pointer-events:none}
+.jlsvg .m-dot{fill:none;stroke-linecap:round;vector-effect:non-scaling-stroke}
+.jlsvg .m-dot.o{stroke:#15171B}
+.jlsvg .m-dot.i{stroke:#fff}
+.jlsvg .m-dot.s{stroke:var(--yellow)}
+.jlsvg .m-road{fill:none;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke}
+.jlsvg .m-residential{stroke:#fff;stroke-width:.8px;opacity:.7}
+.jlsvg .m-tertiary{stroke:#fff;stroke-width:1.1px;opacity:.9}
+.jlsvg .m-secondary{stroke:#fff;stroke-width:2.1px}
+.jlsvg .m-primary{stroke:#fff;stroke-width:2.9px}
+.jlsvg .m-motorway{stroke:#B9B4A8;stroke-width:5px}
+.jlsvg .m-rail{stroke:#8F8A80;stroke-width:1.4px;stroke-dasharray:6 4}
+.jlsvg .m-cut{stroke:#15171B;stroke-width:9px;opacity:.13}
+.jlsvg .m-bart{fill:none;stroke:#F7941D;stroke-width:5px;vector-effect:non-scaling-stroke}
+.jlsvg .m-amtrak{fill:none;stroke:#1F3F8A;stroke-width:3px;vector-effect:non-scaling-stroke}
+.jlsvg .m-zone{fill:none;stroke:var(--zone-line);stroke-width:3px;stroke-dasharray:13 7;vector-effect:non-scaling-stroke;stroke-linejoin:round}
+.jlsvg .m-zone-glow{fill:none;stroke:var(--zone-glow);stroke-width:8px;vector-effect:non-scaling-stroke;stroke-linejoin:round}
+.jlsvg .m-oob{fill:#8C8A84;fill-opacity:.42;fill-rule:evenodd;pointer-events:none}
+.jlsvg .m-stop{fill:#fff;stroke:#15171B;stroke-width:1.5px;vector-effect:non-scaling-stroke;cursor:pointer}
+.jlsvg .m-stop.sel{fill:var(--yellow)}
+.jlsvg .m-ruled{fill:var(--ruled);fill-opacity:var(--ruled-op);pointer-events:none}
+.jlsvg .m-ansl{pointer-events:none;opacity:var(--hatch-op)}
+.jlsvg .m-zonering{fill:none;stroke:#15171B;stroke-width:1px;stroke-dasharray:4 4;opacity:.35;vector-effect:non-scaling-stroke;pointer-events:none}
+.jlsvg .m-con{fill:none;vector-effect:non-scaling-stroke;stroke-width:2px}
+.jlsvg .m-con.in{stroke:#1F8A5B;stroke-dasharray:6 4}
+.jlsvg .m-con.out{stroke:#D62828;stroke-dasharray:6 4}
+.jlsvg .m-con.thermo{stroke:#E4572E;stroke-dasharray:9 6}
+.jlsvg .m-leg{stroke:#E4572E;stroke-width:2px;vector-effect:non-scaling-stroke;opacity:.6}
+.jlsvg .m-from{fill:#15171B;stroke:#fff;stroke-width:2px;vector-effect:non-scaling-stroke}
+.jlsvg .m-label{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:11px;fill:#15171B;paint-order:stroke;stroke:#fff;stroke-width:4px;stroke-linejoin:round;text-transform:uppercase;letter-spacing:.04em;pointer-events:none;text-anchor:middle}
+.jlsvg .m-place{font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:10px;fill:#3C4048;letter-spacing:.12em;text-transform:uppercase;paint-order:stroke;stroke:#EDEAE1;stroke-width:3px;pointer-events:none;text-anchor:middle}
+.jlsvg .m-hz{fill:var(--hider);fill-opacity:.16;stroke:var(--hider);stroke-width:2.5px;vector-effect:non-scaling-stroke}
+.jlsvg .m-me{fill:#1E88E5;stroke:#fff;stroke-width:3px;vector-effect:non-scaling-stroke}
+.jlsvg .m-me-acc{fill:#1E88E5;fill-opacity:.15;stroke:none}
+.jlsvg .m-pin{fill:var(--red);stroke:#fff;stroke-width:2px;vector-effect:non-scaling-stroke;cursor:pointer}
 #mapctl{position:absolute;right:10px;z-index:401;bottom:calc(52px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:6px}
 #mapctl button{width:40px;height:36px;border:1.5px solid var(--ink);background:var(--card);font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:15px;cursor:pointer;box-shadow:2px 2px 0 var(--ink);padding:0}
 #mapctl button.on{background:var(--yellow);color:#15171B}
@@ -260,7 +275,7 @@ table.sb th{font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;l
   <main id="main"></main>
   <div id="mapview" hidden>
     <div id="mapleaf"></div>
-    <svg id="mapsvg"></svg>
+    <svg id="mapsvg" class="jlsvg"></svg>
     <div id="mapbar">
       <button class="chip" id="mp-base" type="button"></button>
       <button class="chip on" id="mp-stops" type="button">Stops</button>
@@ -685,7 +700,7 @@ const CATS=[
   qs:[['½ mile',null,805],['3 miles',null,4828],['10 miles','M',16093],['50 miles','L',80467]]},
  {id:'photo',name:'Photo',fmt:'Send me a photo of ___.',draw:1,keep:1,ans:[],
   qs:[['Any building visible from your transit station'],['The widest street near you'],['A tree'],['The tallest structure in your current sightline'],['You (selfie)'],['The sky'],['Tallest building visible from your transit station','M'],['Trace your nearest street/path','M'],['2 buildings','M'],['A restaurant interior','M'],['A park','M'],['A grocery store aisle','M'],['A place of worship','M'],['Your train platform','M'],['½ mile of streets traced','L'],['Tallest mountain visible from your station','L'],['Biggest body of water in your zone','L'],['5 buildings','L']]},
- {id:'tentacle',name:'Tentacles',fmt:'Within ___ of me, which ___ are you nearest to?',draw:4,keep:2,ans:[],min:'M',
+ {id:'tentacle',name:'Tentacles',fmt:'Within ___ of me, which ___ are you nearest to?',draw:4,keep:2,ans:[],min:'M',loc:1,
   qs:[['Museums within 1 mile','M',1609,'museum'],['Libraries within 1 mile','M',1609,'library'],['Movie theaters within 1 mile','M',1609,'cinema'],['Hospitals within 1 mile','M',1609,'hospital'],['Metro lines within 15 miles','L',24140],['Zoos within 15 miles','L',24140,'zoo'],['Aquariums within 15 miles','L',24140,'aquarium'],['Amusement parks within 15 miles','L',24140,'theme_park']]},
 ];
 // Which questions the map can narrow, and against what. A question missing
@@ -695,12 +710,17 @@ const REF={
  'Commercial airport':'airport','Mountain':'peak','Amusement park':'theme_park',
  'Zoo':'zoo','Aquarium':'aquarium','Golf course':'golf','Museum':'museum',
  'Movie theater':'cinema','Hospital':'hospital','Library':'library',
- 'Foreign consulate':'consulate','Rail station':'station',
- 'Coastline':'@coast','Body of water':'water','Park':'park',
- 'Station name length (characters)':'#namelen',
+ 'Foreign consulate':'consulate','Rail station':'station','Park':'park',
+ 'Body of water':'#water','Sea level':'#sea',
+ 'Transit line':'#line','Station name length (characters)':'#namelen','Street or path':'#street',
+ '2nd administrative division (county)':'!county',
  '3rd administrative division (city)':'!city',
- '4th administrative division (district)':'!district'};
+ '4th administrative division (district)':'!district',
+ '2nd administrative division border (county)':'@countyline'};
 const NOT_IN_REACH='Not within reach';
+// When nothing of the kind is within reach of the seeker there is nothing to
+// name, and all the hider can truthfully say is whether they are in reach.
+const IN_REACH_NONE='Within reach — nothing to name';
 // "If locations are not within a map's boundaries, players must operate as if
 // they do not exist" — the answer is null. It still counts as a question and
 // the hider still draws, but it tells the seekers nothing.
@@ -740,6 +760,9 @@ let game=null, questions=[], messages=[], pins=[], photos={}, crossed={}, lobbyG
 let unsubs=[]; let lobbyUnsub=null;
 let askState={cat:null,q:null,custom:'',loc:null,locHow:''};
 let pickLoc=false;   // map is waiting for a tap to set the seeker's position
+// The hider's own position for working out an answer. It stays on this
+// phone: nothing about it is ever sent.
+let hiderAt=null;
 let thermoFinish={qid:null,loc:null,how:''};
 let seenCount=load('hs-seen-'+code)||0;
 // ---------- colours ----------
@@ -797,7 +820,8 @@ function fmtDist(m){
 // The seeker's own position, needed for radars, thermometers and measuring.
 // GPS first; if that is refused the map doubles as a position picker.
 function setLoc(which,xy,how){
-  if(which==='finish'){ thermoFinish.loc=xy; thermoFinish.how=how; }
+  if(which==='hider'){ hiderAt={loc:xy,how}; }
+  else if(which==='finish'){ thermoFinish.loc=xy; thermoFinish.how=how; }
   else { askState.loc=xy; askState.locHow=how; }
   render();
 }
@@ -884,15 +908,25 @@ async function sendQuestion(){
   if(mult>1&&!confirm('That question has been asked '+(mult-1)+(mult===2?' time':' times')+' already, so it costs '+MULT_WORD[mult]+': the hider draws '+(cat.draw*mult)+' and keeps '+(cat.keep*mult)+'.\n\nAsk it anyway?')) return;
   // Which reference points this question is about, so every phone narrows
   // the map the same way without re-deriving it from the wording.
-  const ref=cat.id==='tentacle'?(q[3]||null)
-    :(cat.id==='matching'||cat.id==='measuring')?(REF[text]||null):null;
+  const info=(cat.id==='radar'||cat.id==='thermo'||cat.id==='photo')?{}:Map3.qInfo(cat.id,text);
+  const ref=info.ref||null;
+  if(ref==='#line'&&!askState.line){ toast('Pick the line you are riding'); return; }
+  // The seeker's own side travels with the question, so the hider (and
+  // everyone reading the feed later) sees exactly what was compared.
+  let mine=null;
+  if(ref&&askState.loc&&!info.nul&&!info.always){
+    const r=Map3.sideAt(cat.id,text,askState.loc,{distM,line:askState.line,stn:askState.stn});
+    if(r&&!r.nul&&!r.always){ mine={txt:r.txt};
+      for(const k of ['n','d','du','v','id']) if(r[k]!=null) mine[k]=r[k];
+      if(r.list) mine.list=r.list.map(o=>({n:o.n,d:Math.round(o.d)})); }
+  }
   const body={cat:cat.id,catName:cat.name,fmt:cat.fmt,q:text,askedBy:me.name,askedAt:Date.now(),
     status:cat.two?'started':'pending',answer:'',answeredAt:null,photo:'',note:'',
-    draw:cat.draw*mult,keep:cat.keep*mult,mult:mult,ans:cat.ans,ref:ref,
+    draw:cat.draw*mult,keep:cat.keep*mult,mult:mult,ans:cat.ans,ref:ref,mine:mine,line:ref==='#line'?askState.line:null,
     loc:askState.loc||null,locHow:askState.locHow||'',loc2:null,distM:distM};
   try{
     await db.doc('games/'+code).collection('questions').add(body);
-    askState={cat:null,q:null,custom:'',loc:null,locHow:''};
+    askState={cat:null,q:null,custom:'',loc:null,locHow:'',line:null,stn:null};
     toast(cat.two?'Thermometer started — the hider has your starting point':'Sent to the hider');
     // Stay on Ask for a thermometer: the running card there is how you
     // finish it once you have travelled.
@@ -1086,16 +1120,33 @@ function ask(){
   return running+`<div class="card"><div class="row"><button class="btn sm ghost" id="btn-back">‹ Categories</button><h2 style="flex:1">${cat.name}</h2></div><p class="small muted">${esc(cat.fmt)}</p>
     ${cat.two?`<p class="small">Starting one sends the hider your position now. You then travel the distance and ask from where you end up.</p>`:''}
     <div class="qlist">${cat.qs.map((q,i)=>{ const ok=q[1]==='custom'||sizeOk(q[1]); if(!ok) return '';
-      const r=cat.id==='tentacle'?q[3]:REF[q[0]];
-      const nul=(cat.id==='matching'||cat.id==='measuring'||cat.id==='tentacle')&&refEmpty(r);
-      const tag=q[1]==='custom'?'custom':(nul?(r&&r[0]==='!'&&Map3.areaCount(r.slice(1))===1?'always yes':'null here'):'');
+      const inf=(cat.id==='matching'||cat.id==='measuring'||cat.id==='tentacle')?Map3.qInfo(cat.id,q[0]):{};
+      const tag=q[1]==='custom'?'custom':(inf.nul?'null here':inf.always?'always yes':'');
       const mu=q[1]==='custom'?1:multOf(cat.id,q[0]);
       const mtag=mu>1?`<span class="fmt" style="color:var(--hider)">${MULT_WORD[mu]} cost</span>`:'';
       return `<button class="q ${askState.q===i?'on':''}" data-q="${i}"><span>${esc(q[0])}</span>${mtag}<span class="fmt">${tag}</span></button>`; }).join('')}</div>
     ${sel&&sel[1]==='custom'?`<label class="f" for="ask-custom">Distance</label><input type="text" id="ask-custom" value="${esc(askState.custom)}" placeholder="e.g. 2 miles">`:''}
     ${cat.id==='photo'&&sel?photoCard(sel[0],false):''}
     ${needLoc?locRow('ask',askState.loc,askState.locHow):''}
-    <button class="btn primary block" id="btn-send" style="margin-top:12px" ${askState.q==null||(needLoc&&!askState.loc)?'disabled':''}>${cat.two?'Start thermometer':'Send to hider'}</button></div>`;
+    ${sel?refBox(cat,sel):''}
+    <button class="btn primary block" id="btn-send" style="margin-top:12px" ${askState.q==null||(needLoc&&!askState.loc)||(sel&&cat.id==='matching'&&REF[sel[0]]==='#line'&&!askState.line)?'disabled':''}>${cat.two?'Start thermometer':'Send to hider'}</button></div>`;
+}
+// The seeker's own side of the selected question, shown before it is sent.
+const SIDE_LABEL={matching:'Your nearest',measuring:'Yours',tentacle:'In reach of you'};
+function refBox(cat,sel){
+  if(cat.id==='radar'||cat.id==='thermo'||cat.id==='photo') return '';
+  const text=sel[0], info=Map3.qInfo(cat.id,text);
+  if(info.nul) return `<div class="refbox nul"><b>Null here.</b> ${esc(info.nul)} You can still ask it — it counts, and the hider still draws.</div>`;
+  if(info.always) return `<div class="refbox nul"><b>Always yes here.</b> ${esc(info.always)} It can't narrow anything.</div>`;
+  if(!askState.loc) return `<div class="refbox">Set your location to see ${cat.id==='matching'?'your nearest '+esc(text.toLowerCase()):'your side of this'}.</div>`;
+  const r=Map3.sideAt(cat.id,text,askState.loc,{distM:sel[2],line:askState.line,stn:askState.stn});
+  if(!r) return '';
+  if(r.nul) return `<div class="refbox nul">${esc(r.nul)}</div>`;
+  if(info.ref==='#line') return `<div class="refbox ${askState.line?'ok':''}"><b>The line you're riding</b><select id="ask-line"><option value="">— pick it —</option>${r.options.map(l=>`<option value="${esc(l)}" ${askState.line===l?'selected':''}>${esc(Map3.lineName(l))}</option>`).join('')}</select><div class="small muted" style="margin-top:6px">The card only works while you're on it and it's moving. Lines stopping near you are listed first. Yes means it stops at their station.</div></div>`;
+  if(info.ref==='#namelen') return `<div class="refbox ok"><b>Your station:</b> ${esc(r.txt)}<select id="ask-stn">${r.options.map(o=>`<option value="${o.i}" ${o.i===r.id?'selected':''}>${esc(o.n)} — ${o.n.length} ch · ${fmtDist(o.d)}</option>`).join('')}</select><div class="small muted" style="margin-top:6px">Spaces and hyphens count. Yes means their hiding station's name is the same length.</div></div>`;
+  const lab=info.ref==='#sea'?'Your elevation':info.ref==='#water'?'Your nearest body of water':info.ref==='@countyline'?'Your distance':info.ref==='#street'?'Your nearest street or path':info.ref&&info.ref[0]==='!'?'You are in':(cat.id==='measuring'?'Your nearest':SIDE_LABEL[cat.id]);
+  if(cat.id==='tentacle'&&r.list&&!r.list.length) return `<div class="refbox nul"><b>${esc(lab)}:</b> ${esc(r.txt)}. With nothing to name, the hider can only tell you whether they're within ${fmtDist(sel[2])} of you.</div>`;
+  return `<div class="refbox ok"><b>${esc(lab)}:</b> ${esc(r.txt)}</div>`;
 }
 function inbox(n){
   const pend=questions.filter(q=>q.status==='pending');
@@ -1107,25 +1158,58 @@ function inbox(n){
     <button class="btn block" id="btn-msg" style="margin-top:8px">Send</button></div>`;
   return h;
 }
+// Works out the hider's answer from where they are — their hiding station
+// by default, or GPS / a tap on the map for where they actually stand.
+function hiderHelp(q){
+  if(q.cat==='photo') return {html:''};
+  const hz=Map3.hideStop();
+  const at=hiderAt||(hz?{loc:[hz.x,hz.y],how:'your hiding station ('+hz.n+')'}:null);
+  const s=Map3.suggest(q,at&&at.loc,hz);
+  const where=`<div class="row" style="margin-top:6px;gap:6px"><button class="btn sm" data-gps="hider">Use my GPS</button><button class="btn sm" data-pick="hider">Pick on map</button>${hiderAt&&hz?`<button class="btn sm" data-hstn="1">Use my station</button>`:''}</div>`;
+  let h=`<div class="refbox ${s&&s.ans?'ok':''}"><b>Your side</b>${at?` <span class="small muted">— from ${esc(at.how)}</span>`:''}<br>`;
+  if(!at&&!(s&&s.why)) h+=`Set your hiding station on the map, or use GPS, and the app works out your answer.`;
+  else if(s){ h+=esc(s.why||''); if(s.ans) h+=`<br>Answer: <b>${esc(q.ref==='#metro'?Map3.lineName(s.ans):s.ans)}</b>`; }
+  h+=where+`<div class="small muted" style="margin-top:4px">Your position never leaves this phone.</div></div>`;
+  return {html:h,ans:s&&s.ans};
+}
+// The question as a sentence: both blanks of a matching card are the same
+// thing; a tentacle card's two blanks are its distance and its kind.
+function qSentence(q){
+  const m=q.cat==='tentacle'&&String(q.q).match(/^(.*) within (.*)$/);
+  if(m) return 'Within <b>'+esc(m[2])+'</b> of me, which of the <b>'+esc(m[1].toLowerCase())+'</b> are you nearest to?';
+  const SPECIAL={'Transit line':'Does the <b>line I’m riding</b> stop at your station?',
+    'Station name length (characters)':'Is your station’s name the <b>same length</b> as mine?',
+    'Street or path':'Is your nearest <b>street or path</b> the same as mine?',
+    'Landmass':'Are you on the same <b>landmass</b> as me?'};
+  if(q.cat==='matching'&&SPECIAL[q.q]) return SPECIAL[q.q];
+  const adm=q.cat==='matching'&&String(q.q).match(/administrative division \((\w+)\)$/);
+  if(adm) return 'Are you in the same <b>'+esc(adm[1])+'</b> as me?';
+  return esc(q.fmt).replace(/___/g,'<b>'+esc(q.q)+'</b>');
+}
 const photoSrc=q=>q.photo?'/_blob/'+q.photo:(q.photoDoc?photos[q.photoDoc]:null);
 function qCard(q,mine){
   const pending=q.status==='pending';
   const started=q.status==='started';
   let body=`<div class="msg ${pending||started?'pending':''} ${pending&&mine?'mine-to-answer':''}"><div class="who"><span><span class="tag">${esc(q.catName)}</span>${esc(q.askedBy)}</span><time>${fmtClock(q.askedAt)}</time></div>
-    <div class="txt">${started?`Starting a thermometer — travelling <b>${esc(q.q)}</b>`:esc(q.fmt).replace('___','<b>'+esc(q.q)+'</b>')}</div>`;
+    <div class="txt">${started?`Starting a thermometer — travelling <b>${esc(q.q)}</b>`:qSentence(q)}</div>`;
   if(q.loc) body+=`<div class="small muted">From ${esc(Map3.near(q.loc))}${q.loc2?` to ${esc(Map3.near(q.loc2))}${q.travelled?` · ${fmtDist(q.travelled)} apart`:''}`:''}</div>`;
+  if(q.line) body+=`<div class="small">Riding: <b>${esc(Map3.lineName(q.line))}</b></div>`;
+  else if(q.mine&&q.mine.txt) body+=`<div class="small">Theirs: <b>${esc(q.mine.txt)}</b></div>`;
   if(started){ body+=`<p class="small muted">${mine?'Waiting for them to travel and ask.':'Travel the distance, then ask from the Ask tab.'}</p>`; return body+'</div>'; }
   // Everyone can see what the photo has to show; the hider gets it open below.
   if(q.cat==='photo'&&!(pending&&mine)&&PHOTO_SPEC[q.q]) body+=`<details class="small" style="margin-top:6px"><summary>Show the card</summary>${photoCard(q.q,false)}</details>`;
   if(pending&&mine){
     body+=`<p class="small muted">Draw ${q.draw}, keep ${q.keep} — answer first, then log the card you kept in Hand.</p>`;
-    if(q.ans&&q.ans.length) body+=`<div class="answers">${q.ans.map(a=>`<button class="btn primary" data-ans="${esc(a)}" data-qid="${q.id}">${esc(a)}</button>`).join('')}</div>`;
+    const hs=hiderHelp(q);
+    body+=hs.html;
+    if(q.ans&&q.ans.length) body+=`<div class="answers">${q.ans.map(a=>`<button class="btn primary ${hs.ans===a?'sugg':''}" data-ans="${esc(a)}" data-qid="${q.id}">${esc(a)}</button>`).join('')}</div>`;
     else if(q.cat==='photo') body+=`${photoCard(q.q,true)}<div class="row" style="margin-top:8px"><label class="btn primary" style="display:inline-block">Take / choose photo<input type="file" accept="image/*" capture="environment" data-photo="${q.id}" hidden></label><button class="btn" data-ans="${CANNOT_PHOTO}" data-qid="${q.id}">${CANNOT_PHOTO}</button></div>
       <div class="row" style="margin-top:6px"><button class="btn sm ghost" data-textans="${q.id}">Camera not working? Describe it instead</button></div>
       <div class="row" id="ta-row-${q.id}" hidden style="margin-top:8px"><input type="text" class="grow" id="ta-${q.id}" placeholder="Describe what the photo would show"><button class="btn primary" data-sendtext="${q.id}">Answer</button></div>
       <p class="small muted">Photo time limit: ${SIZES[game.size].photo} min.</p>`;
     else { const opts=q.cat==='tentacle'?Map3.tentacleOptions(q):[];
-      if(opts.length) body+=`<div class="answers">${opts.map(o=>`<button class="btn primary" data-ans="${esc(o)}" data-qid="${q.id}">${esc(o)}</button>`).join('')}<button class="btn" data-ans="${NOT_IN_REACH}" data-qid="${q.id}">${NOT_IN_REACH}</button></div><p class="small muted">The ones within range of where they asked, nearest to them first. You have to be inside that range yourself — if you are not, say so.</p>`;
+      if(opts.length) body+=`<div class="answers">${opts.map(o=>`<button class="btn primary ${hs.ans===o?'sugg':''}" data-ans="${esc(o)}" data-qid="${q.id}">${esc(q.ref==='#metro'?Map3.lineName(o):o)}</button>`).join('')}<button class="btn ${hs.ans===NOT_IN_REACH?'sugg':''}" data-ans="${NOT_IN_REACH}" data-qid="${q.id}">${NOT_IN_REACH}</button></div><p class="small muted">The ones within range of where they asked, nearest to them first. You have to be inside that range yourself — if you are not, say so.</p>`;
+      else if(q.cat==='tentacle') body+=`<div class="answers"><button class="btn ${hs.ans===IN_REACH_NONE?'sugg':''}" data-ans="${IN_REACH_NONE}" data-qid="${q.id}">${IN_REACH_NONE}</button><button class="btn ${hs.ans===NOT_IN_REACH?'sugg':''}" data-ans="${NOT_IN_REACH}" data-qid="${q.id}">${NOT_IN_REACH}</button></div><p class="small muted">Nothing of that kind is within reach of where they asked, so there's nothing to name — only whether you're in reach.</p>`;
       body+=`<div class="row" style="margin-top:8px"><input type="text" class="grow" id="ta-${q.id}" placeholder="${opts.length?'Something else':'Your answer'}"><button class="btn primary" data-sendtext="${q.id}">Answer</button></div>`; }
     body+=`<div class="row" style="margin-top:8px"><button class="btn sm" data-veto="${q.id}">Veto (uses a Veto card)</button></div>`;
   } else if(pending){ body+=`<p class="small muted">Waiting for the hider…</p>`; }
@@ -1198,7 +1282,12 @@ function gameTab(){
 
 // ---------- wiring ----------
 function wire(){
-  const on=(sel,ev,fn)=>document.querySelectorAll(sel).forEach(el=>el.addEventListener(ev,fn));
+  // Each element is bound once per selector and event. Most of what this
+  // wires is rebuilt on every render, but the tab bar is not: binding it
+  // again on each render stacked one more render onto every tap, so taps
+  // got exponentially slower as a round went on.
+  const on=(sel,ev,fn)=>document.querySelectorAll(sel).forEach(el=>{ const k='__on '+ev+' '+sel;
+    if(el[k]) return; el[k]=1; el.addEventListener(ev,fn); });
   on('#me-name','input',e=>{ me.name=e.target.value.trim(); save('hs-me',me); });
   on('[data-role]','click',e=>{ me.role=e.currentTarget.dataset.role; save('hs-me',me); render(); });
   on('#new-size button','click',e=>{ document.querySelectorAll('#new-size button').forEach(b=>b.classList.toggle('on',b===e.currentTarget)); });
@@ -1217,10 +1306,13 @@ function wire(){
   on('#sel-hider','change',e=>patch({hider:e.target.value}));
   on('#sel-zone button','click',e=>{ const z=e.currentTarget.dataset.zone; patch({zone:z}); document.querySelectorAll('#sel-zone button').forEach(b=>b.classList.toggle('on',b===e.currentTarget)); });
   on('#btn-note','click',()=>{ patch({note:$('#game-note').value}); toast('Saved'); });
-  on('[data-cat]','click',e=>{ askState={cat:e.currentTarget.dataset.cat,q:null,custom:''}; render(); });
+  on('[data-cat]','click',e=>{ askState={cat:e.currentTarget.dataset.cat,q:null,custom:'',loc:askState.loc||null,locHow:askState.locHow||''}; render(); });
   on('#btn-back','click',()=>{ askState={cat:null,q:null,custom:'',loc:null,locHow:''}; render(); });
-  on('[data-q]','click',e=>{ askState.q=+e.currentTarget.dataset.q; render(); const c=$('#ask-custom'); if(c) c.focus(); });
+  on('[data-q]','click',e=>{ askState.q=+e.currentTarget.dataset.q; askState.line=null; askState.stn=null; render(); const c=$('#ask-custom'); if(c) c.focus(); });
   on('#ask-custom','input',e=>{ askState.custom=e.target.value; });
+  on('#ask-line','change',e=>{ askState.line=e.target.value||null; render(); });
+  on('#ask-stn','change',e=>{ askState.stn=+e.target.value; render(); });
+  on('[data-hstn]','click',()=>{ hiderAt=null; render(); });
   on('#btn-send','click',sendQuestion);
   on('[data-gps]','click',e=>useGps(e.currentTarget.dataset.gps));
   on('[data-pick]','click',e=>pickOnMap(e.currentTarget.dataset.pick));
@@ -1289,6 +1381,10 @@ const Map3=(function(){
 const NS='http://www.w3.org/2000/svg';
 const R=6378137;
 let svg=null, root=null, gStops=null, gDyn=null, gRes=null, gShade=null, shadeKey='', built=null, vb=null, zonePath=null, scaled=[], fitW=0;
+// Foreground: stations, labels, pins, your position, answer markers. Under
+// Leaflet it is its own SVG in its own pane, re-placed on every frame of a
+// zoom so it never swells and snaps back; without Leaflet it sits in root.
+let fgSvg=null, fgRoot=null, dotO=null, dotI=null, dotS=null, dynCS=[], fgPx=0;
 let sel=null, pinMode=false, zoneMode=false, watchId=null, fix=null;
 let showCircles=!!load('hs-circles');
 
@@ -1357,13 +1453,19 @@ function build(){
   }
   gShade=el('g',{},root); shadeKey='';
   gAns=el('g',{class:'m-ansl'},root); ansKey='';
-  gStops=el('g',{},root);
   gCons=el('g',{},root);
-  for(let i=0;i<m.stops.length;i++){ const st=m.stops[i];
-    el('circle',{cx:st[0],cy:st[1],r:3,class:'m-stop','data-i':i},gStops); }
+  if(fgSvg){ fgSvg.innerHTML=''; fgRoot=el('g',{},fgSvg); } else fgRoot=el('g',{},root);
+  // Every station is one dot of a single path: a round-capped stroke with a
+  // screen-space width, so it keeps its size at any zoom without touching
+  // 700 elements per frame.
+  gStops=el('g',{},fgRoot);
+  const dots=m.stops.map(st=>'M'+st[0]+' '+st[1]+'h.01').join('');
+  dotO=el('path',{d:dots,class:'m-dot o'},gStops);
+  dotI=el('path',{d:dots,class:'m-dot i'},gStops);
+  dotS=el('path',{d:'',class:'m-dot s'},gStops);
   // Markers and type are counter-scaled so they stay a readable size on
   // screen however far the map is zoomed out.
-  const gl=el('g',{},root);
+  const gl=el('g',{},fgRoot);
   for(const st of m.stations){ const g=el('g',{},gl); scaled.push({g,x:st.x,y:st.y});
     if(st.kind==='amtrak') el('rect',{x:-6,y:-6,width:12,height:12,fill:'#fff',stroke:'#1F3F8A','stroke-width':3},g);
     else { el('circle',{r:6.5,fill:'#fff',stroke:'#15171B','stroke-width':3},g); el('circle',{r:2.5,fill:'#15171B'},g); }
@@ -1371,7 +1473,7 @@ function build(){
   for(const pl of (m.places||[])){ if(pl.k!=='hood'&&pl.k!=='campus') continue;
     const g=el('g',{},gl); scaled.push({g,x:pl.x,y:pl.y,place:true});
     el('text',{class:'m-place'},g).textContent=pl.n; }
-  gDyn=el('g',{},root);
+  gDyn=el('g',{},fgRoot); fgPx=0;
   built=zoneKey();
   if(lmap){ lrend.redraw&&lrend.redraw(); syncTransform(); setBasemap(basemap,true); }
   fit();
@@ -1383,19 +1485,33 @@ function syncTransform(){
   lscale=256*Math.pow(2,z)/(2*Math.PI*R);
   const p=lmap.project(unprojLL(0,0),z).subtract(lmap.getPixelOrigin());
   root.setAttribute('transform','translate('+p.x+' '+p.y+') scale('+lscale+')');
-  scaleBits(lscale,z);
+  if(gRes) gRes.style.display=z>=15?'':'none';
+  fgFrame();
 }
+// One frame of the foreground: where map unit (0,0) lands, and how big a
+// map unit is, at this instant of the gesture.
+function fgFrame(){
+  if(!lmap||!fgRoot||!fgSvg) return;
+  const z=lmap.getZoom(), px=256*Math.pow(2,z)/(2*Math.PI*R);
+  const p=lmap.project(unprojLL(0,0),z).subtract(lmap.getPixelOrigin());
+  fgRoot.setAttribute('transform','translate('+p.x+' '+p.y+') scale('+px+')');
+  fgSync(px,z>=14);
+}
+function fgSync(px,showPlaces){
+  const inv=1/px;
+  if(dotO&&px!==fgPx){ const r=Math.max(2.4,Math.min(6,px*45));
+    dotO.setAttribute('stroke-width',2*r+3); dotI.setAttribute('stroke-width',2*r); dotS.setAttribute('stroke-width',2*r); }
+  if(px!==fgPx){
+    for(const sc of scaled){ sc.g.setAttribute('transform','translate('+sc.x+' '+sc.y+') scale('+inv+')');
+      if(sc.place) sc.g.style.display=showPlaces?'':'none'; }
+    for(const sc of dynCS) sc.g.setAttribute('transform','translate('+sc.x+' '+sc.y+') scale('+inv+')');
+  }
+  fgPx=px;
+}
+function setSel(i){ if(!dotS) return; const st=i>=0?M().stops[i]:null; dotS.setAttribute('d',st?'M'+st[0]+' '+st[1]+'h.01':''); }
 // Everything that has to keep a constant size on screen, and the two layers
 // that only earn their space once you are zoomed in.
-function scaleBits(px,z){
-  const inv=1/px;
-  if(gStops) for(const c of gStops.children) c.setAttribute('r',Math.max(2.4,Math.min(6,px*45))*inv);
-  const showPlaces=z>=14;
-  if(gRes) gRes.style.display=z>=15?'':'none';
-  for(const sc of scaled){ sc.g.setAttribute('transform','translate('+sc.x+' '+sc.y+') scale('+inv+')');
-    if(sc.place) sc.g.style.display=showPlaces?'':'none'; }
-  redraw();
-}
+
 function setBasemap(k,quiet){
   if(!BASEMAPS[k]) k='street';
   basemap=k; save('hs-basemap',k);
@@ -1414,11 +1530,13 @@ function setBasemap(k,quiet){
 function initLeaflet(){
   if(lmap||!window.L) return false;
   const host=document.getElementById('mapleaf');
-  // Continuous zoom: nothing snaps to a whole level at the end of a pinch or
-  // a wheel, which is what made it lurch. The overlay rides Leaflet's own
-  // zoom animation, and everything heavy is redrawn only once it settles.
+  // Every zoom — wheel, trackpad, pinch, double-tap, the buttons — moves the
+  // map frame by frame through one path (smoothZoom below, or Leaflet's own
+  // pinch), never by a CSS jump between two levels. Leaflet's wheel and
+  // double-click handlers are off because each one fires a fresh 250 ms
+  // animation that the next wheel tick interrupts: that was the lurch.
   lmap=L.map(host,{zoomControl:false,attributionControl:true,preferCanvas:false,
-    zoomSnap:0,zoomDelta:0.75,wheelPxPerZoomLevel:110,wheelDebounceTime:20,
+    zoomSnap:0,zoomDelta:1,zoomAnimation:false,scrollWheelZoom:false,doubleClickZoom:false,
     bounceAtZoomLimits:false,inertia:true,inertiaDeceleration:2600,easeLinearity:0.2,
     maxZoom:20,minZoom:9});
   // Leaflet refuses to place layers or tiles before it has a view, so give it
@@ -1442,7 +1560,20 @@ function initLeaflet(){
     }
   });
   lrend=new Rend({padding:0.35}); lmap.addLayer(lrend);
-  lmap.on('zoomend viewreset moveend resize',syncTransform);
+  // The foreground layer, in its own pane above the drawing.
+  const pane=lmap.createPane('jlfg'); pane.style.zIndex=450; pane.style.pointerEvents='none';
+  fgSvg=document.createElementNS('http://www.w3.org/2000/svg','svg');
+  fgSvg.setAttribute('id','mapfg'); fgSvg.setAttribute('class','jlsvg'); pane.appendChild(fgSvg);
+  lmap.on('viewreset resize',syncTransform);
+  lmap.on('zoomend moveend',()=>{ syncTransform(); redraw(); });
+  // Mid-gesture the drawing is scaled by the compositor and the foreground is
+  // re-placed; the drawing is redrawn once the gesture ends. Redrawing it
+  // mid-gesture costs a frame every time (measured: that was every hitch
+  // left), so it only happens when zooming out has shrunk it past the edge
+  // of what was drawn — a gap is worse than a skipped frame.
+  lmap.on('zoom',()=>{ fgFrame();
+    if(lrend._zoom!=null&&lmap.getZoomScale(lmap.getZoom(),lrend._zoom)<0.6) lrend._update(); });
+  bindZoom(host);
   lmap.on('click',onMapClick);
   for(const id of ['mapbar','mapctl','maptip','mappanel']){ const e=document.getElementById(id);
     if(e){ L.DomEvent.disableClickPropagation(e); L.DomEvent.disableScrollPropagation(e); } }
@@ -1450,6 +1581,59 @@ function initLeaflet(){
   return true;
 }
 
+// ---------- smooth zoom ----------
+// One controller for every zoom that isn't a two-finger pinch. It keeps the
+// point under the cursor (or the centre) fixed, eases towards a target zoom
+// on each animation frame, and moves the map with Leaflet's own per-frame
+// _move — the same call its pinch handler makes — then ends with one
+// zoomend. A trackpad pinch (ctrl + wheel) and a trackpad scroll are
+// followed directly, since they already arrive as a smooth stream; a mouse
+// wheel's notches are eased.
+const ZC={target:0,anchor:null,ll:null,raf:0,idle:0,active:false,ease:0.3};
+function zoomToward(z,pt,ease){
+  if(!lmap) return;
+  z=Math.max(lmap.getMinZoom(),Math.min(lmap.getMaxZoom(),z));
+  if(!ZC.active){ lmap._stop(); lmap._moveStart(true,false); ZC.active=true; }
+  ZC.target=z; ZC.anchor=pt; ZC.ll=lmap.containerPointToLatLng(pt); ZC.ease=ease;
+  clearTimeout(ZC.idle);
+  if(!ZC.raf) ZC.raf=requestAnimationFrame(zoomStep);
+}
+function zoomStep(){
+  ZC.raf=0; if(!lmap) return;
+  const z0=lmap.getZoom();
+  let z=z0+(ZC.target-z0)*ZC.ease;
+  if(Math.abs(ZC.target-z)<0.003) z=ZC.target;
+  const half=lmap.getSize().divideBy(2);
+  const c=lmap.unproject(lmap.project(ZC.ll,z).subtract(ZC.anchor.subtract(half)),z);
+  lmap._move(c,z,{pinch:true,round:false});
+  if(z!==ZC.target) ZC.raf=requestAnimationFrame(zoomStep);
+  else ZC.idle=setTimeout(zoomDone,140);
+}
+function zoomDone(){ if(ZC.raf||!ZC.active) return; ZC.active=false; lmap._moveEnd(true); }
+function bindZoom(host){
+  host.addEventListener('wheel',e=>{
+    e.preventDefault(); e.stopPropagation();
+    let dy=e.deltaY; if(e.deltaMode===1) dy*=16; else if(e.deltaMode===2) dy*=400;
+    const pt=lmap.mouseEventToContainerPoint(e);
+    const base=ZC.active?ZC.target:lmap.getZoom();
+    // ctrl+wheel is a trackpad pinch: Chrome and Safari report it as the log
+    // of the scale x100, so this makes the map follow the fingers exactly.
+    if(e.ctrlKey) zoomToward(base-dy/(100*Math.LN2),pt,1);
+    // a notched mouse wheel: about half a level a notch, eased
+    else if(Math.abs(dy)>=50&&Number.isInteger(dy)) zoomToward(base-dy/200,pt,0.28);
+    // a trackpad two-finger scroll: a fine stream, followed closely
+    else zoomToward(base-dy/220,pt,0.6);
+  },{passive:false});
+  host.addEventListener('dblclick',e=>{
+    if(e.target.closest('#mapctl,#mapbar,#maptip,#mappanel')) return;
+    e.preventDefault(); const pt=lmap.mouseEventToContainerPoint(e);
+    zoomToward((ZC.active?ZC.target:lmap.getZoom())+(e.shiftKey?-1:1),pt,0.22);
+  });
+}
+function zoomBy(dz){
+  if(!lmap) return; const pt=lmap.getSize().divideBy(2);
+  zoomToward((ZC.active?ZC.target:lmap.getZoom())+dz,pt,0.22);
+}
 function fit(){
   // Frame the game zone, not the whole basemap: on a phone the zone is what
   // you are actually looking at.
@@ -1457,7 +1641,14 @@ function fit(){
   if(lmap){
     let x=m.vb[0],y=m.vb[1],w=m.vb[2],h=m.vb[3];
     if(zonePath){ try{ const b=zonePath.getBBox(); if(b.width){x=b.x;y=b.y;w=b.width;h=b.height;} }catch(e){} }
-    lmap.fitBounds(L.latLngBounds(unprojLL(x,y),unprojLL(x+w,y+h)),{padding:[14,14],animate:!!fitDone}); fitDone=1;
+    const bb=L.latLngBounds(unprojLL(x,y),unprojLL(x+w,y+h));
+    if(fitDone){ const t=lmap._getBoundsCenterZoom(bb,{padding:[14,14]});
+      // flyTo divides by the distance travelled, so a view that is already
+      // there must not be flown to.
+      const d=lmap.project(t.center,t.zoom).distanceTo(lmap.project(lmap.getCenter(),t.zoom));
+      if(d>0.5||Math.abs(t.zoom-lmap.getZoom())>0.01) lmap.flyTo(t.center,t.zoom,{duration:0.6}); }
+    else lmap.fitBounds(bb,{padding:[14,14],animate:false});
+    fitDone=1;
     syncTransform(); return;
   }
   const r=svg.getBoundingClientRect();
@@ -1477,16 +1668,13 @@ function apply(){
   const r=svg.getBoundingClientRect();
   const px=(r.width||1)/vb.w;               // screen px per map unit
   const inv=1/px;
-  const rad=Math.max(2.4,Math.min(6,px*45))*inv;
-  for(const c of gStops.children) c.setAttribute('r',rad);
   // Neighbourhood names only earn their space once you are zoomed in past
   // the whole-zone view, where they would otherwise sit on the stations.
   const showPlaces=fitW?vb.w<fitW*0.62:true;
   // The minor street network is only legible zoomed in, and drawing it at
   // the whole-zone view just greys the map out.
   if(gRes) gRes.style.display=(fitW&&vb.w>fitW*0.38)?'none':'';
-  for(const sc of scaled){ sc.g.setAttribute('transform',`translate(${sc.x} ${sc.y}) scale(${inv})`);
-    if(sc.place) sc.g.style.display=showPlaces?'':'none'; }
+  fgPx=0; fgSync(px,showPlaces);
   redraw();
 }
 function client2map(cx,cy){
@@ -1506,28 +1694,29 @@ function zoomAt(f,cx,cy){
 // Dynamic overlay: hiding zone, pins, your fix.
 function redraw(){
   if(!gDyn||(!lmap&&!vb)) return;
-  gDyn.innerHTML='';
-  const px=lmap?lscale:((svg.getBoundingClientRect().width||1)/(vb?vb.w:1));
+  gDyn.innerHTML=''; dynCS=[];
+  const px=lmap?256*Math.pow(2,lmap.getZoom())/(2*Math.PI*R):((svg.getBoundingClientRect().width||1)/(vb?vb.w:1));
+  const cs=(x,y,a)=>{ const g=el('g',Object.assign({},a||{}),gDyn); dynCS.push({g,x,y}); return g; };
   syncShade();
   const hz=load(hideKey());
   if(hz&&isHider()){
     const rad=metres(HIDE_RADIUS[(game&&game.size)||'S'],hz.y);
     el('circle',{cx:hz.x,cy:hz.y,r:rad,class:'m-hz'},gDyn);
   }
+  // Pins, your position and answer markers are drawn in screen pixels
+  // inside a group that is counter-scaled every frame.
   for(const p of pins){
-    const g=el('g',{transform:`translate(${p.x} ${p.y})`,'data-pin':p.id},gDyn);
-    el('circle',{r:7/px,class:'m-pin'},g);
-    // Sized in map units so it lands at a constant size on screen.
-    // Inline style, because the class's font-size would win over a
-    // presentation attribute and leave the label microscopic.
-    const t=el('text',{class:'m-place',y:-11/px},g);
-    t.style.fontSize=(11/px)+'px'; t.textContent=p.label||'';
+    const g=cs(p.x,p.y,{'data-pin':p.id});
+    el('circle',{r:7,class:'m-pin'},g);
+    const t=el('text',{class:'m-place',y:-11},g);
+    t.style.fontSize='11px'; t.textContent=p.label||'';
   }
   if(fix){
     el('circle',{cx:fix.x,cy:fix.y,r:metres(fix.acc,fix.y),class:'m-me-acc'},gDyn);
-    el('circle',{cx:fix.x,cy:fix.y,r:7/px,class:'m-me'},gDyn);
+    el('circle',{r:7,class:'m-me'},cs(fix.x,fix.y));
   }
-  syncAnswers(); sizeHatch(px); drawMarkers(gDyn,px);
+  syncAnswers(); drawMarkers(cs);
+  fgPx=0; fgSync(px,lmap?lmap.getZoom()>=14:true);
   const keep=survivors(), chip=document.getElementById('mp-count');
   if(chip){
     if(keep){ let left=0; for(let i=0;i<keep.length;i++) left+=keep[i];
@@ -1639,11 +1828,11 @@ function nearPin(x,y,px){
 }
 function tapAt(x,y){
   if(pickLoc){ const which=pickLoc; pickLoc=false;
-    setLoc(which,[Math.round(x),Math.round(y)],'map');
-    tab='ask'; save('hs-tab',tab); render(); toast('Location set'); return; }
+    tab='ask'; save('hs-tab',tab);
+    setLoc(which,[Math.round(x),Math.round(y)],'map'); toast('Location set'); return; }
   if(pinMode){ pinMode=false;
     document.getElementById('mp-pin').classList.remove('on'); askPin(x,y); return; }
-  const px=lmap?lscale:((svg.getBoundingClientRect().width||1)/(vb?vb.w:1));
+  const px=lmap?256*Math.pow(2,lmap.getZoom())/(2*Math.PI*R):((svg.getBoundingClientRect().width||1)/(vb?vb.w:1));
   const i=nearStop(x,y,px);
   if(i>=0){
     if(zoneMode&&isHider()){ const st=M().stops[i]; save(hideKey(),{x:st[0],y:st[1],n:st[2]}); zoneMode=false;
@@ -1653,7 +1842,7 @@ function tapAt(x,y){
   const pn=nearPin(x,y,px);
   if(pn){ tip('<b>'+esc(pn.label||'Pin')+'</b><span class="r">'+esc(pn.by||'')+'</span>'+
     (pn.by===me.name?'<div class="act"><button data-delpin="'+pn.id+'">Remove</button></div>':'')); return; }
-  sel=null; if(gStops) for(const c of gStops.children) c.classList.remove('sel'); tip(null);
+  sel=null; setSel(-1); tip(null);
 }
 function onMapClick(e){ const p=project(e.latlng.lng,e.latlng.lat); tapAt(p[0],p[1]); }
 function tip(html){ const t=document.getElementById('maptip'); if(!html){t.style.display='none';return;} t.innerHTML=html; t.style.display='block'; }
@@ -1661,7 +1850,7 @@ function showStop(i){
   const s=M().stops[i];
   sel=i; listSel=i;
   if(panelTab==='list') drawPanel();
-  for(const c of gStops.children) c.classList.toggle('sel',+c.dataset.i===i);
+  setSel(i);
   const routes=s[3]?`<span class="r">${esc(s[3].split(';').join(' · '))}</span>`:'<span style="opacity:.7">no route data</span>';
   const off=!!crossed[i];
   let act=`<div class="act"><button data-cross="${i}">${off?'Bring back':'Rule out'}</button>`;
@@ -1759,8 +1948,8 @@ function bind(){
   document.getElementById('mp-pin').addEventListener('click',e=>{ pinMode=e.currentTarget.classList.toggle('on'); zoneMode=false; document.getElementById('mp-zone').classList.remove('on'); if(pinMode) toast('Tap the map to place a pin'); });
   document.getElementById('mp-zone').addEventListener('click',e=>{ zoneMode=e.currentTarget.classList.toggle('on'); pinMode=false; document.getElementById('mp-pin').classList.remove('on'); if(zoneMode) toast('Tap the stop you are hiding near'); });
   document.getElementById('mp-loc').addEventListener('click',locate);
-  document.getElementById('mp-in').addEventListener('click',()=>{ if(lmap) lmap.zoomIn(0.75,{animate:true}); else {const r=svg.getBoundingClientRect();zoomAt(1.6,r.left+r.width/2,r.top+r.height/2);} });
-  document.getElementById('mp-out').addEventListener('click',()=>{ if(lmap) lmap.zoomOut(0.75,{animate:true}); else {const r=svg.getBoundingClientRect();zoomAt(1/1.6,r.left+r.width/2,r.top+r.height/2);} });
+  document.getElementById('mp-in').addEventListener('click',()=>{ if(lmap) zoomBy(1); else {const r=svg.getBoundingClientRect();zoomAt(1.6,r.left+r.width/2,r.top+r.height/2);} });
+  document.getElementById('mp-out').addEventListener('click',()=>{ if(lmap) zoomBy(-1); else {const r=svg.getBoundingClientRect();zoomAt(1/1.6,r.left+r.width/2,r.top+r.height/2);} });
   document.getElementById('mp-fit').addEventListener('click',fit);
   document.getElementById('mp-layers').addEventListener('click',()=>openPanel('layers'));
   document.getElementById('mp-list').addEventListener('click',()=>openPanel('list'));
@@ -1808,21 +1997,40 @@ const nameLen=s=>(s||'').length;   // hyphens and spaces count, per the card
 // Every answered question that carries geometry, as a light description —
 // light enough to double as the cache key.
 function conFromQ(q){
-  if(q.status!=='answered'||!q.loc||!q.answer) return null;
-  const x=q.loc[0], y=q.loc[1], ref0=q.ref||REF[q.q]||null;
-  const ref=(ref0&&refEmpty(ref0))?null:ref0;
-  if(q.cat==='radar'&&q.distM) return {t:'radar',x,y,r:q.distM,inside:q.answer==='Yes'};
-  if(q.cat==='thermo'&&q.loc2) return {t:'thermo',a:q.loc,b:q.loc2,hotter:q.answer==='Hotter'};
-  if(q.cat==='measuring'&&ref&&(q.answer==='Closer'||q.answer==='Further'))
-    return {t:'dist',k:ref,x,y,closer:q.answer==='Closer'};
-  if(q.cat==='matching'&&ref&&(q.answer==='Yes'||q.answer==='No')){
+  if(q.status!=='answered'||!q.answer) return null;
+  if(q.cat==='radar'){ if(!q.loc||!q.distM) return null; return {t:'radar',x:q.loc[0],y:q.loc[1],r:q.distM,inside:q.answer==='Yes'}; }
+  if(q.cat==='thermo'){ if(!q.loc||!q.loc2) return null; return {t:'thermo',a:q.loc,b:q.loc2,hotter:q.answer==='Hotter'}; }
+  if(q.cat==='photo') return null;
+  const info=qInfo(q.cat,q.q);
+  if(info.nul||info.always||!info.ref) return null;
+  const ref=info.ref;
+  if(q.cat==='matching'){
+    if(q.answer!=='Yes'&&q.answer!=='No') return null;
     const same=q.answer==='Yes';
+    // About the hider's station itself, not where in its zone they stand.
+    if(ref==='#line') return q.line?{t:'line',line:q.line,same}:null;
+    if(ref==='#namelen'){ let L=q.mine&&q.mine.v;
+      if(L==null&&q.loc){ const s0=nearStops(q.loc,1)[0]; if(s0) L=nameLen(M().stops[s0.i][2]); }
+      return L==null?null:{t:'namelen',L,same}; }
+    if(!q.loc) return null;
+    const x=q.loc[0], y=q.loc[1];
+    if(ref==='#street') return {t:'street',x,y,same};
     if(ref[0]==='!') return {t:'area',k:ref.slice(1),x,y,same};
-    if(ref==='#namelen') return {t:'namelen',x,y,same};
     return {t:'near',k:ref,x,y,same};
   }
-  if(q.cat==='tentacle'&&ref&&q.distM)
-    return {t:'tent',k:ref,x,y,r:q.distM,name:q.answer===NOT_IN_REACH?null:q.answer};
+  if(!q.loc) return null;
+  const x=q.loc[0], y=q.loc[1];
+  if(q.cat==='measuring'){
+    if(q.answer!=='Closer'&&q.answer!=='Further') return null;
+    const closer=q.answer==='Closer';
+    if(ref==='#sea') return {t:'sea',x,y,closer};
+    if(ref==='#water') return {t:'water',x,y,closer};
+    return {t:'dist',k:ref,x,y,closer};
+  }
+  if(q.cat==='tentacle'&&q.distM){
+    const name=q.answer===NOT_IN_REACH?null:q.answer===IN_REACH_NONE?'__in':q.answer;
+    return {t:ref==='#metro'?'mtent':'tent',k:ref,x,y,r:q.distM,name};
+  }
   return null;
 }
 // Every answered question that carries geometry, as a light description —
@@ -1870,6 +2078,306 @@ function pointInRings(rings,p){
   }
   return inside;
 }
+// ---------- reference data beyond the drawn map ----------
+// A grid of segments, so "the nearest segment to here" looks at a handful of
+// cells rather than every segment on the map. Each segment is filed under
+// every cell its bounding box touches, and a search widens ring by ring until
+// no unvisited cell could hold anything nearer than what it already has —
+// so the answer is exact, not a sample.
+function SegIndex(C){ this.C=C||60; this.a=[]; this.id=[]; this.cells=new Map(); this.stamp=null; this.q=0;
+  this.bx=[Infinity,Infinity,-Infinity,-Infinity]; }
+SegIndex.prototype.add=function(p,q,id){
+  const k=this.id.length; this.a.push(p[0],p[1],q[0],q[1]); this.id.push(id);
+  const C=this.C, i0=Math.floor(Math.min(p[0],q[0])/C), i1=Math.floor(Math.max(p[0],q[0])/C),
+        j0=Math.floor(Math.min(p[1],q[1])/C), j1=Math.floor(Math.max(p[1],q[1])/C);
+  for(let i=i0;i<=i1;i++) for(let j=j0;j<=j1;j++){ const key=i*131071+j; let L=this.cells.get(key);
+    if(!L){ L=[]; this.cells.set(key,L); } L.push(k); }
+  const b=this.bx; b[0]=Math.min(b[0],i0); b[1]=Math.min(b[1],j0); b[2]=Math.max(b[2],i1); b[3]=Math.max(b[3],j1);
+};
+// Nearest segment to p among those whose id passes `ok`, looking no further
+// than `lim` map units. Returns {d, id}; d is Infinity if nothing is that near.
+SegIndex.prototype.nearest=function(p,ok,lim){
+  if(!this.stamp||this.stamp.length<this.id.length) this.stamp=new Int32Array(this.id.length);
+  const q=++this.q, st=this.stamp, A=this.a, C=this.C, x=p[0], y=p[1];
+  const ci=Math.floor(x/C), cj=Math.floor(y/C), b=this.bx;
+  const maxR=Math.max(ci-b[0],b[2]-ci,cj-b[1],b[3]-cj)+1;
+  let best=Infinity, bid=-1; if(lim==null) lim=Infinity;
+  for(let r=0;r<=maxR;r++){
+    // every cell at ring r is at least (r-1)*C from p
+    if(r>0&&(r-1)*C>Math.min(best,lim)) break;
+    for(let i=ci-r;i<=ci+r;i++){
+      const edge=(i===ci-r||i===ci+r);
+      for(let j=cj-r;j<=cj+r;j+=(edge?1:2*r||1)){
+        const L=this.cells.get(i*131071+j); if(!L) continue;
+        for(let n=0;n<L.length;n++){ const k=L[n]; if(st[k]===q) continue; st[k]=q;
+          const id=this.id[k]; if(ok&&!ok(id)) continue;
+          const o=4*k, ax=A[o], ay=A[o+1], vx=A[o+2]-ax, vy=A[o+3]-ay, L2=vx*vx+vy*vy;
+          let t=L2?((x-ax)*vx+(y-ay)*vy)/L2:0; t=t<0?0:t>1?1:t;
+          const dx=x-ax-t*vx, dy=y-ay-t*vy, d=Math.sqrt(dx*dx+dy*dy);
+          if(d<best){ best=d; bid=id; } }
+      }
+    }
+  }
+  return best<=lim?{d:best,id:bid}:{d:Infinity,id:-1};
+};
+// A fixed set of polylines as flat segment arrays with a bounding box: for
+// one street or one rail line, looking at every segment is quicker than any
+// index, and the box answers "further than lim" without looking at all.
+function segSet(lines){ const a=[]; let x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity;
+  for(const l of lines) for(let i=1;i<l.length;i++){ a.push(l[i-1][0],l[i-1][1],l[i][0],l[i][1]);
+    x0=Math.min(x0,l[i][0],l[i-1][0]); x1=Math.max(x1,l[i][0],l[i-1][0]); y0=Math.min(y0,l[i][1],l[i-1][1]); y1=Math.max(y1,l[i][1],l[i-1][1]); }
+  return {a:new Float64Array(a),x0,y0,x1,y1}; }
+function segSetDist(S,p,lim){
+  const bx=Math.max(S.x0-p[0],0,p[0]-S.x1), by=Math.max(S.y0-p[1],0,p[1]-S.y1);
+  if(lim!=null&&Math.hypot(bx,by)>lim) return Infinity;
+  const A=S.a, x=p[0], y=p[1]; let best=Infinity;
+  for(let o=0;o<A.length;o+=4){ const ax=A[o], ay=A[o+1], vx=A[o+2]-ax, vy=A[o+3]-ay, L2=vx*vx+vy*vy;
+    let t=L2?((x-ax)*vx+(y-ay)*vy)/L2:0; t=t<0?0:t>1?1:t;
+    const dx=x-ax-t*vx, dy=y-ay-t*vy, d=dx*dx+dy*dy; if(d<best) best=d; }
+  best=Math.sqrt(best); return lim!=null&&best>lim?Infinity:best; }
+const cosAt=y=>Math.cos(latAt(y)*Math.PI/180);
+const trueM=(d,y)=>d*cosAt(y);          // map units -> real metres at that latitude
+
+// Streets and paths, as the rulebook defines them (see tools/build_extras.py).
+const STREET_WORD={footway:'footpath',path:'path',steps:'stairway',motorway_link:'freeway ramp',
+  cycleway:'bike path',residential:'street',pedestrian:'pedestrian walkway',service:'service road',
+  track:'track',tertiary_link:'slip road',secondary_link:'slip road',primary_link:'slip road',
+  unclassified:'road',tertiary:'road',primary:'road',secondary:'road',motorway:'freeway'};
+let streetCache={};
+function streets(){
+  const z=zoneKey(); if(streetCache[z]) return streetCache[z];
+  const ents=[], idx=new SegIndex(40);
+  const src=MAPDATA.streets||'';
+  for(const line of src.split('\n')){ if(!line) continue;
+    const [n,k,body]=line.split('|'); const id=ents.length, lines=[];
+    for(const part of body.split(';')){ const v=part.split(','); let x=0,y=0; const pts=[];
+      for(let i=0;i<v.length;i+=2){ x+=+v[i]; y+=+v[i+1]; pts.push(project(x/1e5,y/1e5)); }
+      for(let i=1;i<pts.length;i++) idx.add(pts[i-1],pts[i],id);
+      lines.push(pts); }
+    ents.push({n,k,lines}); }
+  return streetCache[z]={ents,idx};
+}
+function streetSegs(j){ const e=streets().ents[j]; return e.segs||(e.segs=segSet(e.lines)); }
+function streetName(e){ return e.n||('an unnamed '+(STREET_WORD[e.k]||e.k)); }
+function nearestStreet(p){ const S=streets(); const r=S.idx.nearest(p); return r.id<0?null:{j:r.id,d:r.d,e:S.ents[r.id]}; }
+
+// Terrain for Sea level: elevation in metres on a lon/lat grid, bilinear
+// between posts. Outside the grid there is no answer, and nothing is guessed.
+let TER=null;
+function terrain(){
+  if(TER) return TER; const T=MAPDATA.terrain; if(!T) return null;
+  const bin=atob(T.b64), u8=new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) u8[i]=bin.charCodeAt(i);
+  return TER=Object.assign({v:new Int16Array(u8.buffer)},T);
+}
+function elevLL(lon,lat){
+  const T=terrain(); if(!T) return NaN;
+  const fx=(lon-T.x0)/T.dx, fy=(lat-T.y0)/T.dy;
+  if(!(fx>=0&&fy>=0&&fx<=T.nx-1&&fy<=T.ny-1)) return NaN;
+  const i=Math.min(Math.floor(fx),T.nx-2), j=Math.min(Math.floor(fy),T.ny-2), tx=fx-i, ty=fy-j, v=T.v, n=T.nx;
+  const a=v[j*n+i], b=v[j*n+i+1], c=v[(j+1)*n+i], d=v[(j+1)*n+i+1];
+  return ((a*(1-tx)+b*tx)*(1-ty)+(c*(1-tx)+d*tx)*ty)/10;
+}
+function elevXY(p){ const a=unproject(p[0],p[1]); return elevLL(a[1],a[0]); }
+// The steepest the terrain model gets anywhere in a square, in metres of
+// height per map unit: within one grid cell the bilinear surface can climb
+// no faster than its steeper pair of opposite edges.
+function slopeIn(cx,cy,h){
+  const T=terrain(); if(!T) return NaN;
+  const A=unproject(cx-h,cy-h), B=unproject(cx+h,cy+h);          // [lat,lon]
+  const lon0=Math.min(A[1],B[1]), lon1=Math.max(A[1],B[1]), lat0=Math.min(A[0],B[0]), lat1=Math.max(A[0],B[0]);
+  const i0=Math.floor((lon0-T.x0)/T.dx), i1=Math.floor((lon1-T.x0)/T.dx);
+  const j0=Math.floor((lat0-T.y0)/T.dy), j1=Math.floor((lat1-T.y0)/T.dy);
+  if(i0<0||j0<0||i1>T.nx-2||j1>T.ny-2) return NaN;
+  const v=T.v, n=T.nx; let gx=0, gy=0, g=0;
+  for(let j=j0;j<=j1;j++) for(let i=i0;i<=i1;i++){
+    const a=v[j*n+i], b=v[j*n+i+1], c=v[(j+1)*n+i], d=v[(j+1)*n+i+1];
+    gx=Math.max(Math.abs(b-a),Math.abs(d-c))/10/T.dx; gy=Math.max(Math.abs(c-a),Math.abs(d-b))/10/T.dy;
+    const s=Math.hypot(gx,gy); if(s>g) g=s; }
+  // metres per degree -> metres per map unit (a degree of latitude is at
+  // least as many map units as a degree of longitude, so this bounds both)
+  return g*180/(Math.PI*R)*1.0001;
+}
+
+// Named water on the map, with San Francisco Bay as its shoreline.
+let waterCache={};
+function waters(){
+  const z=zoneKey(); if(waterCache[z]) return waterCache[z];
+  const list=(M().water||[]).map((w,i)=>{ const pr=projRings('w:'+i,w.r); return {n:w.n,pr,box:segSet(pr)}; });
+  const idx=new SegIndex(250);
+  list.forEach((w,i)=>{ for(const r of w.pr) for(let k=1;k<r.length;k++) idx.add(r[k-1],r[k],i); });
+  const bay=list.length;
+  if(SHAPE_SRC.coast) for(const r of shapeRings('coast')) for(let k=1;k<r.length;k++) idx.add(r[k-1],r[k],bay);
+  const names=list.map(w=>w.n).concat(SHAPE_SRC.coast?['San Francisco Bay']:[]);
+  return waterCache[z]={list,idx,names};
+}
+// Distance to the nearest named water, zero on it.
+function nearestWater(p,lim){
+  const W=waters();
+  for(let i=0;i<W.list.length;i++){ const b=W.list[i].box;
+    if(p[0]>=b.x0&&p[0]<=b.x1&&p[1]>=b.y0&&p[1]<=b.y1&&ringsInside(W.list[i].pr,p)) return {d:0,j:i,n:W.names[i]}; }
+  const r=W.idx.nearest(p,null,lim); return r.id<0?(lim!=null?{d:Infinity,j:-1,n:''}:null):{d:r.d,j:r.id,n:W.names[r.id]};
+}
+
+// BART lines, for the Metro lines tentacle. Orange and Red share every
+// metre of track on this map; a line identical to another is the same
+// answer, so each line knows which others it cannot be told apart from.
+let metroCache={};
+function metro(){
+  const z=zoneKey(); if(metroCache[z]) return metroCache[z];
+  const src=MAPDATA.metro||{}, names=Object.keys(src), idx=new SegIndex(80), sig={};
+  const sets=[];
+  names.forEach((n,i)=>{ const ws=src[n].map(w=>w.map(ll=>project(ll[0],ll[1])));
+    sig[n]=JSON.stringify(src[n].map(w=>JSON.stringify(w)).sort());
+    sets.push(segSet(ws)); });
+  const twin=names.map(a=>names.map((b,j)=>sig[a]===sig[b]?j:-1).filter(j=>j>=0));
+  return metroCache[z]={names,sets,twin};
+}
+function metroDist(p,i){ return segSetDist(metro().sets[i],p); }
+
+// Hiding stations and the lines that stop at them.
+const stopLines=st=>(st[3]||'').split(';').filter(Boolean);
+function allLines(){
+  const seen=new Set(); for(const st of M().stops) for(const l of stopLines(st)) seen.add(l);
+  return [...seen];
+}
+function nearStops(p,n){
+  const m=M(); return m.stops.map((st,i)=>({i,d:Math.hypot(st[0]-p[0],st[1]-p[1])}))
+    .sort((a,b)=>a.d-b.d).slice(0,n);
+}
+
+// ---------- each question's reference ----------
+// What a question is about, and what it cannot be about on this map. Every
+// ask shows the seeker their own side before it goes, and every answer shows
+// the hider theirs, from the same code, so both read the same map.
+const NULL_WHY={
+ 'Coastline':'There is no coastline on this map: by the rulebook, water only counts as ocean coast if it reaches the ocean without narrowing under 2 km (1¼ mi), and San Francisco Bay reaches it through the Golden Gate, which is narrower.',
+ 'High-speed train line':'There is no high-speed rail line on this map.',
+ 'International border':'There is no international border on this map.',
+ '1st administrative division border (state)':'There is no state border on this map.'};
+const ALWAYS_WHY={
+ '1st administrative division (state)':'The whole map is in California.',
+ 'Landmass':'The whole map is on one landmass.'};
+function qInfo(cat,text){
+  const ref=cat==='tentacle'?tentRef(text):REF[text]||null;
+  if(NULL_WHY[text]) return {nul:NULL_WHY[text]};
+  if(ALWAYS_WHY[text]) return {always:ALWAYS_WHY[text]};
+  if(!ref) return {};
+  if(ref[0]==='!'){ const a=AREA_OF(zoneKey())[ref.slice(1)]||[];
+    const w=ref==='!city'?'city':ref==='!district'?'district':'county';
+    if(a.length===1) return {ref,always:'The whole map is in '+a[0].n+(w==='district'?'':'')+'.'};
+    if(a.length===0) return {ref,nul:'This map has no '+w+' data.'};
+    return {ref}; }
+  if(ref[0]==='@') return areaCountOf(ref.slice(1))?{ref}:{ref,nul:'There is no '+ref.slice(1)+' on this map.'};
+  if(ref[0]==='#') return {ref};
+  if(!poiPts(ref).length) return {ref,nul:'There is no '+(REF_NOUN[ref]||ref).replace(/^an? /,'')+' on this map, and the rules say anything off the map does not exist.'};
+  return {ref};
+}
+function tentRef(text){ for(const c of CATS) if(c.id==='tentacle') for(const q of c.qs) if(q[0]===text) return q[3]||(text.startsWith('Metro')?'#metro':null); return null; }
+function areaCountOf(k){ const a=AREA_OF(zoneKey())[k]; if(a) return a.length; return (SHAPE_SRC[k]||[]).length; }
+function areaAt(k,p){
+  const list=AREA_OF(zoneKey())[k]||[];
+  for(let i=0;i<list.length;i++) if(ringsInside(projRings('a:'+k+':'+i,list[i].r),p)) return i;
+  return -1;
+}
+// One side of a question at one spot: {txt, n, d, v, id} — txt is what to
+// show a person; id/v are what the other side is compared against.
+function sideAt(cat,text,p,opt){
+  opt=opt||{};
+  const info=qInfo(cat,text); if(info.nul) return {nul:info.nul};
+  if(info.always) return {always:info.always,txt:info.always};
+  const ref=info.ref; if(!ref||!p) return null;
+  const y=p[1];
+  if(cat==='tentacle'){
+    const R=metres(opt.distM,y);
+    if(ref==='#metro'){ const Mt=metro(), out=[];
+      Mt.names.forEach((n,i)=>{ const d=metroDist(p,i); if(opt.all||d<=R) out.push({n,du:d,d:trueM(d,y)}); });
+      out.sort((a,b)=>a.du-b.du);
+      return {list:out,txt:out.length?out.map(o=>lineName(o.n)+' ('+fmtDist(o.d)+')').join(' · '):'none within '+fmtDist(opt.distM)}; }
+    const out=[], seen={};
+    for(const t of poiPts(ref)){ if(!t[2]) continue; const d=Math.hypot(t[0]-p[0],t[1]-p[1]);
+      if(d<=R&&!seen[t[2]]){ seen[t[2]]=1; out.push({n:t[2],du:d,d:trueM(d,y)}); } }
+    out.sort((a,b)=>a.du-b.du); return {list:out,txt:out.length?out.map(o=>o.n+' ('+fmtDist(o.d)+')').join(' · '):'none within '+fmtDist(opt.distM)};
+  }
+  if(ref==='#line'){
+    const here=nearStops(p,8).filter(s=>s.d<=metres(250,y)), near=[];
+    for(const s of here) for(const l of stopLines(M().stops[s.i])) if(!near.includes(l)) near.push(l);
+    const v=opt.line||null;
+    return {options:near.concat(allLines().filter(l=>!near.includes(l)).sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}))),
+      v, n:v, txt:v?'You are riding '+lineName(v):'Pick the line you are riding'};
+  }
+  if(ref==='#namelen'){
+    const cand=nearStops(p,6), m=M();
+    const i=opt.stn!=null&&m.stops[opt.stn]?+opt.stn:(cand.length?cand[0].i:-1); if(i<0) return null;
+    const nm=m.stops[i][2]||''; 
+    return {options:cand.map(c=>({i:c.i,n:m.stops[c.i][2],d:trueM(c.d,y)})), id:i, n:nm, v:nameLen(nm),
+      txt:'“'+nm+'” — '+nameLen(nm)+' characters'};
+  }
+  if(ref==='#street'){ const s=nearestStreet(p); if(!s) return null;
+    return {id:s.j,n:streetName(s.e),du:s.d,d:trueM(s.d,y),txt:streetName(s.e)+' ('+fmtDist(trueM(s.d,y))+' away)'}; }
+  if(ref==='#sea'){ const e=elevXY(p); if(!isFinite(e)) return {nul:'That spot is outside the terrain data, so it can’t be measured.'};
+    return {v:e,du:Math.abs(e),d:Math.abs(e),txt:Math.round(e*3.28084)+' ft ('+Math.round(e)+' m) above sea level'}; }
+  if(ref==='#water'){ const w=nearestWater(p); if(!w) return null;
+    return {id:w.j,n:w.n,du:w.d,d:trueM(w.d,y),txt:w.n+' ('+(w.d?fmtDist(trueM(w.d,y)):'you’re on it')+')'}; }
+  if(ref[0]==='!'){ const k=ref.slice(1), j=areaAt(k,p), list=AREA_OF(zoneKey())[k]||[];
+    return j<0?{id:-1,n:'',txt:'Not inside any '+k+' on this map'}:{id:j,n:list[j].n,txt:list[j].n}; }
+  if(ref[0]==='@'){ const d=ringsDist(shapeRings(ref.slice(1)),p);
+    return {du:d,d:trueM(d,y),txt:fmtDist(trueM(d,y))+' from the '+(ref==='@countyline'?'county line':ref.slice(1))}; }
+  const pts=poiPts(ref), n=exactNearest(pts,p); if(n.i<0) return null;
+  const nm=pts[n.i][2]||'unnamed';
+  return {id:n.i,n:nm,du:n.d,d:trueM(n.d,y),txt:nm+' ('+fmtDist(trueM(n.d,y))+')'};
+}
+function lineName(l){ return /^(Yellow|Orange|Red|Green|Blue)$/.test(l)?'BART '+l+' line':(l==='Capitol Corridor'?'Amtrak Capitol Corridor':'AC Transit '+l); }
+// The answer the hider's own side gives, compared against the seeker's side
+// the question carries. Station-level cards read the hiding station itself.
+function suggest(q,p,hz){
+  const info=q.cat==='radar'||q.cat==='thermo'||q.cat==='photo'?{}:qInfo(q.cat,q.q);
+  if(info.nul) return {ans:null,why:'Null here — '+info.nul+' Any answer tells them nothing; it still counts as asked.'};
+  if(info.always) return {ans:q.cat==='matching'?'Yes':null,why:info.always};
+  // Compared in map units, exactly as the map narrows, so a truthful answer
+  // can never rule out the station it came from.
+  if(q.cat==='radar'){ if(!p||!q.loc) return null; const du=Math.hypot(p[0]-q.loc[0],p[1]-q.loc[1]);
+    return {ans:du<=metres(q.distM,q.loc[1])?'Yes':'No',why:'You are '+fmtDist(trueM(du,q.loc[1]))+' from where they asked.'}; }
+  if(q.cat==='thermo'){ if(!p||!q.loc||!q.loc2) return null;
+    const a=Math.hypot(p[0]-q.loc[0],p[1]-q.loc[1]), b=Math.hypot(p[0]-q.loc2[0],p[1]-q.loc2[1]);
+    return {ans:b<a?'Hotter':b>a?'Colder':null,why:'Their start is '+fmtDist(trueM(a,p[1]))+' from you, their finish '+fmtDist(trueM(b,p[1]))+'.'}; }
+  const ref=info.ref;
+  if(q.cat==='matching'&&(ref==='#line'||ref==='#namelen')){
+    if(!hz) return {ans:null,why:'Set your hiding station on the map (Zone) and this card is answered from it.'};
+    const st=M().stops.find(s=>Math.abs(s[0]-hz.x)<1&&Math.abs(s[1]-hz.y)<1&&s[2]===hz.n)||[hz.x,hz.y,hz.n,''];
+    if(ref==='#line'){ const has=stopLines(st).includes(q.line);
+      return {ans:has?'Yes':'No',why:'Your station, '+st[2]+', is served by '+(stopLines(st).join(', ')||'nothing listed')+'.'}; }
+    const L=nameLen(st[2]), sL=q.mine?q.mine.v:null;
+    return {ans:sL==null?null:(L===sL?'Yes':'No'),why:'Your station “'+st[2]+'” is '+L+' characters; theirs is '+sL+'.'};
+  }
+  if(!p) return null;
+  const me=sideAt(q.cat,q.q,p,{distM:q.distM,all:1}); if(!me) return null;
+  if(me.nul) return {ans:null,why:me.nul};
+  if(q.cat==='tentacle'){
+    const du=Math.hypot(p[0]-q.loc[0],p[1]-q.loc[1]);
+    if(du>metres(q.distM,q.loc[1])) return {ans:NOT_IN_REACH,why:'You are '+fmtDist(trueM(du,q.loc[1]))+' from them — outside the '+fmtDist(q.distM)+'.'};
+    const opts=(q.mine&&q.mine.list)?q.mine.list.map(o=>o.n):null;
+    if(q.ref==='#metro'){ const all=(me.list||[]).filter(o=>!opts||opts.includes(o.n));
+      if(opts&&!opts.length) return {ans:IN_REACH_NONE,why:'You are in reach, but no metro line is within reach of them.'};
+      if(!all.length) return null; const best=all[0], tie=all.filter(o=>Math.abs(o.du-best.du)<0.01).map(o=>o.n);
+      return {ans:best.n,why:'Nearest to you: '+(tie.length>1?tie.join(' and ')+' (the same track — either is true)':best.n+' ('+fmtDist(best.d)+')')+'.'}; }
+    if(opts&&!opts.length) return {ans:IN_REACH_NONE,why:'You are within '+fmtDist(q.distM)+' of them, but there is nothing of that kind within reach of them to name.'};
+    // nearest of the ones in reach of the seeker, measured from you
+    const pts=poiPts(q.ref); let bn=null, bd=Infinity;
+    for(const t of pts){ if(!t[2]||(opts&&!opts.includes(t[2]))) continue; const dd=Math.hypot(t[0]-p[0],t[1]-p[1]); if(dd<bd){ bd=dd; bn=t[2]; } }
+    return bn?{ans:bn,why:'Nearest to you: '+bn+' ('+fmtDist(trueM(bd,p[1]))+').'}:null;
+  }
+  const them=q.mine;
+  if(q.cat==='matching'){ if(!them) return {ans:null,why:'Yours: '+me.txt+'.'};
+    if(me.id===-1||them.id===-1) return {ans:null,why:'Yours: '+me.txt+'. Theirs: '+them.txt+'. One of you is off this map’s data, so the app can’t call it.'};
+    const same=me.id===them.id;
+    return {ans:same?'Yes':'No',why:'Yours: '+me.txt+'. Theirs: '+them.txt+'.'}; }
+  if(q.cat==='measuring'){ if(!them||!isFinite(them.d)) return {ans:null,why:'Yours: '+me.txt+'.'};
+    const a=me.du, b=them.du!=null?them.du:them.d;
+    return {ans:a<b?'Closer':a>b?'Further':null,why:'Yours: '+me.txt+'. Theirs: '+them.txt+'.'+(a===b?' Exactly equal.':'')}; }
+  return null;
+}
+
 // ---------- exact survival ----------
 // A station survives an answer when some point of its hiding zone could have
 // produced that answer. Every answer is expressed as a clearance function
@@ -1977,11 +2485,14 @@ function phiFor(c,S,rho){
       return sg*(minDist(others,p)-dm)/2; }; }
   if(c.t==='tent'){
     const R=c.R;
-    if(c.j<0) return p=>Math.hypot(p[0]-c.x,p[1]-c.y)-R;   // not within reach
-    const mine=c.sub[c.j]; if(!mine) return null;
-    const others=nearby(c.sub.filter((t,i)=>i!==c.j),S,rho);
+    if(c.name==null) return p=>Math.hypot(p[0]-c.x,p[1]-c.y)-R;   // not within reach
+    if(c.name==='__in') return p=>R-Math.hypot(p[0]-c.x,p[1]-c.y); // in reach, nothing to name
+    if(c.j<0) return null;                                          // a name the map doesn't have
+    // Everything of that name counts as "it"; everything else is a rival.
+    const mineAll=c.sub.filter(t=>t[2]===c.name);
+    const others=nearby(c.sub.filter(t=>t[2]!==c.name),S,rho);
     return p=>{ const inR=R-Math.hypot(p[0]-c.x,p[1]-c.y);
-      const dm=Math.hypot(p[0]-mine[0],p[1]-mine[1]);
+      const dm=minDist(mineAll,p);
       const cl=others.length?(minDist(others,p)-dm)/2:Infinity;
       return inR<cl?inR:cl; }; }
   if(c.t==='area'){
@@ -1998,6 +2509,44 @@ function phiFor(c,S,rho){
     if(!miss.length) return c.same?(()=>Infinity):(()=>-Infinity);
     const sg=c.same?1:-1;
     return p=>sg*(minDist(miss,p)-minDist(hit,p))/2; }
+  if(c.t==='street'){
+    if(c.j==null||c.j<0) return null;
+    // Half the gap between the nearest other street and this one: zero
+    // exactly where the two are equally near. Clamped at C, which keeps it
+    // 1-Lipschitz and means this street only has to be looked for within
+    // reach of the answer mattering at all.
+    // C only has to exceed the zone's radius for the first test in reaches()
+    // to stay decisive.
+    const I=streets().idx, J=streetSegs(c.j), j=c.j, sg=c.same?1:-1, C=rho+1;
+    const notJ=id=>id!==j;
+    return p=>{ const dO=I.nearest(p,notJ).d; if(!isFinite(dO)) return sg*C;
+      const dM=segSetDist(J,p,dO+2*C);
+      let v=(dO-dM)/2; if(!(v>-C)) v=-C; else if(v>C) v=C;
+      return sg*v; }; }
+  if(c.t==='water'){
+    if(!isFinite(c.ds)) return null;
+    // Clamped at C (1-Lipschitz still), so the search for water never has
+    // to reach further than ds + C.
+    const sg=c.closer?1:-1, C=rho+1;
+    return p=>{ const w=nearestWater(p,c.ds+C); let v=c.ds-w.d; if(!(v>-C)) v=-C; else if(v>C) v=C; return sg*v; }; }
+  if(c.t==='sea'){
+    if(!isFinite(c.es)) return null;
+    // Height is not a distance, so it is divided by the steepest slope the
+    // terrain reaches anywhere in this zone: that makes it change no faster
+    // than distance does, which is all the search needs. No terrain there,
+    // no verdict — the station stays.
+    const L=Math.max(slopeIn(S[0],S[1],rho),1e-9); if(!isFinite(L)) return null;
+    const sg=c.closer?1:-1, es=Math.abs(c.es);
+    return p=>sg*(es-Math.abs(elevXY(p)))/L; }
+  if(c.t==='mtent'){
+    if(c.name==null) return p=>Math.hypot(p[0]-c.x,p[1]-c.y)-c.R;
+    if(c.name==='__in') return p=>c.R-Math.hypot(p[0]-c.x,p[1]-c.y);
+    if(c.j<0) return null;
+    const Mt=metro(), j=c.j, others=c.sub.filter(i=>!Mt.twin[j].includes(i));
+    return p=>{ const inR=c.R-Math.hypot(p[0]-c.x,p[1]-c.y); if(!others.length) return inR;
+      let dO=Infinity; for(const i of others){ const d=segSetDist(Mt.sets[i],p); if(d<dO) dO=d; }
+      const cl=(dO-segSetDist(Mt.sets[j],p))/2;
+      return inR<cl?inR:cl; }; }
   return null;
 }
 
@@ -2018,9 +2567,17 @@ function prep(c){
     const list=AREA_OF(zoneKey())[c.k]||[];
     p.j=-1;
     for(let i=0;i<list.length;i++) if(ringsInside(projRings('a:'+c.k+':'+i,list[i].r),here)){ p.j=i; break; }
-  } else if(c.t==='namelen'){
-    const n=exactNearest(poiPts('station'),here);
-    p.L=n.i<0?-1:nameLen(poiPts('station')[n.i][2]);
+  } else if(c.t==='street'){
+    const n=nearestStreet(here); p.j=n?n.j:-1;
+  } else if(c.t==='water'){
+    const w=nearestWater(here); p.ds=w?w.d:Infinity;
+  } else if(c.t==='sea'){
+    p.es=elevXY(here);
+  } else if(c.t==='mtent'){
+    const Mt=metro(); p.R=metres(c.r,c.y); p.sub=[];
+    Mt.names.forEach((n,i)=>{ if(metroDist(here,i)<=p.R) p.sub.push(i); });
+    p.j=c.name==null?-1:Mt.names.indexOf(c.name);
+    if(p.j>=0&&!p.sub.includes(p.j)) p.j=-1;
   }
   return p;
 }
@@ -2033,7 +2590,16 @@ const strictMode=()=>!!(game&&game.strict===true);
 function stopMask(c){
   const key=zoneKey()+'|'+((game&&game.size)||'S')+'|'+strictMode()+'|'+JSON.stringify(c);
   if(stopMaskCache[key]) return stopMaskCache[key];
-  const m=M(), p=prep(c), strict=strictMode(), out=new Uint8Array(m.stops.length);
+  const m=M(), strict=strictMode(), out=new Uint8Array(m.stops.length);
+  // Cards about the hider's station itself are read off each station
+  // directly: there is nothing to search.
+  if(c.t==='line'||c.t==='namelen'){
+    for(let i=0;i<m.stops.length;i++){ const st=m.stops[i];
+      const has=c.t==='line'?stopLines(st).includes(c.line):nameLen(st[2])===c.L;
+      out[i]=has===c.same?1:0; }
+    return stopMaskCache[key]=out;
+  }
+  const p=prep(c);
   for(let i=0;i<m.stops.length;i++){
     const st=m.stops[i], S=[st[0],st[1]];
     // Strict reads the answer against the station itself; by the book the
@@ -2071,9 +2637,16 @@ function conLabel(c){
   if(c.t==='thermo') return c.hotter?'Hotter after travelling':'Colder after travelling';
   if(c.t==='dist') return (c.closer?'Closer to ':'Further from ')+d(c.k);
   if(c.t==='near') return (c.same?'Same nearest ':'Different nearest ')+d(c.k);
+  if(c.name==='__in') return 'Within reach, nothing to name';
   if(c.t==='tent') return c.name?('Nearest '+d(c.k)+': '+c.name):('No '+d(c.k)+' in reach');
   if(c.t==='area'){ const w=c.k==='district'?'district':'city'; return (c.same?'Same ':'Different ')+w; }
-  if(c.t==='namelen') return c.same?'Same station-name length':'Different station-name length';
+  if(c.t==='namelen') return (c.same?'Station name ':'Station name not ')+c.L+' characters';
+  if(c.t==='line') return (c.same?'Station on ':'Station not on ')+lineName(c.line);
+  if(c.t==='street') return c.same?'Same nearest street or path':'Different nearest street or path';
+  if(c.t==='water') return (c.closer?'Closer to ':'Further from ')+'a body of water';
+  if(c.t==='sea') return c.closer?'Closer to sea level':'Further from sea level';
+  if(c.t==='mtent') return c.name?('Nearest metro line: '+c.name):'No metro line in reach';
+  if(c.t==='area'&&c.k==='county') return c.same?'Same county':'Different county';
   return c.t;
 }
 // A Voronoi cell is the intersection of the half-planes that beat every other
@@ -2122,13 +2695,15 @@ function drawOne(c,i,g,px){
     const pts=poiPts(c.k), p=prep(c), pl=p.j>=0?cellPoly(pts,p.j):null;
     if(pl) el('path',{d:polyD(pl),fill:col,'fill-opacity':c.same?0.07:0.0,stroke:col,
       'stroke-width':2.5,'stroke-dasharray':c.same?'':'5 5','vector-effect':'non-scaling-stroke'},gg);
-  } else if(c.t==='namelen'){
-    const pts=poiPts('station'), p=prep(c);
-    if(p.L>=0){ let n=0;
-      for(let j=0;j<pts.length&&n<40;j++){ if(nameLen(pts[j][2])!==p.L) continue;
-        const pl=cellPoly(pts,j); n++;
-        if(pl) el('path',{d:polyD(pl),fill:col,'fill-opacity':c.same?0.07:0,stroke:col,
-          'stroke-width':1.6,'vector-effect':'non-scaling-stroke',opacity:.8},gg); } }
+  } else if(c.t==='street'){
+    // The street itself, so everyone can see which one "nearest" meant.
+    const p=prep(c);
+    if(p.j>=0) for(const line of streets().ents[p.j].lines)
+      el('path',{d:'M'+line.map(q=>q[0].toFixed(1)+' '+q[1].toFixed(1)).join('L'),fill:'none',stroke:col,
+        'stroke-width':6,'stroke-linecap':'round','stroke-linejoin':'round','stroke-dasharray':c.same?'':'2 8',
+        'vector-effect':'non-scaling-stroke',opacity:.85},gg);
+  } else if(c.t==='mtent'){
+    ring(c.x,c.y,metres(c.r,c.y),'6 4');
   } else if(c.t==='tent'){
     ring(c.x,c.y,metres(c.r,c.y),'6 4');
     const p=prep(c);
@@ -2192,7 +2767,9 @@ function excluded(c){
     sh.push(poly(pl)); return {mode:c.same?'out':'in',sh}; }
   if(c.t==='tent'){
     const R=metres(c.r,c.y);
-    if(P.j<0){ sh.push(circ(c.x,c.y,R)); return {mode:'in',sh}; }
+    if(c.name==null){ sh.push(circ(c.x,c.y,R)); return {mode:'in',sh}; }
+    if(c.name==='__in'){ sh.push(circ(c.x,c.y,R)); return {mode:'out',sh}; }
+    if(P.j<0) return null;
     const pl=P.sub.length?cellPoly(P.sub,P.j):null; if(!pl) return null;
     sh.push({t:'path',clipCircle:[c.x,c.y,R],a:{d:polyD(pl)}});
     return {mode:'out',sh}; }
@@ -2200,13 +2777,19 @@ function excluded(c){
     const list=AREA_OF(zoneKey())[c.k]||[]; if(P.j<0) return null;
     for(const r of projRings('a:'+c.k+':'+P.j,list[P.j].r)) sh.push(poly(r));
     return {mode:c.same?'out':'in',sh}; }
-  if(c.t==='namelen'){
-    if(P.L<0) return null;
-    const pts=poiPts('station');
-    // The cells whose station has the matching length; "same" keeps only
-    // those, "different" excludes exactly those.
-    for(let j=0;j<pts.length;j++) if(nameLen(pts[j][2])===P.L){ const pl=cellPoly(pts,j); if(pl) sh.push(poly(pl)); }
-    return {mode:c.same?'out':'in',sh}; }
+  if(c.t==='water'){
+    if(!isFinite(P.ds)) return null;
+    // Within ds of named water: the water itself, and a band 2*ds wide
+    // round every edge of it — the Bay's shoreline included.
+    const lineD=r=>'M'+r.map(q=>q[0].toFixed(1)+' '+q[1].toFixed(1)).join('L');
+    for(const w of waters().list){
+      sh.push({t:'path',a:{d:w.pr.map(r=>lineD(r)+'Z').join(''),'fill-rule':'evenodd'}});
+      if(P.ds>0) for(const r of w.pr) sh.push({t:'path',stroke:2*P.ds,a:{d:lineD(r)+'Z'}}); }
+    if(SHAPE_SRC.coast&&P.ds>0) for(const r of shapeRings('coast')) sh.push({t:'path',stroke:2*P.ds,a:{d:lineD(r)}});
+    return {mode:c.closer?'out':'in',sh}; }
+  if(c.t==='mtent'&&(c.name==null||c.name==='__in')){ sh.push(circ(c.x,c.y,metres(c.r,c.y))); return {mode:c.name==null?'in':'out',sh}; }
+  // Station cards (line, name length), streets, sea level and metro lines
+  // are shown by what they leave standing: the stations greyed out.
   return null;
 }
 let clipSeq=0;
@@ -2248,13 +2831,13 @@ function syncAnswers(){
 }
 // The hatch keeps a constant spacing on screen however far you zoom.
 function sizeHatch(){}
-function drawMarkers(g,px){
+function drawMarkers(at){
   const cs=cons();
   for(let i=0;i<cs.length;i++){ if(conOff[i]) continue; const c=cs[i], col=conColor(i);
     if(c.t==='thermo'){
-      el('circle',{cx:c.a[0],cy:c.a[1],r:4.5/px,fill:'#fff',stroke:col,'stroke-width':2.5,'vector-effect':'non-scaling-stroke'},g);
-      el('circle',{cx:c.b[0],cy:c.b[1],r:4.5/px,fill:col,stroke:'#fff','stroke-width':2,'vector-effect':'non-scaling-stroke'},g);
-    } else if(c.x!=null) el('circle',{cx:c.x,cy:c.y,r:4.5/px,fill:col,stroke:'#fff','stroke-width':2,'vector-effect':'non-scaling-stroke'},g);
+      el('circle',{r:4.5,fill:'#fff',stroke:col,'stroke-width':2.5},at(c.a[0],c.a[1]));
+      el('circle',{r:4.5,fill:col,stroke:'#fff','stroke-width':2},at(c.b[0],c.b[1]));
+    } else if(c.x!=null) el('circle',{r:4.5,fill:col,stroke:'#fff','stroke-width':2},at(c.x,c.y));
   }
 }
 
@@ -2273,47 +2856,50 @@ return {
   },
   cutBy(q){
     if(q.status!=='answered'||q.cat==='photo') return '';
-    if(q.status==='vetoed') return '';
-    const ref0=q.ref||REF[q.q]||null;
-    const nullHere=(q.cat==='matching'||q.cat==='measuring'||q.cat==='tentacle')&&(!ref0||refEmpty(ref0));
-    if(nullHere) return 'Null here — '+(ref0&&REF_NOUN[ref0]?'there is no '+REF_NOUN[ref0].replace(/^an? /,'')+' on this map':'this map has nothing to measure it against')+
-      ', so by the rules the answer tells you nothing. It still counts as asked.';
-    if(!q.loc) return 'Not drawn — no location was recorded with it.';
-    const c=conFromQ(q); if(!c) return '';
+    const info=(q.cat==='radar'||q.cat==='thermo')?{}:qInfo(q.cat,q.q);
+    if(info.nul) return 'Null here — '+info.nul+' By the rules the answer tells you nothing. It still counts as asked.';
+    if(info.always) return 'Always yes here — '+info.always+' It tells you nothing, and still counts as asked.';
+    const c=conFromQ(q);
+    if(!c){ if(q.cat==='matching'&&info.ref==='#line'&&!q.line) return 'Not drawn — no line was recorded with it.';
+      return q.loc?'':'Not drawn — no location was recorded with it.'; }
     const mk=stopMask(c); let out=0; for(let i=0;i<mk.length;i++) if(!mk[i]) out++;
-    const n=REF_NOUN[ref0]||'it';
+    const n=REF_NOUN[info.ref]||'it';
     let what='';
     if(q.cat==='radar') what=q.answer==='Yes'?`They were within ${fmtDist(q.distM)} of there when they answered; everything beyond is shaded.`
       :`They were not within ${fmtDist(q.distM)} of there when they answered; the inside of that circle is shaded.`;
     else if(q.cat==='thermo') what=q.answer==='Hotter'?'They were nearer the finish than the start; the start side of the line is shaded.'
       :'They were nearer the start than the finish; the finish side of the line is shaded.';
-    else if(q.cat==='measuring') what=q.answer==='Closer'?`They were closer to ${n} than this was; everywhere further is shaded.`
-      :`They were further from ${n} than this was; everywhere nearer is shaded.`;
+    else if(c.t==='line') what=q.answer==='Yes'?`Their station is served by ${lineName(q.line)}; every station it doesn't serve is out.`
+      :`Their station is not served by ${lineName(q.line)}; every station it serves is out.`;
+    else if(c.t==='namelen') what=q.answer==='Yes'?`Their station's name is ${c.L} characters long; every other station is out.`
+      :`Their station's name is not ${c.L} characters long; every station that is, is out.`;
+    else if(c.t==='street') what=q.answer==='Yes'?'Their nearest street or path is the one highlighted.':'Their nearest street or path is not the one highlighted.';
+    else if(c.t==='sea') what=q.answer==='Closer'?'They were closer to sea level than this spot.':'They were further from sea level than this spot.';
+    else if(c.t==='water') what=q.answer==='Closer'?'They were closer to a body of water than this was; everywhere further is shaded.'
+      :'They were further from a body of water than this was; everywhere nearer is shaded.';
+    else if(q.cat==='measuring') what=q.answer==='Closer'?`They were closer to ${info.ref==='@countyline'?'the county line':n} than this was; everywhere further is shaded.`
+      :`They were further from ${info.ref==='@countyline'?'the county line':n} than this was; everywhere nearer is shaded.`;
     else if(q.cat==='matching'){
-      const thing=ref0==='#namelen'?'station-name length':ref0==='!city'?'city':ref0==='!district'?'district':'nearest '+esc(q.q).toLowerCase();
+      const thing=info.ref==='!city'?'city':info.ref==='!district'?'district':info.ref==='!county'?'county':'nearest '+esc(q.q).toLowerCase();
       what=q.answer==='Yes'?`Same ${thing} as here; everywhere else is shaded.`:`A different ${thing} from here; this one is shaded.`;
-    } else if(q.cat==='tentacle') what=q.answer===NOT_IN_REACH?'None of them in reach; the circle is shaded.'
-      :`Nearest to ${q.answer}; everywhere nearer another is shaded.`;
+    } else if(q.cat==='tentacle') what=q.answer===NOT_IN_REACH?'Not within reach; the circle is shaded.':q.answer===IN_REACH_NONE?'Within reach, with nothing to name; everything outside the circle is shaded.'
+      :`Nearest to ${q.answer}.`;
     const st=out?` Rules out ${out} station${out===1?'':'s'}.`
-      :' Rules out no station on its own — every hiding zone near that line still reaches ground on the right side of it.';
+      :' Rules out no station on its own — every hiding zone still reaches ground where that answer is possible.';
     return what+st;
   },
-
 
   // The candidates a tentacle question can honestly be answered with: the
   // ones of that type within range of where the seeker asked from.
   tentacleOptions(q){
-    const ref=q.ref||null;
-    if(q.cat!=='tentacle'||!ref||!q.loc||!q.distM||!POI_SRC[ref]) return [];
-    const pts=poiPts(ref), R=metres(q.distM,q.loc[1]), out=[], seen={};
-    for(const t of pts){ if(!t[2]) continue;
-      const d=Math.hypot(q.loc[0]-t[0],q.loc[1]-t[1]);
-      if(d<=R) out.push({n:t[2],d}); }
-    out.sort((a,b)=>a.d-b.d);
-    return out.filter(o=>seen[o.n]?false:(seen[o.n]=1)).slice(0,16).map(o=>o.n);
+    if(q.cat!=='tentacle'||!q.loc||!q.distM) return [];
+    const r=sideAt('tentacle',q.q,q.loc,{distM:q.distM});
+    return r&&r.list?r.list.map(o=>o.n):[];
   },
+  sideAt, suggest, qInfo, lineName,
 
   refCount(k){ try{ return poiPts(k).length; }catch(e){ return 0; } },
+  hideStop(){ return load(hideKey()); },
   areaCount(k){ const a=AREA_OF(zoneKey())[k]; if(a) return a.length;
     return (SHAPE_SRC[k]||[]).length; },
   count(){

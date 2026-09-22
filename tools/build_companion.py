@@ -18,6 +18,7 @@ import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from build_map import compute  # noqa: E402
+import build_extras as bx      # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 DATA = ROOT / "data"
@@ -102,8 +103,9 @@ def main():
     # the game map. The rulebook is explicit: "if locations are not within a
     # map's boundaries, players must operate as if they do not exist", and the
     # question comes back null. So each zone carries its own clipped sets.
-    park_pts = icons(base["base"]["park"])
-    water_pts = icons(base["base"]["water"])
+    raw = bx.load_raw()
+    cty_a, cty_c, cty_line = bx.county(raw)
+    met = bx.metro(base)
 
     oak = list(polygonize(unary_union(linemerge(
         [LS(r) for r in base["bnd"]["oakland"] if len(r) > 1]))))
@@ -145,10 +147,23 @@ def main():
         def clip(pts):
             return [p for p in pts if area.contains(Point(p[0], p[1]))]
 
-        poi = {k: clip([p for p in poi_src.get(k, []) if not HONORARY(k, p)])
+        # The source clipped names at 40 characters; say so rather than
+        # showing a word cut in half as if it were the name.
+        def full(p):
+            return [p[0], p[1], p[2] + "…" if len(p[2] or "") == 40 else p[2]]
+        poi = {k: clip([full(p) for p in poi_src.get(k, []) if not HONORARY(k, p)])
                for k in POI_KEYS}
-        poi["park"] = clip(park_pts)
-        poi["water"] = clip(water_pts)
+        # Named parks only: an unnamed patch of green is not "a park" anyone
+        # could name as their nearest. Measured from the labelled point.
+        poi["park"] = bx.parks(raw, area)
+        # Rail stations are hiding stations too, and carry the lines that
+        # stop at them for the Transit line question.
+        stops = [list(s) for s in payload["stops"]]
+        for st in payload["stations"]:
+            ll = next(s for s in base["stations"] if s["n"] == st["n"])
+            lines = bx.station_lines((ll["lon"], ll["lat"]), st["kind"], met)
+            stops.append([st["x"], st["y"], st["n"], ";".join(lines),
+                          "BART" if st["kind"] == "bart" else "Amtrak", st["kind"]])
 
         # A city with no real area inside the map is not on the map.
         cities = []
@@ -158,30 +173,30 @@ def main():
             r = rings_of(g.intersection(area))
             if r:
                 cities.append({"n": nm, "r": r})
-        areas = {"city": cities}
+        # A county counts as on the map only with real ground inside it: the
+        # Contra Costa line runs along the map's own edge in the hills, and
+        # what pokes over it is survey slop of a few thousand square feet.
+        m2 = 111320 * 111320 * math.cos(math.radians(37.87))
+        counties = [c for c in (cty_a, cty_c)
+                    if Polygon(c["r"][0]).intersection(area).area * m2 > 1e5]
+        areas = {"city": cities, "county": counties}
         # Council districts: Berkeley's 2022 plan and Oakland's current
         # districts, clipped only to a box well beyond the map, so no
         # artificial edge ever falls within reach of a hiding zone.
         dists = []
         for d in load_districts():
             g = shape({"type": "MultiPolygon", "coordinates": [[r] for r in d["r"]]})
-            if g.intersects(area):
+            if g.buffer(0).intersection(area).area * 111320 * 111320 * math.cos(math.radians(37.87)) > 1e5:
                 dists.append(d)
         if dists:
             areas["district"] = dists
-        for extra, path in (("county", DATA / "counties.json"),):
-            if path.exists():
-                got = [a for a in json.loads(path.read_text())
-                       if shape({"type": "Polygon", "coordinates": [a["r"][0]]}).intersects(area)]
-                if got:
-                    areas[extra] = got
-
         maps[name] = {
             "label": cfg["label"],
             "vb": payload["VB"],
             "origin": meta["origin"],
             "layers": {k: layers[k] for k in keep if layers.get(k)},
-            "stops": payload["stops"],
+            "stops": stops,
+            "water": bx.water(raw, area),
             "stations": payload["stations"],
             "places": payload["places"],
             "poi": poi,
@@ -193,12 +208,18 @@ def main():
         print(f"  {name}: {len(payload['stops'])} stops, {kb} KB")
         print(f"      on the map: {have}")
         print(f"      null here:  {miss or 'none'}")
+        print(f"      water: " + ", ".join(w["n"] for w in maps[name]["water"]))
+        print(f"      rail stops: " + "; ".join(f"{s[2]}={s[3]}" for s in stops if len(s) > 5))
         print(f"      areas: " + ", ".join(f"{k} x{len(v)}" for k, v in areas.items()))
 
-    # The shoreline is the one reference measured to the feature itself.
-    shapes = {"coast": outlines(base["base"]["coast"])}
-
-    blob = json.dumps({"zones": maps, "shapes": shapes},
+    # Shapes measured to the feature itself: the Bay's shoreline (the Bay is
+    # a named body of water) and the county line.
+    shapes = {"coast": outlines(base["base"]["coast"]), "countyline": [cty_line]}
+    # Streets and paths for everywhere a hiding zone or a seeker can be.
+    ents = bx.streets(raw, (-12238600, 3781100, -12219700, 3792000))
+    print(f"  streets: {len(ents)} streets and paths")
+    blob = json.dumps({"zones": maps, "shapes": shapes, "streets": bx.streets_blob(ents),
+                       "terrain": bx.terrain(raw), "metro": met},
                       separators=(",", ":"), ensure_ascii=False)
     html = TEMPLATE.read_text().replace("__MAPDATA__", blob)
     OUT.parent.mkdir(exist_ok=True)
