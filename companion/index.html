@@ -324,7 +324,27 @@ table.sb th{font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;l
 //             work when neither of the above is reachable
 const Store=(function(){
 const TOPIC='jlhs/v1/';
+// The relay every phone meets on. The free public brokers this used to rely
+// on all stopped answering — EMQX refuses with "server unavailable", HiveMQ
+// and Eclipse never reply — and when none answer each phone quietly falls
+// back to its own storage, which looks exactly like "it won't connect".
+// So the first choice is a broker of our own; the public ones are kept only
+// as a long shot behind it.
+const RELAY={h:'',u:'',p:'',port:8084};
 const BROKERS=['wss://broker.emqx.io:8084/mqtt','wss://broker.hivemq.com:8884/mqtt'];
+// Saved on the phone, or carried in the link (#r=…) so the others need one
+// tap rather than typing a password on a phone keyboard.
+function relayCfg(){
+  try{
+    const m=location.hash.match(/[#&]r=([^&]+)/);
+    if(m){ const v=JSON.parse(atob(decodeURIComponent(m[1])));
+      if(v&&v.h){ localStorage.setItem('hs-relay',JSON.stringify(v));
+        history.replaceState(null,'',location.pathname+location.search); } }
+  }catch(e){}
+  try{ const v=JSON.parse(localStorage.getItem('hs-relay')||'null'); if(v&&v.h) return v; }catch(e){}
+  return RELAY.h?RELAY:null;
+}
+function relayUrl(c){ return 'wss://'+c.h+':'+(c.port||8084)+'/mqtt'; }
 const mkid=()=>Math.random().toString(36).slice(2,9)+Date.now().toString(36).slice(-3);
 
 // A document store over a path -> object map. `io` supplies persistence and
@@ -440,22 +460,33 @@ function localIO(){
   };
 }
 
-function connectMqtt(){
+function tryBroker(url,auth,ms){
   return new Promise(resolve=>{
-    if(!window.mqtt){ resolve(null); return; }
-    let i=0;
-    const tryNext=()=>{
-      if(i>=BROKERS.length){ resolve(null); return; }
-      const url=BROKERS[i++];
-      let done=false;
-      const c=mqtt.connect(url,{clientId:'hs_'+mkid(),clean:true,connectTimeout:6000,reconnectPeriod:3000,keepalive:30});
-      const fail=()=>{ if(done) return; done=true; try{c.end(true);}catch(e){} tryNext(); };
-      const timer=setTimeout(fail,7000);
-      c.on('connect',()=>{ if(done) return; done=true; clearTimeout(timer); c.__url=url; resolve(c); });
-      c.on('error',fail);
-    };
-    tryNext();
+    let done=false;
+    const opts={clientId:'hs_'+mkid(),clean:true,connectTimeout:ms,reconnectPeriod:3000,keepalive:30};
+    if(auth&&auth.u){ opts.username=auth.u; opts.password=auth.p; }
+    let c; try{ c=mqtt.connect(url,opts); }catch(e){ resolve(null); return; }
+    const fin=(ok,why)=>{ if(done) return; done=true; clearTimeout(timer);
+      if(ok){ c.__url=url; resolve(c); } else { try{c.end(true);}catch(e){} lastError=why||'no answer'; resolve(null); } };
+    const timer=setTimeout(()=>fin(false,'timed out'),ms+1000);
+    c.on('connect',()=>fin(true));
+    c.on('error',e=>fin(false,(e&&e.message)||'refused'));
   });
+}
+let lastError='';
+function connectMqtt(){
+  return (async()=>{
+    if(!window.mqtt) return null;
+    const r=relayCfg();
+    if(r){ const c=await tryBroker(relayUrl(r),r,7000); if(c){ c.__own=true; return c; } }
+    // The public ones are tried together rather than one after another: they
+    // are a long shot, and nobody should wait out three timeouts in a row.
+    const tries=BROKERS.map(u=>tryBroker(u,null,5000));
+    const all=await Promise.all(tries);
+    let win=null;
+    for(const c of all){ if(c&&!win) win=c; else if(c){ try{c.end(true);}catch(e){} } }
+    return win;
+  })();
 }
 
 return { async open(){
@@ -463,9 +494,15 @@ return { async open(){
     try{ const d=await claude.use('db'); if(d) return {kind:'artifact',db:d}; }catch(e){}
   }
   const c=await connectMqtt();
-  if(c) return {kind:'mqtt',db:build(mqttIO(c)),detail:c.__url.split('/')[2]};
-  return {kind:'local',db:build(localIO())};
-}};
+  if(c) return {kind:'mqtt',db:build(mqttIO(c)),detail:c.__url.split('/')[2],own:!!c.__own};
+  return {kind:'local',db:build(localIO()),detail:lastError};
+}, cfg:relayCfg, url:relayUrl,
+  // Try a relay's details without disturbing the one in use.
+  async test(c){ if(!window.mqtt) return 'no MQTT library'; lastError='';
+    const k=await tryBroker(relayUrl(c),c,8000); if(k){ try{k.end(true);}catch(e){} return 'OK'; } return lastError||'no answer'; },
+  save(c){ try{ localStorage.setItem('hs-relay',JSON.stringify(c)); }catch(e){} },
+  clear(){ try{ localStorage.removeItem('hs-relay'); }catch(e){} }
+};
 })();
 
 // ---------- rules data ----------
@@ -752,7 +789,8 @@ const DEFAULT_ZONE='berkeley-north-oakland';
 const HIDE_RADIUS={S:402,M:402,L:805};
 
 // ---------- state ----------
-let db=null, assets=null, dbReady=false, backend=null, backendDetail='';
+let db=null, assets=null, dbReady=false, backend=null, backendDetail='', backendOwn=false;
+let relayShow=false, relayMsg='', relayForm=null;
 let me=load('hs-me')||{name:'',role:'seeker'};
 let code=load('hs-code')||null;
 let tab=load('hs-tab')||'feed';
@@ -840,7 +878,7 @@ function sizeOk(min){ return !min || SIZE_RANK[(game&&game.size)||'S']>=SIZE_RAN
 // ---------- capability boot ----------
 (async()=>{
   const opened = await Store.open();
-  db = opened.db; backend = opened.kind; backendDetail = opened.detail||'';
+  db = opened.db; backend = opened.kind; backendDetail = opened.detail||''; backendOwn = !!opened.own;
   if(backend==='artifact'){ try{ assets = await claude.use('assets'); }catch(e){} }
   dbReady=true;
   if(db){ subscribeLobby(); if(code) join(code,true); }
@@ -1031,10 +1069,29 @@ function narrowChip(){
   if(!c||!c.cons) return '';
   return `<div><b>${c.left}</b><span>of ${c.total} stops left</span></div>`;
 }
+// What the phones are talking through, said plainly: a round that is not
+// syncing has to look wrong before anyone has driven anywhere.
 function backendNote(){
+  const cfg=Store.cfg();
   if(backend==='artifact') return `<div class="card flat"><h3>Sync</h3><p class="small">Through Claude, private to your account. Everyone needs to open this page signed in to the same account.</p></div>`;
-  if(backend==='mqtt') return `<div class="card flat"><h3>Sync</h3><p class="small">Through a public message broker (${esc(backendDetail)}). Nothing to sign in to, but the four-letter code is the only thing keeping a stranger out — so keep pins and notes non-sensitive, and expect the odd dropped message.</p></div>`;
-  return `<div class="card flat"><h3>Sync</h3><p class="small"><b>This device only.</b> No broker was reachable, so a game you start here will not appear on anyone else's phone. The timers, cards, rules and map still work.</p></div>`;
+  if(backend==='mqtt') return `<div class="card flat"><h3>Sync <span class="pill seeker">connected</span></h3>
+    <p class="small">${backendOwn?'Through your own relay':'Through a public message broker'} (${esc(backendDetail)}). The four-letter code is the only thing keeping a stranger out, so keep pins and notes non-sensitive.</p>
+    ${relayCard(cfg)}</div>`;
+  return `<div class="card" style="border-color:var(--red)"><h2>Not connected — this phone only</h2>
+    <p class="small">No relay answered${backendDetail?' ('+esc(backendDetail)+')':''}, so this phone is on its own: a round started here will not appear on anyone else's, and theirs will not appear here. Timers, cards, rules and the map all still work.</p>
+    <p class="small">The free public brokers this used to lean on have stopped accepting connections. Point every phone at one relay below — set it up on one phone, then send the others the setup link.</p>
+    ${relayCard(cfg,true)}</div>`;
+}
+function relayCard(cfg,open){
+  if(!relayShow&&!open) return `<p class="small"><a href="#" id="relay-show">Relay settings</a></p>`;
+  // What you typed survives a redraw: testing a relay re-renders this card.
+  const c=relayForm||cfg||{h:'',u:'',p:''};
+  return `<label class="f" for="relay-h">Relay host</label><input type="text" id="relay-h" value="${esc(c.h||'')}" placeholder="abc123.ala.us-east-1.emqxsl.com" autocomplete="off" autocapitalize="off" spellcheck="false">
+    <div class="row"><div class="grow"><label class="f" for="relay-u">Username</label><input type="text" id="relay-u" value="${esc(c.u||'')}" autocomplete="off" autocapitalize="off"></div>
+    <div class="grow"><label class="f" for="relay-p">Password</label><input type="text" id="relay-p" value="${esc(c.p||'')}" autocomplete="off" autocapitalize="off"></div></div>
+    <div class="row" style="margin-top:8px"><button class="btn sm" id="relay-test">Test</button><button class="btn sm primary" id="relay-save">Save &amp; reconnect</button>${cfg?`<button class="btn sm" id="relay-link">Copy setup link</button><button class="btn sm ghost" id="relay-clear">Forget</button>`:''}</div>
+    ${relayMsg?`<p class="small"><b>${esc(relayMsg)}</b></p>`:''}
+    <p class="small muted">An MQTT broker over secure WebSocket on port 8084 — a free EMQX Serverless deployment is the quick one. The setup link carries these details, so the other phones only have to open it.</p>`;
 }
 function rulesCard(){
   return `<div class="card flat"><h3>Game sizes</h3><table class="sb"><tr><th>Size</th><th>Hiding period</th><th>Hiding zone</th></tr>${Object.entries(SIZES).map(([k,s])=>`<tr><td>${s.name}</td><td>${s.hide} min</td><td>${s.zone}</td></tr>`).join('')}</table></div>`+rulesNotes();
@@ -1064,6 +1121,16 @@ function lobby(){
     <p class="small muted">Small fits Berkeley: 30-minute hiding period, ¼-mile hiding zone, no tentacles. One round = one hider; start a new round when you swap.</p>
     <button class="btn primary block" id="btn-create" style="margin-top:8px">Create round</button>
   </div><div class="card"><h2>Colours</h2>${themePicker()}</div>${rulesCard()}`;
+}
+function relayTyped(){
+  relayForm={h:($('#relay-h').value||''),u:($('#relay-u').value||''),p:($('#relay-p').value||'')};
+}
+function relayFields(){
+  relayTyped();
+  const h=relayForm.h.trim().replace(/^wss?:\/\//,'').replace(/[:\/].*$/,'');
+  const u=relayForm.u.trim(), p=relayForm.p.trim();
+  if(!h){ relayMsg='Enter the relay host'; render(); return null; }
+  return {h,u,p,port:8084};
 }
 function timerText(){
   const now=Date.now();
@@ -1300,6 +1367,20 @@ function wire(){
   on('#btn-endgame','click',()=>patch({phase:'endgame',endgameAt:Date.now()}));
   on('#btn-found','click',()=>{ if(confirm('Found means a seeker is within 6\u00bd feet (2 m) of the hider AND has actually spotted them \u2014 being in the right building is not enough.\n\nEnd the round?')) patch({phase:'found',foundAt:Date.now(),bonusAtFound:bonusMinutes()}); });
   on('[data-strict]','click',e=>{ patch({strict:e.currentTarget.dataset.strict==='1'}); });
+  on('#relay-show','click',e=>{ e.preventDefault(); relayShow=true; relayMsg=''; render(); });
+  on('#relay-h','input',relayTyped); on('#relay-u','input',relayTyped); on('#relay-p','input',relayTyped);
+  on('#relay-test','click',async()=>{ const c=relayFields(); if(!c) return;
+    relayMsg='Testing…'; render(); relayMsg='Test: '+await Store.test(c); render(); });
+  on('#relay-save','click',async()=>{ const c=relayFields(); if(!c) return;
+    relayMsg='Connecting…'; render();
+    const r=await Store.test(c);
+    if(r!=='OK'){ relayMsg='Could not connect: '+r; render(); return; }
+    Store.save(c); location.reload(); });
+  on('#relay-clear','click',()=>{ Store.clear(); location.reload(); });
+  on('#relay-link','click',async()=>{ const c=Store.cfg(); if(!c) return;
+    const u=location.origin+location.pathname+'#r='+encodeURIComponent(btoa(JSON.stringify(c)));
+    try{ await navigator.clipboard.writeText(u); toast('Setup link copied — send it to the other phones'); }
+    catch(e){ relayMsg=u; render(); } });
   on('#btn-leave','click',leave);
   on('#btn-switch','click',()=>{ leave(); });
   on('#btn-delete','click',async()=>{ if(!confirm('Delete this round for everyone?')) return; try{ await db.doc('games/'+code).delete(); }catch(e){ toast('Could not delete'); } leave(); });
