@@ -258,14 +258,28 @@ API, tried in order:
 The **claude.ai artifact runtime** (`claude.use("db")`), when the page is
 opened as an artifact. Private to one account and properly durable.
 
-A **public MQTT broker** over WebSockets otherwise — EMQX, falling back to
-HiveMQ. Each document is one retained message under `jlhs/v1/…`, so a phone
-that joins late gets the current state the moment it subscribes, and
-deleting a document means publishing an empty retained payload. This is what
-makes the hosted copy work with nothing to sign up for. The trade is real
-and the app says so on its lobby screen: the broker is public, so the
-four-letter game code is the only thing keeping a stranger out, and delivery
-is best-effort.
+An **MQTT broker** over WebSockets otherwise. Each document is one retained
+message under `jlhs/v1/…`, so a phone that joins late gets the current state
+the moment it subscribes, and deleting a document means publishing an empty
+retained payload.
+
+Which broker matters more than it used to. This was built on the free public
+brokers, and in October 2026 all of them stopped answering: EMQX refuses with
+"server unavailable", HiveMQ and Eclipse never send a CONNACK, mosquitto and
+mqtthq close the socket. When none answer every phone falls back to its own
+storage, which from the outside looks exactly like "it will not connect
+across devices". So the lobby now leads with a red **Not connected — this
+phone only** card instead of a quiet note, and carries the relay settings:
+host, username, password for a broker of your own (a free EMQX Serverless
+deployment, secure WebSocket on port 8084). It is tested before it is saved,
+so a typo says *not authorized* rather than failing silently later, and
+**Copy setup link** produces a link carrying the details in its fragment —
+the other phones open it once and are configured. The public brokers are
+still tried, together rather than one after another, as a long shot behind
+your own.
+
+The trade is unchanged and the app still says so: the four-letter game code
+is the only thing keeping a stranger out, and delivery is best-effort.
 
 **Local storage**, if neither is reachable. One device only — no sync — but
 the timers, cards, rules and map still work.
