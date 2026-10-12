@@ -319,6 +319,11 @@ table.sb th{font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;l
 <div id="toast" class="toast" hidden></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/5.10.1/mqtt.min.js"></script>
+<!-- QR Code Generator for JavaScript, Kazuhiko Arase, MIT. Inlined so a
+     join code can be drawn with no network. -->
+<script>
+/*__QRCODE__*/
+</script>
 
 <script>
 (function(){
@@ -344,12 +349,17 @@ const RELAY={h:'',u:'',p:'',port:8084};
 const BROKERS=['wss://broker.emqx.io:8084/mqtt','wss://broker.hivemq.com:8884/mqtt'];
 // Saved on the phone, or carried in the link (#r=…) so the others need one
 // tap rather than typing a password on a phone keyboard.
+// A round joined from a link: the code travels in the same fragment as the
+// relay details, so one scan sets a phone up and puts it in the game.
+function joinFromLink(){
+  const m=location.hash.match(/[#&]j=([A-Za-z0-9]{4})/);
+  return m?m[1].toUpperCase():null;
+}
 function relayCfg(){
   try{
     const m=location.hash.match(/[#&]r=([^&]+)/);
     if(m){ const v=JSON.parse(atob(decodeURIComponent(m[1])));
-      if(v&&v.h){ localStorage.setItem('hs-relay',JSON.stringify(v));
-        history.replaceState(null,'',location.pathname+location.search); } }
+      if(v&&v.h) localStorage.setItem('hs-relay',JSON.stringify(v)); }
   }catch(e){}
   try{ const v=JSON.parse(localStorage.getItem('hs-relay')||'null'); if(v&&v.h) return v; }catch(e){}
   return RELAY.h?RELAY:null;
@@ -361,6 +371,30 @@ const mkid=()=>Math.random().toString(36).slice(2,9)+Date.now().toString(36).sli
 // delivery; everything else — queries, snapshots, change lists — is here.
 function build(io){
   const cache=new Map(), listeners=[], pending=new Set();
+  // Every write lands here first: shown on this phone at once, then sent.
+  // A phone with no signal keeps playing and the queue drains when it is
+  // back — before this, a question asked in the hills was simply lost.
+  const OUT='hs-outbox';
+  let outbox=[]; try{ outbox=JSON.parse(localStorage.getItem(OUT)||'[]'); }catch(e){}
+  let flushing=false, onOut=null, lastErr='';
+  const saveOut=()=>{ try{ localStorage.setItem(OUT,JSON.stringify(outbox.slice(0,400))); }catch(e){}
+    if(onOut) onOut(outbox.length,lastErr); };
+  function send(path,value){
+    pending.add(path); apply(path,value);
+    outbox.push({p:path,v:value,t:Date.now()}); saveOut(); flush();
+  }
+  async function flush(){
+    if(flushing) return; flushing=true;
+    while(outbox.length){
+      const it=outbox[0];
+      try{ await io.publish(it.p,it.v); lastErr=''; }
+      catch(e){ lastErr=(e&&e.message)||'could not send'; break; }
+      outbox.shift(); saveOut();
+    }
+    flushing=false; saveOut();
+    if(outbox.length) setTimeout(flush,5000);
+  }
+  if(typeof window!=='undefined'){ window.addEventListener('online',()=>flush()); setInterval(flush,15000); }
 
   function snapDoc(path){ const d=cache.get(path);
     return {id:path.split('/').pop(),exists:d!==undefined,data:()=>d,
@@ -407,9 +441,9 @@ function build(io){
     return {
       id:path.split('/').pop(), path,
       get(){ io.watchDoc(path); return io.settle().then(()=>snapDoc(path)); },
-      set(d){ pending.add(path); io.publish(path,d); return Promise.resolve(); },
-      update(d){ pending.add(path); io.publish(path,Object.assign({},cache.get(path)||{},d)); return Promise.resolve(); },
-      delete(){ pending.add(path); io.publish(path,null); return Promise.resolve(); },
+      set(d){ send(path,d); return Promise.resolve(); },
+      update(d){ send(path,Object.assign({},cache.get(path)||{},d)); return Promise.resolve(); },
+      delete(){ send(path,null); return Promise.resolve(); },
       acquire(){ return Promise.resolve({acquired:true}); },
       onSnapshot(next){ io.watchDoc(path); const L={kind:'doc',path,fn:next};
         listeners.push(L); io.settle().then(()=>next(snapDoc(path))); return ()=>drop(L); },
@@ -428,12 +462,20 @@ function build(io){
       onSnapshot(next){ io.watchCollection(base);
         const L={kind:'col',path:base,opts,prev:[],seen:{},fn:next};
         listeners.push(L); io.settle().then(()=>next(colSnap(L))); return ()=>drop(L); },
-      add(d){ const id=mkid(); const p=base+'/'+id; pending.add(p); io.publish(p,d); return Promise.resolve({id}); },
+      add(d){ const id=mkid(); const p=base+'/'+id; send(p,d); return Promise.resolve({id}); },
       doc(id){ return docRef(base+'/'+(id||mkid())); }
     };
     return q;
   }
-  return {doc:docRef, collection:colRef};
+  return {doc:docRef, collection:colRef,
+    waiting(){ return outbox.length; },
+    lastError(){ return lastErr; },
+    onWaiting(fn){ onOut=fn; },
+    flushNow(){ lastErr=''; flush(); },
+    // Push everything this phone knows back out: the relay forgets after
+    // twelve hours, and a new relay starts empty.
+    resend(docs){ for(const [p,v] of docs) send(p,v); },
+  };
 }
 
 // --- MQTT: one retained message per document -----------------------------
@@ -451,7 +493,9 @@ function mqttIO(client){
     // Retained messages arrive right after SUBSCRIBE; a short grace period
     // lets the first batch land before the first snapshot goes out.
     settle(){ return new Promise(r=>setTimeout(r,400)); },
-    publish(path,value){ client.publish(TOPIC+path, value===null?'':JSON.stringify(value), {retain:true,qos:0}); },
+    publish(path,value){ return new Promise((res,rej)=>{
+      if(!client.connected) return rej(new Error('offline'));
+      client.publish(TOPIC+path, value===null?'':JSON.stringify(value), {retain:true,qos:1}, e=>e?rej(e):res()); }); },
     watchDoc(path){ sub(TOPIC+path); },
     watchCollection(base){ sub(TOPIC+base+'/+'); }
   };
@@ -479,11 +523,15 @@ function ntfyIO(){
     const topics=[ntfyTopic(path)];
     if(/^games\/[A-Za-z0-9]+$/.test(path)) topics.push(NTFY_TOPIC+'lobby');
     for(const t of topics){
-      if(body.length<=NTFY_MAX){ await fetch(NTFY+t,{method:'POST',body}); continue; }
+      if(body.length<=NTFY_MAX){ const r=await fetch(NTFY+t,{method:'POST',body});
+        if(!r.ok) throw new Error('relay said '+r.status); continue; }
       const r=await fetch(NTFY+t,{method:'PUT',headers:{Filename:'doc.json'},
         body:new Blob([JSON.stringify(value)],{type:'application/json'})});
+      if(!r.ok) throw new Error('relay said '+r.status);
       const j=await r.json();
-      if(j&&j.attachment&&j.attachment.url) await fetch(NTFY+t,{method:'POST',body:JSON.stringify({p:path,a:j.attachment.url})});
+      if(!j||!j.attachment||!j.attachment.url) throw new Error('relay kept no attachment');
+      const r2=await fetch(NTFY+t,{method:'POST',body:JSON.stringify({p:path,a:j.attachment.url})});
+      if(!r2.ok) throw new Error('relay said '+r2.status);
     }
   }
   async function take(m){
@@ -517,7 +565,7 @@ function ntfyIO(){
   return {
     attach(fn){ apply=fn; },
     settle(){ return Promise.all(waits).then(()=>new Promise(r=>setTimeout(r,250))); },
-    publish(path,value){ put(path,value).catch(()=>{}); },
+    publish(path,value){ return put(path,value); },
     watchDoc(path){ waits.push(listen(ntfyTopic(path))); },
     watchCollection(base){ waits.push(listen(base==='games'?NTFY_TOPIC+'lobby':ntfyTopic(base))); }
   };
@@ -537,7 +585,7 @@ function localIO(){
   return {
     attach(fn){ apply=fn; for(const k in data) fn(k,data[k]); },
     settle(){ return Promise.resolve(); },
-    publish(path,value){ if(value===null) delete data[path]; else data[path]=value; save(); apply(path,value); },
+    publish(path,value){ if(value===null) delete data[path]; else data[path]=value; save(); apply(path,value); return Promise.resolve(); },
     watchDoc(){}, watchCollection(){}
   };
 }
@@ -584,7 +632,7 @@ return { async open(){
   const c=await connectMqtt(true);
   if(c) return {kind:'mqtt',db:build(mqttIO(c)),detail:c.__url.split('/')[2],own:!!c.__own};
   return {kind:'local',db:build(localIO()),detail:lastError};
-}, cfg:relayCfg, url:relayUrl,
+}, cfg:relayCfg, url:relayUrl, linkCode:joinFromLink,
   // Try a relay's details without disturbing the one in use.
   async test(c){ if(!window.mqtt) return 'no MQTT library'; lastError='';
     const k=await tryBroker(relayUrl(c),c,8000); if(k){ try{k.end(true);}catch(e){} return 'OK'; } return lastError||'no answer'; },
@@ -894,7 +942,7 @@ const HIDE_RADIUS={S:402,M:402,L:805};
 // ---------- state ----------
 let db=null, assets=null, dbReady=false, backend=null, backendDetail='', backendOwn=false;
 let relayShow=false, relayMsg='', relayForm=null;
-let selfCheckOut=null, stepShow=null;
+let selfCheckOut=null, stepShow=null, shareOpen=false;
 let me=load('hs-me')||{name:'',role:'seeker'};
 let code=load('hs-code')||null;
 let tab=load('hs-tab')||'feed';
@@ -999,8 +1047,14 @@ function sizeOk(min){ return !min || SIZE_RANK[(game&&game.size)||'S']>=SIZE_RAN
 
 // ---------- capability boot ----------
 (async()=>{
+  // A link can carry the relay and the round; take both before the hash goes.
+  const linkCode = Store.linkCode();
+  if(linkCode){ code=linkCode; save('hs-code',code); }
+  try{ history.replaceState(null,'',location.pathname+location.search); }catch(e){}
   const opened = await Store.open();
   db = opened.db; backend = opened.kind; backendDetail = opened.detail||''; backendOwn = !!opened.own;
+  if(db.onWaiting) db.onWaiting((n,err)=>{ const was=waitingN; waitingN=n; waitingErr=err||'';
+    if(was!==n||err) render(); });
   if(backend==='artifact'){ try{ assets = await claude.use('assets'); }catch(e){} }
   dbReady=true;
   if(db){ subscribeLobby(); if(code) join(code,true); }
@@ -1172,7 +1226,9 @@ async function uploadPhoto(file,qid){
 }
 
 // ---------- render ----------
+let backupT=null;
 function render(){
+  if(code&&game){ clearTimeout(backupT); backupT=setTimeout(saveBackup,1500); }
   const m=$('#main');
   $('#hdr-role').textContent=me.name?(me.name+' · '+me.role):'—';
   $('#hdr-role').className='pill '+(me.name?me.role:'');
@@ -1191,7 +1247,7 @@ function render(){
     m.hidden=true; mv.hidden=false; Map3.show();
   } else {
     mv.hidden=true; m.hidden=false;
-    let html=statusCard()+stationAlarm()+contradictionNote();
+    let html=statusCard()+waitingChip()+stationAlarm()+contradictionNote();
     if(tab==='ask') html+=isHider()?inbox(pendingN):ask();
     else if(tab==='feed') html+=feed();
     else if(tab==='hand') html+=hand();
@@ -1266,6 +1322,33 @@ function rulesNotes(){
     <p class="small"><b>Found means found.</b> A seeker has to be within 6½ feet (2 m) of the hider <i>and</i> have actually spotted them. Being in the right building, or knowing the station, is not enough.</p>
     <p class="small"><b>No Street View.</b> Seekers may research with anything they like except Google Street View. (The Unguided Tourist is the exception that proves it: there the <i>hider</i> sends a Street View shot, and the seekers have to find it without the internet.)</p></div>`;
 }
+// The code as a picture: a phone camera opens it, and the link carries the
+// relay too, so nobody types anything.
+function joinLink(){
+  const c=Store.cfg();
+  let u=location.origin+location.pathname+'#j='+code;
+  if(c) u+='&r='+encodeURIComponent(btoa(JSON.stringify(c)));
+  return u;
+}
+function qrSvg(text,px){
+  try{
+    const q=qrcode(0,'M'); q.addData(text); q.make();
+    const n=q.getModuleCount(), cell=px/(n+8), off=cell*4;
+    let d='';
+    for(let r=0;r<n;r++) for(let col=0;col<n;col++) if(q.isDark(r,col))
+      d+='M'+(off+col*cell).toFixed(2)+' '+(off+r*cell).toFixed(2)+'h'+cell.toFixed(2)+'v'+cell.toFixed(2)+'h'+(-cell).toFixed(2)+'Z';
+    return `<svg width="${px}" height="${px}" viewBox="0 0 ${px} ${px}" style="background:#fff;border-radius:10px"><path d="${d}" fill="#15171B"/></svg>`;
+  }catch(e){ return '<p class="small muted">Could not draw the code.</p>'; }
+}
+function shareCard(){
+  if(!code) return '';
+  if(!shareOpen) return `<div class="row"><button class="btn sm" id="btn-share">Show the join code</button></div>`;
+  return `<div class="card" style="text-align:center"><h2>Join this round</h2>
+    <div style="font-family:'Barlow Condensed';font-weight:800;font-size:54px;letter-spacing:.18em;line-height:1">${esc(code)}</div>
+    <div style="margin:10px auto">${qrSvg(joinLink(),240)}</div>
+    <p class="small">Point a phone camera at this. It opens the app, sets the relay up and joins the round — nothing to type.</p>
+    <div class="row" style="justify-content:center"><button class="btn sm" id="btn-copylink">Copy the link</button><button class="btn sm ghost" id="btn-share-x">Done</button></div></div>`;
+}
 function lobby(){
   return `<div class="card"><h2>Who are you?</h2>
     <label class="f" for="me-name">Name</label><input type="text" id="me-name" value="${esc(me.name)}" placeholder="e.g. Nathan" autocomplete="off">
@@ -1335,6 +1418,40 @@ function timerText(){
   return '--:--';
 }
 function timerText2(){ if(game.phase==='endgame') return fmtT(Date.now()-game.endgameAt); return ''; }
+// What is still waiting to go out, and the round as this phone last saw
+// it — a relay that forgets, or dies, no longer takes the game with it.
+let waitingN=0, waitingErr='';
+function backupKey(){ return 'hs-backup-'+code; }
+function saveBackup(){
+  if(!code||!game) return;
+  const b={at:Date.now(),code,game,
+    questions:questions.map(q=>Object.assign({},q)),
+    messages:messages.map(m=>Object.assign({},m)),
+    pins:pins.map(p=>Object.assign({},p)),
+    crossed:Object.keys(crossed).map(Number)};
+  try{ localStorage.setItem(backupKey(),JSON.stringify(b)); }catch(e){}
+}
+function loadBackup(){ try{ return JSON.parse(localStorage.getItem(backupKey())||'null'); }catch(e){ return null; } }
+function backupDocs(b){
+  const out=[['games/'+b.code,b.game]];
+  for(const q of b.questions||[]){ const {id,...rest}=q; out.push(['games/'+b.code+'/questions/'+id,rest]); }
+  for(const m of b.messages||[]){ const {id,...rest}=m; out.push(['games/'+b.code+'/messages/'+id,rest]); }
+  for(const p of b.pins||[]){ const {id,...rest}=p; out.push(['games/'+b.code+'/pins/'+id,rest]); }
+  for(const i of b.crossed||[]) out.push(['games/'+b.code+'/crossed/'+i,{out:true,by:'restore',at:Date.now()}]);
+  return out;
+}
+function restoreBackup(){
+  const b=loadBackup(); if(!b){ toast('Nothing saved on this phone'); return; }
+  if(!confirm('Send this phone\'s copy of the round back to the relay? '+
+    (b.questions||[]).length+' questions, saved '+fmtClock(b.at)+'.')) return;
+  db.resend(backupDocs(b)); toast('Sending the round back to the relay');
+}
+function waitingChip(){
+  if(!waitingN) return '';
+  return `<div class="card" style="border-color:var(--yellow)"><h3>${waitingN} waiting to send</h3>
+    <p class="small">No signal, or the relay is not answering${waitingErr?' ('+esc(waitingErr)+')':''}. Everything you do still works here and goes out as soon as there is a connection.</p>
+    <button class="btn sm" id="btn-flush">Try now</button></div>`;
+}
 function statusCard(){
   const S=SIZES[game.size]||SIZES.S;
   const label={setup:'Setup',hiding:'Hiding period — seekers wait',seeking:'Seeking — hider time running',endgame:'Endgame — seekers in the zone',found:'Round over'}[game.phase];
@@ -1551,6 +1668,7 @@ function gameTab(){
   const past=lobbyGames.filter(g=>g.phase==='found'&&g.foundAt&&g.seekingStartAt).sort((a,b)=>b.foundAt-a.foundAt);
   return `<div class="card"><h2>${esc(game.name)} <span class="muted">· ${code}</span></h2>
     <p class="small muted">Share the code; everyone joins from the lobby on their own phone.</p>
+    ${shareCard()}
     <h3>Players</h3>${players.length?players.map(([n,r])=>`<span class="pill ${r}" style="margin:2px 4px 2px 0">${esc(n)} · ${r}</span>`).join(''):'<p class="muted">Nobody yet.</p>'}
     <h3>Hider</h3><div class="row"><select id="sel-hider" class="grow"><option value="">— choose —</option>${players.map(([n])=>`<option ${game.hider===n?'selected':''}>${esc(n)}</option>`).join('')}</select></div>
     <h3>Map zone</h3><div class="seg" id="sel-zone">${Object.entries(MAPS).map(([k,m])=>`<button type="button" data-zone="${k}" class="${(game.zone||DEFAULT_ZONE)===k?'on':''}">${esc(m.label)}</button>`).join('')}</div>
@@ -1562,11 +1680,20 @@ function gameTab(){
     <p class="small muted" style="margin-top:6px">${game.strict!==false
       ? 'House rule: answers are read against the station itself, so a radar rules out every station inside its circle. Sharper, but it can rule out a hider who had wandered across their zone.'
       : 'The rulebook: “radars are asking about your location, not your hiding zone. If the radar would encompass part of your hiding zone, but not your location at the time of answering, it would be a miss.” So a station falls only when no point of its zone could have given the answer.'}</p>
+    <h3>Paper map</h3>
+    <p class="small">One sheet, US Letter, landscape: the boundary, the rail lines and every hiding station, for the car that would rather not stare at a phone.
+      <a href="../maps/print-berkeley.html" target="_blank" rel="noopener">Berkeley</a> ·
+      <a href="../maps/print-berkeley-north-oakland.html" target="_blank" rel="noopener">Berkeley + N. Oakland</a></p>
     <h3>Testing</h3>
     <p class="small muted">All of this is local to your phone; nothing is sent.</p>
     <div class="row"><button class="btn sm" id="btn-selfcheck">Run self-check</button>
-      <button class="btn sm" id="btn-demo">Fill a demo round</button>
-      <button class="btn sm" id="btn-save">Save this round</button></div>
+      <button class="btn sm" id="btn-demo">Fill a demo round</button></div>
+    <h3>Backup</h3>
+    <p class="small">${(()=>{ const b=loadBackup(); return b?`This phone has the round as of <b>${fmtClock(b.at)}</b> — ${(b.questions||[]).length} questions. If the relay forgets it (it keeps twelve hours) or you have to start a new one, send it back.`:'Nothing saved yet — it saves itself as the round goes on.'; })()}</p>
+    <div class="row"><button class="btn sm" id="btn-save">Save to a file</button>
+      <button class="btn sm" id="btn-restore">Send this phone's copy back</button>
+      <button class="btn sm" id="btn-loadfile">Load a saved file</button></div>
+    <input type="file" id="file-round" accept="application/json,.json" hidden>
     ${selfCheckOut?`<pre class="small" style="white-space:pre-wrap;margin-top:8px">${esc(selfCheckOut.join('\n'))}</pre>`:''}
     <label class="f" for="step-range">Step through the answers</label>
     <input type="range" id="step-range" min="0" max="${Math.max(1,Map3.stepMax())}" value="${stepShow==null?Map3.stepMax():stepShow}" style="width:100%">
@@ -1598,6 +1725,23 @@ function wire(){
   on('#btn-endgame','click',()=>patch({phase:'endgame',endgameAt:Date.now()}));
   on('#btn-found','click',()=>{ if(confirm('Found means a seeker is within 6\u00bd feet (2 m) of the hider AND has actually spotted them \u2014 being in the right building is not enough.\n\nEnd the round?')) patch({phase:'found',foundAt:Date.now(),bonusAtFound:bonusMinutes()}); });
   on('[data-strict]','click',e=>{ patch({strict:e.currentTarget.dataset.strict==='1'}); });
+  on('#btn-share','click',()=>{ shareOpen=true; render(); });
+  on('#btn-share-x','click',()=>{ shareOpen=false; render(); });
+  on('#btn-copylink','click',async()=>{ try{ await navigator.clipboard.writeText(joinLink()); toast('Link copied'); }
+    catch(e){ prompt('Copy this link',joinLink()); } });
+  on('#btn-flush','click',()=>{ db.flushNow&&db.flushNow(); toast('Trying…'); });
+  on('#btn-restore','click',restoreBackup);
+  on('#btn-loadfile','click',()=>{ const i=document.getElementById('file-round'); if(i) i.click(); });
+  on('#file-round','change',async e=>{
+    const f=e.target.files&&e.target.files[0]; if(!f) return;
+    try{ const b=JSON.parse(await f.text());
+      if(!b||!b.game||!b.code) throw new Error('not a saved round');
+      if(!confirm('Load “'+(b.game.name||b.code)+'” into the relay as round '+b.code+'? '+(b.questions||[]).length+' questions.')) return;
+      db.resend(backupDocs({code:b.code,game:b.game,questions:(b.questions||[]).map((q,i)=>Object.assign({id:'r'+i},q)),
+        messages:(b.messages||[]).map((m,i)=>Object.assign({id:'m'+i},m)),pins:[],crossed:b.crossed||[]}));
+      toast('Loading '+b.code+' — join that code to see it');
+    }catch(err){ toast('That file did not read: '+err.message); }
+  });
   on('#btn-selfcheck','click',()=>{ selfCheckOut=['Working…']; render(); setTimeout(()=>{ selfCheckOut=Map3.selfCheck(); render(); },30); });
   on('#step-range','input',e=>{ const v=+e.target.value, max=Map3.stepMax();
     stepShow=v>=max?null:v; Map3.setStep(stepShow); render(); });

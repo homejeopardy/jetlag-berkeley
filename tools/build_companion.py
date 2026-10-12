@@ -248,7 +248,9 @@ def main():
     blob = json.dumps({"zones": maps, "shapes": shapes, "streets": bx.streets_blob(ents),
                        "terrain": bx.terrain(raw), "metro": met},
                       separators=(",", ":"), ensure_ascii=False)
-    html = TEMPLATE.read_text().replace("__MAPDATA__", blob)
+    qr = (ROOT / "tools" / "vendor-qrcode.js").read_text()
+    html = (TEMPLATE.read_text().replace("__MAPDATA__", blob)
+            .replace("/*__QRCODE__*/", qr))
     OUT.parent.mkdir(exist_ok=True)
     OUT.write_text(html)
     print(f"{OUT.relative_to(ROOT)}: {len(html) // 1024} KB")
