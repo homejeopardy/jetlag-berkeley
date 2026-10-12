@@ -94,15 +94,18 @@ def main():
     poi_src = json.loads((DATA / "poi.json").read_text())
     zones = json.loads((DATA / "zone.json").read_text())
     base = json.loads((DATA / "mapdata.json").read_text())
-    from shapely.geometry import shape, Point, Polygon                # noqa: E402
+    from shapely.geometry import shape, Point, Polygon, box as shapely_box  # noqa: E402
     from shapely.ops import linemerge, unary_union, polygonize        # noqa: E402
     from shapely.geometry import LineString as LS                     # noqa: E402
     globals()["Polygon"] = Polygon
+    globals()["shapely_box"] = shapely_box
 
     # The reference features a question can be about are whatever falls inside
-    # the game map. The rulebook is explicit: "if locations are not within a
-    # map's boundaries, players must operate as if they do not exist", and the
-    # question comes back null. So each zone carries its own clipped sets.
+    # the game map: "if locations are not within a map's boundaries, players
+    # must operate as if they do not exist". The map here is the whole drawn
+    # map, not the dashed play boundary — a peak you can see on screen counts,
+    # which is the reading the people playing expect.
+    places = json.loads((DATA / "places_2026-10.json").read_text())
     raw = bx.load_raw()
     cty_a, cty_c, cty_line = bx.county(raw)
     met = bx.metro(base)
@@ -142,37 +145,60 @@ def main():
     for name, cfg in ZONES.items():
         mode, layers, payload, meta = compute(name)
         keep = [k for k in LAYERS if k not in cfg["drop"]]
-        area = shape(zones["berk" if name == "berkeley" else "zone"])
+        play = shape(zones["berk" if name == "berkeley" else "zone"])
+        # Everything the map draws, in lon/lat: the rectangle the basemap
+        # covers, which is what a player sees and therefore what exists.
+        x0, y0, w, h = payload["VB"]
+        o = meta["origin"]
+        sw = bx.unproject(o, x0, y0 + h)
+        ne = bx.unproject(o, x0 + w, y0)
+        area = shapely_box(sw[0], sw[1], ne[0], ne[1])
 
         def clip(pts):
             return [p for p in pts if area.contains(Point(p[0], p[1]))]
 
-        # The source clipped names at 40 characters; say so rather than
-        # showing a word cut in half as if it were the name.
-        def full(p):
-            return [p[0], p[1], p[2] + "…" if len(p[2] or "") == 40 else p[2]]
-        poi = {k: clip([full(p) for p in poi_src.get(k, []) if not HONORARY(k, p)])
+        poi = {k: clip([list(p) for p in poi_src.get(k, []) if not HONORARY(k, p)])
                for k in POI_KEYS}
+        # Fresh places across the whole drawn map, with their full names —
+        # the older set was clipped to the play boundary and cut names at 40
+        # characters, which is how "Lawrence Hall of Science 3D Theater"
+        # ended up being somebody's nearest movie theatre with no way to see
+        # it coming.
+        for key, tag in (("museum", "museum"), ("cinema", "cinema"), ("library", "library"),
+                         ("hospital", "hospital"), ("peak", "peak"), ("zoo", "zoo"),
+                         ("aquarium", "aquarium"), ("theme_park", "theme_park"),
+                         ("golf", "golf_course"), ("airport", "aerodrome")):
+            fresh = [[p[1], p[2], p[3]] for p in places["poi"] if p[0] == tag]
+            if fresh:
+                poi[key] = clip(fresh)
         # Named parks only: an unnamed patch of green is not "a park" anyone
         # could name as their nearest. Measured from the labelled point.
         poi["park"] = bx.parks(raw, area)
         # Rail stations are hiding stations too, and carry the lines that
         # stop at them for the Transit line question.
-        stops = [list(s) for s in payload["stops"]]
+        # A stop whose routes nobody recorded cannot answer a Transit line
+        # question, and pretending it is served by nothing ruled out real
+        # hiding places. They are campus shuttle stops in the main; they come
+        # out of the game.
+        stops = [list(s) for s in payload["stops"] if s[3]]
+        dropped = len(payload["stops"]) - len(stops)
         for st in payload["stations"]:
             ll = next(s for s in base["stations"] if s["n"] == st["n"])
             lines = bx.station_lines((ll["lon"], ll["lat"]), st["kind"], met)
             stops.append([st["x"], st["y"], st["n"], ";".join(lines),
                           "BART" if st["kind"] == "bart" else "Amtrak", st["kind"]])
 
-        # A city with no real area inside the map is not on the map.
+        # Every city with real ground on the drawn map, not just the two the
+        # play area sits in: the hider can be nearest to Albany or Emeryville
+        # and the question has to be answerable.
         cities = []
-        for nm, g in (("Berkeley", berk), ("Oakland", oak)):
-            if g is None:
+        for c in places["cities"]:
+            g = bx.city_shape(c)
+            if g is None or g.is_empty:
                 continue
             r = rings_of(g.intersection(area))
-            if r:
-                cities.append({"n": nm, "r": r})
+            if r and g.intersection(area).area * 111320 * 111320 * math.cos(math.radians(37.87)) > 1e5:
+                cities.append({"n": c["n"], "r": r})
         # A county counts as on the map only with real ground inside it: the
         # Contra Costa line runs along the map's own edge in the hills, and
         # what pokes over it is survey slop of a few thousand square feet.
@@ -202,10 +228,11 @@ def main():
             "poi": poi,
             "areas": areas,
         }
+        print(f"      dropped {dropped} stops with no route data")
         have = ", ".join(f"{k}:{len(v)}" for k, v in poi.items() if v)
         miss = ", ".join(k for k, v in poi.items() if not v)
         kb = len(json.dumps(maps[name], separators=(",", ":"))) // 1024
-        print(f"  {name}: {len(payload['stops'])} stops, {kb} KB")
+        print(f"  {name}: {len(stops)} stations, {kb} KB")
         print(f"      on the map: {have}")
         print(f"      null here:  {miss or 'none'}")
         print(f"      water: " + ", ".join(w["n"] for w in maps[name]["water"]))

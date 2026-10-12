@@ -200,7 +200,9 @@ def crop_terrain(d, lon0, lat0, lon1, lat1):
                 b64=base64.b64encode(struct.pack("<%dh" % len(out), *out)).decode())
 
 
-EXCLUDE_WATER = ("Pool", "Fountain")   # the card excludes pools; a fountain is not a body of water
+# The card excludes pools; a fountain is not a body of water, and neither
+# is a sewage clarifier or a storage basin at the treatment works.
+EXCLUDE_WATER = ("Pool", "Fountain", "Clarifier", "Storage Basin", "Tank")
 
 
 def water(raw, area):
@@ -284,3 +286,23 @@ def station_lines(st_lonlat, kind, met):
         d = min(seg_dist_m(st_lonlat, a, b) for w in met.get(ref, []) for a, b in zip(w, w[1:]))
         if d < 150: got.append(ref)
     return got
+
+
+def unproject(origin, x, y):
+    """Map units (Web Mercator metres, origin-shifted) back to lon/lat."""
+    R = 6378137.0
+    lon = math.degrees((x + origin[0]) / R)
+    lat = math.degrees(2 * math.atan(math.exp((origin[1] - y) / R)) - math.pi / 2)
+    return (lon, lat)
+
+
+def city_shape(c):
+    """A city boundary relation's outer ways, stitched into a polygon."""
+    from shapely.geometry import LineString, MultiLineString
+    from shapely.ops import unary_union, polygonize, linemerge
+    lines = [LineString(w["g"]) for w in c["ways"] if w.get("r") != "inner" and len(w["g"]) > 1]
+    if not lines:
+        return None
+    merged = linemerge(unary_union(lines))
+    polys = list(polygonize(merged if isinstance(merged, MultiLineString) else [merged]))
+    return unary_union(polys) if polys else None

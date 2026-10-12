@@ -198,6 +198,8 @@ nav.tabs button .n{position:absolute;top:6px;right:calc(50% - 26px);min-width:18
 .jlsvg .m-dot.o{stroke:#15171B}
 .jlsvg .m-dot.i{stroke:#fff}
 .jlsvg .m-dot.s{stroke:var(--yellow)}
+.jlsvg .m-dot.x{stroke:#9A968C;opacity:.55}
+#mapview.hide-out .jlsvg .m-dot.x{display:none}
 .jlsvg .m-road{fill:none;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke}
 .jlsvg .m-residential{stroke:#fff;stroke-width:.8px;opacity:.7}
 .jlsvg .m-tertiary{stroke:#fff;stroke-width:1.1px;opacity:.9}
@@ -869,6 +871,7 @@ const HIDE_RADIUS={S:402,M:402,L:805};
 // ---------- state ----------
 let db=null, assets=null, dbReady=false, backend=null, backendDetail='', backendOwn=false;
 let relayShow=false, relayMsg='', relayForm=null;
+let selfCheckOut=null, stepShow=null;
 let me=load('hs-me')||{name:'',role:'seeker'};
 let code=load('hs-code')||null;
 let tab=load('hs-tab')||'feed';
@@ -880,6 +883,8 @@ let pickLoc=false;   // map is waiting for a tap to set the seeker's position
 // phone: nothing about it is ever sent.
 let hiderAt=null;
 let thermoFinish={qid:null,loc:null,how:''};
+// A question whose answer is being changed.
+let refix=null;
 let seenCount=load('hs-seen-'+code)||0;
 // ---------- colours ----------
 // Per phone, like the basemap: it is a matter of taste, not of the game.
@@ -1004,7 +1009,7 @@ function onMessages(prev,snap){
 // ---------- writes ----------
 async function createGame(name,size){
   let c=mkCode(); for(let i=0;i<5;i++){ const s=await db.doc('games/'+c).get(); if(!s.exists) break; c=mkCode(); }
-  const g={name:name||('Game '+c),size,zone:DEFAULT_ZONE,phase:'setup',createdAt:Date.now(),hider:me.role==='hider'?me.name:'',players:{[me.name]:me.role},hidingStartAt:null,seekingStartAt:null,endgameAt:null,foundAt:null,hand:[],note:'',strict:false};
+  const g={name:name||('Game '+c),size,zone:DEFAULT_ZONE,phase:'setup',createdAt:Date.now(),hider:me.role==='hider'?me.name:'',players:{[me.name]:me.role},hidingStartAt:null,seekingStartAt:null,endgameAt:null,foundAt:null,hand:[],note:'',strict:true};
   await db.doc('games/'+c).set(g); join(c);
 }
 async function patch(data){ if(!code) return; try{ await db.doc('games/'+code).update(data); }catch(e){ toast('Could not save: '+(e.code||e.message)); } }
@@ -1065,7 +1070,8 @@ async function finishThermo(){
   }catch(e){ toast('Could not send: '+(e.code||e.message)); }
 }
 async function answerQ(id,answer,extra){
-  try{ await db.doc('games/'+code+'/questions/'+id).update(Object.assign({status:'answered',answer,answeredAt:Date.now()},extra||{})); }catch(e){ toast('Could not answer: '+(e.code||e.message)); }
+  refix=null;
+  try{ await db.doc('games/'+code+'/questions/'+id).update(Object.assign({status:'answered',answer,answeredAt:Date.now(),against:'',why:''},extra||{})); }catch(e){ toast('Could not answer: '+(e.code||e.message)); }
 }
 async function vetoQ(id){ try{ await db.doc('games/'+code+'/questions/'+id).update({status:'vetoed',answer:'Vetoed',answeredAt:Date.now()}); }catch(e){ toast('Could not veto'); } }
 async function sendMessage(kind,title,text,extra){ try{ await db.doc('games/'+code).collection('messages').add(Object.assign({kind,title,text,from:me.name,role:me.role,at:Date.now()},extra||{})); }catch(e){ toast('Send failed'); } }
@@ -1133,7 +1139,7 @@ function render(){
     m.hidden=true; mv.hidden=false; Map3.show();
   } else {
     mv.hidden=true; m.hidden=false;
-    let html=statusCard();
+    let html=statusCard()+stationAlarm()+contradictionNote();
     if(tab==='ask') html+=isHider()?inbox(pendingN):ask();
     else if(tab==='feed') html+=feed();
     else if(tab==='hand') html+=hand();
@@ -1141,6 +1147,30 @@ function render(){
     m.innerHTML=html; wire();
   }
   if(!tick) tick=setInterval(()=>{ const t=$('#timer'); if(t) t.textContent=timerText(); const t2=$('#timer2'); if(t2) t2.textContent=timerText2(); tickTimers(); },1000);
+}
+// The hider's own station, and whether the answers have ruled it out. A
+// truthful round should never rule it out; when it does, something is
+// wrong and the hider is the only one who can see it.
+function myStationCheck(){
+  if(!isHider()) return null;
+  const hz=Map3.hideStop(); if(!hz) return null;
+  const bad=Map3.rulesOutStation(hz);
+  return bad&&bad.length?{hz,bad}:null;
+}
+function stationAlarm(){
+  const c=myStationCheck(); if(!c) return '';
+  return `<div class="card" style="border-color:var(--red)"><h2>Your own station has been ruled out</h2>
+    <p class="small">The answers so far say the hider cannot be at <b>${esc(c.hz.n)}</b>. The seekers have crossed it off. One of these answers is the one that did it:</p>
+    <ul class="small">${c.bad.map(b=>`<li><b>${esc(b.q)}</b> — you answered <b>${esc(b.answer)}</b>${b.app&&b.app!==b.answer?`; from your station the app makes it <b>${esc(b.app)}</b>`:''}${b.id?` <button class="btn sm" data-refix="${b.id}">Change it</button>`:''}</li>`).join('')}</ul>
+    <p class="small muted">If one of them was a slip, change it and the map puts your station back.</p></div>`;
+}
+function contradictionNote(){
+  const c=Map3.count(); if(!c||!c.cons||c.left>0) return '';
+  const culprits=Map3.culprits();
+  return `<div class="card" style="border-color:var(--red)"><h2>These answers can't all be true</h2>
+    <p class="small">No station on the map survives every answer, so at least one is wrong — or the hider moved across their zone and the round is being read station by station.</p>
+    ${culprits.length?`<p class="small">Dropping one of these brings the map back: ${culprits.map(x=>`<b>${esc(x.q)}</b> (${x.left} stations)`).join(', ')}.</p>`:''}
+    <p class="small muted">Switch to “By the book” on the Game tab to read answers against the whole hiding zone instead.</p></div>`;
 }
 function narrowChip(){
   const c=Map3.count();
@@ -1212,6 +1242,16 @@ function relayFields(){
   const u=relayForm.u.trim(), p=relayForm.p.trim();
   if(!h){ relayMsg='Enter the relay host'; render(); return null; }
   return {h,u,p,port:8084};
+}
+// A round you can poke at on one phone: six questions already answered
+// from a station picked at random, so the map, the panels and the feed all
+// have something in them without two people and a car.
+async function demoRound(){
+  if(questions.length&&!confirm('This round already has questions. Add six demo ones anyway?')) return;
+  const picks=Map3.demoRound();
+  if(!picks.length){ toast('Could not build a demo here'); return; }
+  for(const b of picks){ try{ await db.doc('games/'+code).collection('questions').add(b); }catch(e){} }
+  toast('Demo questions added — open the Map tab'); tab='map'; save('hs-tab',tab); render();
 }
 function timerText(){
   const now=Date.now();
@@ -1294,7 +1334,7 @@ function refBox(cat,sel){
   if(info.ref==='#namelen') return `<div class="refbox ok"><b>Your station:</b> ${esc(r.txt)}<select id="ask-stn">${r.options.map(o=>`<option value="${o.i}" ${o.i===r.id?'selected':''}>${esc(o.n)} — ${o.n.length} ch · ${fmtDist(o.d)}</option>`).join('')}</select><div class="small muted" style="margin-top:6px">Spaces and hyphens count. Yes means their hiding station's name is the same length.</div></div>`;
   const lab=info.ref==='#sea'?'Your elevation':info.ref==='#water'?'Your nearest body of water':info.ref==='@countyline'?'Your distance':info.ref==='#street'?'Your nearest street or path':info.ref&&info.ref[0]==='!'?'You are in':(cat.id==='measuring'?'Your nearest':SIDE_LABEL[cat.id]);
   if(cat.id==='tentacle'&&r.list&&!r.list.length) return `<div class="refbox nul"><b>${esc(lab)}:</b> ${esc(r.txt)}. With nothing to name, the hider can only tell you whether they're within ${fmtDist(sel[2])} of you.</div>`;
-  return `<div class="refbox ok"><b>${esc(lab)}:</b> ${esc(r.txt)}</div>`;
+  return `<div class="refbox ok"><b>${esc(lab)}:</b> ${esc(r.txt)}${refList({cat:cat.id,q:text},askState.loc)}</div>`;
 }
 function inbox(n){
   const pend=questions.filter(q=>q.status==='pending');
@@ -1308,6 +1348,17 @@ function inbox(n){
 }
 // Works out the hider's answer from where they are — their hiding station
 // by default, or GPS / a tap on the map for where they actually stand.
+// The nearest few of whatever the question is about, from a spot. Both
+// sides can see the app's own list rather than arguing with it afterwards.
+function refList(q,p){
+  const info=Map3.qInfo(q.cat,q.q); const ref=info.ref;
+  if(!p||!ref||ref[0]==='!'||ref==='#sea'||ref==='#line') return '';
+  const near=Map3.nearestFew(ref,p,5);
+  if(!near.length) return '';
+  return `<details class="small" style="margin-top:6px"><summary>What the app counts as ${esc((REF_NOUN[ref]||q.q.toLowerCase()).replace(/^an? /,''))} near you</summary>
+    <ol class="small" style="margin:4px 0 0 18px">${near.map(o=>`<li>${esc(o.n)} — ${fmtDist(o.d)}</li>`).join('')}</ol>
+    <p class="small muted">Straight from OpenStreetMap, oddities and all. If the nearest one looks wrong to you, say so out loud before answering — you can also change an answer afterwards.</p></details>`;
+}
 function hiderHelp(q){
   if(q.cat==='photo') return {html:''};
   const hz=Map3.hideStop();
@@ -1317,7 +1368,7 @@ function hiderHelp(q){
   let h=`<div class="refbox ${s&&s.ans?'ok':''}"><b>Your side</b>${at?` <span class="small muted">— from ${esc(at.how)}</span>`:''}<br>`;
   if(!at&&!(s&&s.why)) h+=`Set your hiding station on the map, or use GPS, and the app works out your answer.`;
   else if(s){ h+=esc(s.why||''); if(s.ans) h+=`<br>Answer: <b>${esc(q.ref==='#metro'?Map3.lineName(s.ans):s.ans)}</b>`; }
-  h+=where+`<div class="small muted" style="margin-top:4px">Your position never leaves this phone.</div></div>`;
+  h+=(at?refList(q,at.loc):'')+where+`<div class="small muted" style="margin-top:4px">Your position never leaves this phone.</div></div>`;
   return {html:h,ans:s&&s.ans};
 }
 // The question as a sentence: both blanks of a matching card are the same
@@ -1341,8 +1392,9 @@ function qCard(q,mine){
   let body=`<div class="msg ${pending||started?'pending':''} ${pending&&mine?'mine-to-answer':''}"><div class="who"><span><span class="tag">${esc(q.catName)}</span>${esc(q.askedBy)}</span><time>${fmtClock(q.askedAt)}</time></div>
     <div class="txt">${started?`Starting a thermometer — travelling <b>${esc(q.q)}</b>`:qSentence(q)}</div>`;
   if(q.loc) body+=`<div class="small muted">From ${esc(Map3.near(q.loc))}${q.loc2?` to ${esc(Map3.near(q.loc2))}${q.travelled?` · ${fmtDist(q.travelled)} apart`:''}`:''}</div>`;
-  if(q.line) body+=`<div class="small">Riding: <b>${esc(Map3.lineName(q.line))}</b></div>`;
-  else if(q.mine&&q.mine.txt) body+=`<div class="small">Theirs: <b>${esc(q.mine.txt)}</b></div>`;
+  const asker=q.askedBy===me.name;
+  if(q.line) body+=`<div class="small">${asker?'You are riding':'They are riding'}: <b>${esc(Map3.lineName(q.line))}</b></div>`;
+  else if(q.mine&&q.mine.txt) body+=`<div class="small">${asker?'Yours':'The seeker\u2019s'}: <b>${esc(q.mine.txt)}</b></div>`;
   if(started){ body+=`<p class="small muted">${mine?'Waiting for them to travel and ask.':'Travel the distance, then ask from the Ask tab.'}</p>`; return body+'</div>'; }
   // Everyone can see what the photo has to show; the hider gets it open below.
   if(q.cat==='photo'&&!(pending&&mine)&&PHOTO_SPEC[q.q]) body+=`<details class="small" style="margin-top:6px"><summary>Show the card</summary>${photoCard(q.q,false)}</details>`;
@@ -1361,8 +1413,15 @@ function qCard(q,mine){
       body+=`<div class="row" style="margin-top:8px"><input type="text" class="grow" id="ta-${q.id}" placeholder="${opts.length?'Something else':'Your answer'}"><button class="btn primary" data-sendtext="${q.id}">Answer</button></div>`; }
     body+=`<div class="row" style="margin-top:8px"><button class="btn sm" data-veto="${q.id}">Veto (uses a Veto card)</button></div>`;
   } else if(pending){ body+=`<p class="small muted">Waiting for the hider…</p>`; }
+  else if(refix===q.id&&mine&&q.ans&&q.ans.length){
+    body+=`<p class="small"><b>Changing this answer.</b> Everyone's map is rebuilt from the new one.</p>
+      <div class="answers">${q.ans.map(a=>`<button class="btn primary ${q.answer===a?'sugg':''}" data-ans="${esc(a)}" data-qid="${q.id}">${esc(a)}</button>`).join('')}</div>
+      <div class="row" style="margin-top:6px"><button class="btn sm ghost" data-refix-cancel="1">Keep ${esc(q.answer)}</button></div>`;
+  }
   else { const cut=Map3.cutBy(q);
-    body+=`<div class="ans ${q.status==='vetoed'?'veto':''}"><b>${esc(q.answer)}</b>${q.note?' — '+esc(q.note):''}<span class="small muted"> · ${fmtClock(q.answeredAt)}</span>${cut?`<div class="small" style="opacity:.85;margin-top:4px">${esc(cut)}</div>`:''}${photoSrc(q)?`<img src="${photoSrc(q)}" alt="Photo answer">`:(q.photoDoc?`<div class="small muted">Photo on its way\u2026</div>`:'')}</div>`; }
+    body+=`<div class="ans ${q.status==='vetoed'?'veto':''}"><b>${esc(q.answer)}</b>${q.note?' — '+esc(q.note):''}<span class="small muted"> · ${fmtClock(q.answeredAt)}</span>${cut?`<div class="small" style="opacity:.85;margin-top:4px">${esc(cut)}</div>`:''}${photoSrc(q)?`<img src="${photoSrc(q)}" alt="Photo answer">`:(q.photoDoc?`<div class="small muted">Photo on its way\u2026</div>`:'')}
+      ${q.against?`<div class="small" style="color:var(--red)">Answered against the app's own reading (it made it ${esc(q.against)}).</div>`:''}
+      ${mine&&q.ans&&q.ans.length?`<div class="row" style="margin-top:6px"><button class="btn sm ghost" data-refix="${q.id}">Change this answer</button></div>`:''}</div>`; }
   return body+'</div>';
 }
 function feed(){
@@ -1416,11 +1475,19 @@ function gameTab(){
     <p class="small muted" style="margin-top:6px">Sets what the Map tab draws for everyone. The full-screen versions are also on the web: <a href="https://homejeopardy.github.io/jetlag-berkeley/" target="_blank" rel="noopener">homejeopardy.github.io/jetlag-berkeley</a></p>
     <h3>How much the answers rule out</h3>
     <div class="seg" id="sel-strict">
-      <button type="button" data-strict="0" class="${game.strict===true?'':'on'}">By the book</button>
-      <button type="button" data-strict="1" class="${game.strict===true?'on':''}">Station</button></div>
-    <p class="small muted" style="margin-top:6px">${game.strict===true
+      <button type="button" data-strict="1" class="${game.strict===false?'':'on'}">Station</button>
+      <button type="button" data-strict="0" class="${game.strict===false?'on':''}">By the book</button></div>
+    <p class="small muted" style="margin-top:6px">${game.strict!==false
       ? 'House rule: answers are read against the station itself, so a radar rules out every station inside its circle. Sharper, but it can rule out a hider who had wandered across their zone.'
       : 'The rulebook: “radars are asking about your location, not your hiding zone. If the radar would encompass part of your hiding zone, but not your location at the time of answering, it would be a miss.” So a station falls only when no point of its zone could have given the answer.'}</p>
+    <h3>Testing</h3>
+    <p class="small muted">All of this is local to your phone; nothing is sent.</p>
+    <div class="row"><button class="btn sm" id="btn-selfcheck">Run self-check</button>
+      <button class="btn sm" id="btn-demo">Fill a demo round</button></div>
+    ${selfCheckOut?`<pre class="small" style="white-space:pre-wrap;margin-top:8px">${esc(selfCheckOut.join('\n'))}</pre>`:''}
+    <label class="f" for="step-range">Step through the answers</label>
+    <input type="range" id="step-range" min="0" max="${Math.max(1,Map3.stepMax())}" value="${stepShow==null?Map3.stepMax():stepShow}" style="width:100%">
+    <p class="small muted">${stepShow==null?'Showing every answer.':'Showing the first '+stepShow+' answers only — the map is as it was then.'}</p>
     <h3>Colours on this phone</h3>${themePicker()}
     <h3>Round note</h3><textarea id="game-note" rows="2" placeholder="House rules, meeting point, transit passes…">${esc(game.note||'')}</textarea><button class="btn sm" id="btn-note" style="margin-top:6px">Save note</button>
     <div class="row" style="margin-top:14px"><button class="btn sm" id="btn-switch">Switch name / role</button><button class="btn sm" id="btn-leave">Leave game</button><button class="btn sm danger" id="btn-delete">Delete round</button></div></div>
@@ -1448,6 +1515,10 @@ function wire(){
   on('#btn-endgame','click',()=>patch({phase:'endgame',endgameAt:Date.now()}));
   on('#btn-found','click',()=>{ if(confirm('Found means a seeker is within 6\u00bd feet (2 m) of the hider AND has actually spotted them \u2014 being in the right building is not enough.\n\nEnd the round?')) patch({phase:'found',foundAt:Date.now(),bonusAtFound:bonusMinutes()}); });
   on('[data-strict]','click',e=>{ patch({strict:e.currentTarget.dataset.strict==='1'}); });
+  on('#btn-selfcheck','click',()=>{ selfCheckOut=['Working…']; render(); setTimeout(()=>{ selfCheckOut=Map3.selfCheck(); render(); },30); });
+  on('#step-range','input',e=>{ const v=+e.target.value, max=Map3.stepMax();
+    stepShow=v>=max?null:v; Map3.setStep(stepShow); render(); });
+  on('#btn-demo','click',demoRound);
   on('#relay-show','click',e=>{ e.preventDefault(); relayShow=true; relayMsg=''; render(); });
   on('#relay-h','input',relayTyped); on('#relay-u','input',relayTyped); on('#relay-p','input',relayTyped);
   on('#relay-test','click',async()=>{ const c=relayFields(); if(!c) return;
@@ -1480,8 +1551,24 @@ function wire(){
   on('[data-pick]','click',e=>pickOnMap(e.currentTarget.dataset.pick));
   on('[data-arm]','click',e=>{ thermoFinish={qid:e.currentTarget.dataset.arm,loc:null,how:''}; render(); });
   on('#btn-thermo-go','click',finishThermo);
-  on('[data-ans]','click',e=>answerQ(e.currentTarget.dataset.qid,e.currentTarget.dataset.ans));
+  on('[data-ans]','click',e=>{
+    const id=e.currentTarget.dataset.qid, a=e.currentTarget.dataset.ans;
+    const q=questions.find(x=>x.id===id);
+    const hs=q?hiderHelp(q):null;
+    // The one way a truthful round can delete the hider's own station is an
+    // answer that disagrees with what the app reads from that station. Say
+    // so before it happens rather than after.
+    if(hs&&hs.ans&&hs.ans!==a){
+      if(!confirm('From your station the app makes this “'+hs.ans+'”.\n\n'+(hs.why||'')+
+        '\n\nAnswering “'+a+'” instead will rule out your own station on everyone\'s map. Send it anyway?')) return;
+      answerQ(id,a,{against:hs.ans,why:hs.why||''}); return;
+    }
+    answerQ(id,a);
+  });
+  // Answers live in the feed, so that is where changing one happens.
+  on('[data-refix]','click',e=>{ refix=e.currentTarget.dataset.refix; tab='feed'; save('hs-tab',tab); render(); });
   on('[data-sendtext]','click',e=>{ const id=e.currentTarget.dataset.sendtext; const v=$('#ta-'+id).value.trim(); if(!v){ toast('Type an answer'); return; } answerQ(id,v); });
+  on('[data-refix-cancel]','click',()=>{ refix=null; render(); });
   on('[data-textans]','click',e=>{ const id=e.currentTarget.dataset.textans;
     const row=document.getElementById('ta-row-'+id); if(row){ row.hidden=false; const i=document.getElementById('ta-'+id); if(i) i.focus(); } });
   on('[data-photo]','change',e=>{ const f=e.target.files[0]; if(f) uploadPhoto(f,e.target.dataset.photo); });
@@ -1546,7 +1633,7 @@ let svg=null, root=null, gStops=null, gDyn=null, gRes=null, gShade=null, shadeKe
 // Foreground: stations, labels, pins, your position, answer markers. Under
 // Leaflet it is its own SVG in its own pane, re-placed on every frame of a
 // zoom so it never swells and snaps back; without Leaflet it sits in root.
-let fgSvg=null, fgRoot=null, dotO=null, dotI=null, dotS=null, dynCS=[], fgPx=0;
+let fgSvg=null, fgRoot=null, dotO=null, dotI=null, dotS=null, dotX=null, dotsAll='', dotKey='', dynCS=[], fgPx=0;
 let sel=null, pinMode=false, zoneMode=false, watchId=null, fix=null;
 let showCircles=!!load('hs-circles');
 
@@ -1622,9 +1709,11 @@ function build(){
   // 700 elements per frame.
   gStops=el('g',{},fgRoot);
   const dots=m.stops.map(st=>'M'+st[0]+' '+st[1]+'h.01').join('');
+  dotX=el('path',{d:'',class:'m-dot x'},gStops);     // ruled out
   dotO=el('path',{d:dots,class:'m-dot o'},gStops);
   dotI=el('path',{d:dots,class:'m-dot i'},gStops);
   dotS=el('path',{d:'',class:'m-dot s'},gStops);
+  dotsAll=dots;
   // Markers and type are counter-scaled so they stay a readable size on
   // screen however far the map is zoomed out.
   const gl=el('g',{},fgRoot);
@@ -1662,13 +1751,27 @@ function fgFrame(){
 function fgSync(px,showPlaces){
   const inv=1/px;
   if(dotO&&px!==fgPx){ const r=Math.max(2.4,Math.min(6,px*45));
-    dotO.setAttribute('stroke-width',2*r+3); dotI.setAttribute('stroke-width',2*r); dotS.setAttribute('stroke-width',2*r); }
+    dotO.setAttribute('stroke-width',2*r+3); dotI.setAttribute('stroke-width',2*r); dotS.setAttribute('stroke-width',2*r);
+    dotX.setAttribute('stroke-width',2*Math.max(1.8,r-1)); }
   if(px!==fgPx){
     for(const sc of scaled){ sc.g.setAttribute('transform','translate('+sc.x+' '+sc.y+') scale('+inv+')');
       if(sc.place) sc.g.style.display=showPlaces?'':'none'; }
     for(const sc of dynCS) sc.g.setAttribute('transform','translate('+sc.x+' '+sc.y+') scale('+inv+')');
   }
   fgPx=px;
+}
+// Alive stations keep the white dot; ruled-out ones go flat grey, so the
+// map reads at a glance without counting shading.
+function syncDots(){
+  if(!dotO) return;
+  const keep=survivors(), m=M();
+  const key=keep?keep.join(''):'all';
+  if(key===dotKey) return; dotKey=key;
+  if(!keep){ dotO.setAttribute('d',dotsAll); dotI.setAttribute('d',dotsAll); dotX.setAttribute('d',''); return; }
+  let live='', dead='';
+  for(let i=0;i<m.stops.length;i++){ const st=m.stops[i], d='M'+st[0]+' '+st[1]+'h.01';
+    if(keep[i]) live+=d; else dead+=d; }
+  dotO.setAttribute('d',live); dotI.setAttribute('d',live); dotX.setAttribute('d',dead);
 }
 function setSel(i){ if(!dotS) return; const st=i>=0?M().stops[i]:null; dotS.setAttribute('d',st?'M'+st[0]+' '+st[1]+'h.01':''); }
 // Everything that has to keep a constant size on screen, and the two layers
@@ -1877,7 +1980,7 @@ function redraw(){
     el('circle',{cx:fix.x,cy:fix.y,r:metres(fix.acc,fix.y),class:'m-me-acc'},gDyn);
     el('circle',{r:7,class:'m-me'},cs(fix.x,fix.y));
   }
-  syncAnswers(); drawMarkers(cs);
+  syncAnswers(); syncDots(); drawMarkers(cs);
   fgPx=0; fgSync(px,lmap?lmap.getZoom()>=14:true);
   const keep=survivors(), chip=document.getElementById('mp-count');
   if(chip){
@@ -2097,7 +2200,15 @@ function bind(){
     if(sh!==undefined){ const s=M().stops[+sh]; save(hideKey(),{x:s[0],y:s[1],n:s[2]}); redraw(); tip(null); toast('Hiding zone set at '+(s[2]||'this stop')); }
     if(dp){ try{ await db.doc('games/'+code+'/pins/'+dp).delete(); tip(null); }catch(err){ toast('Could not remove pin'); } }
   });
-  document.getElementById('mp-stops').addEventListener('click',e=>{ const on=e.currentTarget.classList.toggle('on'); gStops.style.display=on?'':'none'; });
+  // Stops: all, only the ones still standing, or none.
+  document.getElementById('mp-stops').addEventListener('click',e=>{
+    const b=e.currentTarget, v=(+(b.dataset.mode||0)+1)%3; b.dataset.mode=v;
+    const view=document.getElementById('mapview');
+    gStops.style.display=v===2?'none':'';
+    view.classList.toggle('hide-out',v===1);
+    b.classList.toggle('on',v!==0);
+    b.textContent=v===0?'Stops':v===1?'Live only':'No stops';
+    toast(v===0?'Every station':v===1?'Only stations still possible':'Stations hidden'); });
   // Cycles the zone for everyone, so nobody is reading a different map.
   document.getElementById('mp-map').addEventListener('click',()=>{
     const ks=Object.keys(MAPS), i=ks.indexOf(zoneKey());
@@ -2197,7 +2308,14 @@ function conFromQ(q){
 }
 // Every answered question that carries geometry, as a light description —
 // light enough to double as the cache key.
-function cons(){ const out=[]; for(const q of questions){ const c=conFromQ(q); if(c) out.push(c); } return out; }
+let stepN=null;
+function answeredInOrder(){
+  return questions.filter(q=>q.status==='answered'&&conFromQ(q)).sort((a,b)=>(a.answeredAt||0)-(b.answeredAt||0));
+}
+function cons(){
+  const list=stepN==null?questions:answeredInOrder().slice(0,stepN);
+  const out=[]; for(const q of list){ const c=conFromQ(q); if(c) out.push(c); } return out;
+}
 
 // Resolve the seeker's own side of a comparison. The seeker's position is
 // known exactly, so it is measured exactly rather than read off the grid —
@@ -2845,14 +2963,32 @@ function drawOne(c,i,g,px){
     const mx=(c.a[0]+c.b[0])/2, my=(c.a[1]+c.b[1])/2;
     let ux=c.b[0]-c.a[0], uy=c.b[1]-c.a[1];
     const L=Math.hypot(ux,uy)||1; ux/=L; uy/=L; const S=200000;
-    el('line',{x1:mx-uy*S,y1:my+ux*S,x2:mx+uy*S,y2:my-ux*S,stroke:col,'stroke-width':2.5,
-      'stroke-dasharray':'9 6','vector-effect':'non-scaling-stroke'},gg);
+    el('line',{x1:mx-uy*S,y1:my+ux*S,x2:mx+uy*S,y2:my-ux*S,stroke:'#fff','stroke-width':7,
+      'vector-effect':'non-scaling-stroke',opacity:.85},gg);
+    el('line',{x1:mx-uy*S,y1:my+ux*S,x2:mx+uy*S,y2:my-ux*S,stroke:col,'stroke-width':3.5,
+      'stroke-dasharray':'10 7','vector-effect':'non-scaling-stroke'},gg);
+    // the leg they travelled, so the line reads as its bisector
+    el('line',{x1:c.a[0],y1:c.a[1],x2:c.b[0],y2:c.b[1],stroke:col,'stroke-width':2,
+      'stroke-dasharray':'2 6','vector-effect':'non-scaling-stroke',opacity:.7},gg);
   } else if(c.t==='dist'){
+    // The feature it measures to, and one ring at the distance that was
+    // matched — a ring round every reference on the map was unreadable.
     const p=prep(c); if(!isFinite(p.ds)) return gg;
-    if(c.k[0]==='@'){ for(const line of shapeRings(c.k.slice(1)))
-        for(const q of line.filter((_,n)=>n%6===0).slice(0,MAX_ARCS)) ring(q[0],q[1],p.ds,'3 5'); }
-    else { const pts=poiPts(c.k);
-      for(const q of pts.slice(0,MAX_ARCS)) ring(q[0],q[1],p.ds,'3 5'); }
+    if(c.k[0]==='@'){
+      for(const line of shapeRings(c.k.slice(1)))
+        el('path',{d:'M'+line.map(q=>q[0].toFixed(1)+' '+q[1].toFixed(1)).join('L'),fill:'none',stroke:col,
+          'stroke-width':3,'vector-effect':'non-scaling-stroke',opacity:.9},gg);
+    } else {
+      for(const q of poiPts(c.k)) el('circle',{cx:q[0],cy:q[1],r:3,fill:col,stroke:'#fff','stroke-width':1,
+        'vector-effect':'non-scaling-stroke',opacity:.85},gg);
+    }
+    const near=c.k[0]==='@'?null:exactNearest(poiPts(c.k),[c.x,c.y]);
+    if(near&&near.i>=0){ const t=poiPts(c.k)[near.i]; ring(t[0],t[1],p.ds,'4 5'); }
+  } else if(c.t==='water'){
+    const p=prep(c); const W=waters();
+    for(const w of W.list) for(const r of w.pr)
+      el('path',{d:'M'+r.map(q=>q[0].toFixed(1)+' '+q[1].toFixed(1)).join('L')+'Z',fill:'none',stroke:col,
+        'stroke-width':2.5,'vector-effect':'non-scaling-stroke',opacity:.9},gg);
   } else if(c.t==='near'){
     const pts=poiPts(c.k), p=prep(c), pl=p.j>=0?cellPoly(pts,p.j):null;
     if(pl) el('path',{d:polyD(pl),fill:col,'fill-opacity':c.same?0.07:0.0,stroke:col,
@@ -3060,8 +3196,110 @@ return {
   },
   sideAt, suggest, qInfo, lineName,
 
+  // The nearest few references of one kind, for showing people the list the
+  // app is actually working from.
+  nearestFew(ref,p,n){
+    const y=p[1];
+    if(ref==='#water'){ const W=waters();
+      return W.names.map((nm,i)=>({n:nm,d:trueM(i<W.list.length?ringsDist(W.list[i].pr,p):(SHAPE_SRC.coast?ringsDist(shapeRings('coast'),p):Infinity),y)}))
+        .sort((a,b)=>a.d-b.d).slice(0,n); }
+    if(ref==='#street'){ const S=streets(), seen={}, out=[];
+      const r=S.idx.nearest(p); if(r.id<0) return [];
+      for(const j of [r.id]) out.push({n:streetName(S.ents[j]),d:trueM(r.d,y)});
+      return out; }
+    if(ref==='#metro'){ const Mt=metro();
+      return Mt.names.map((nm,i)=>({n:lineName(nm),d:trueM(metroDist(p,i),y)})).sort((a,b)=>a.d-b.d).slice(0,n); }
+    if(ref==='#namelen'){ return nearStops(p,n).map(c=>({n:M().stops[c.i][2]+' ('+nameLen(M().stops[c.i][2])+')',d:trueM(c.d,y)})); }
+    if(ref&&ref[0]==='@'){ return [{n:'the '+(ref==='@countyline'?'county line':ref.slice(1)),d:trueM(ringsDist(shapeRings(ref.slice(1)),p),y)}]; }
+    if(!ref||ref[0]==='#') return [];
+    return poiPts(ref).map(t=>({n:t[2]||'unnamed',d:trueM(Math.hypot(t[0]-p[0],t[1]-p[1]),y)}))
+      .sort((a,b)=>a.d-b.d).slice(0,n);
+  },
+  // Only the first n answers, for stepping back through a round.
+  setStep(n){ stepN=n; stopMaskCache={}; shadeKey=''; ansKey=''; dotKey=''; redraw(); },
+  stepMax(){ return answeredInOrder().length; },
+  // A test you can run from the phone: what the answers leave standing, and
+  // whether the exact engine agrees with brute-force sampling of the zones.
+  selfCheck(){
+    const m=M(), cs=cons(), lines=[];
+    const keep=survivors(); let left=0; if(keep) for(let i=0;i<keep.length;i++) left+=keep[i];
+    lines.push((keep?left:m.stops.length)+' of '+m.stops.length+' stations still possible, reading answers '+(strictMode()?'station by station':'by the book'));
+    const hz=load(hideKey());
+    if(hz){ const bad=this.rulesOutStation(hz);
+      lines.push(bad.length?('Your station '+hz.n+' is ruled out by: '+bad.map(b=>b.q+'='+b.answer).join(', ')):('Your station '+hz.n+' survives every answer')); }
+    for(const q of answeredInOrder()){ const c=conFromQ(q); if(!c){ lines.push('· '+q.q+': no geometry'); continue; }
+      const mk=stopMask(c); let out=0; for(let i=0;i<mk.length;i++) if(!mk[i]) out++;
+      lines.push('· '+q.q+' = '+q.answer+' → rules out '+out); }
+    if(keep&&!left) for(const x of this.culprits()) lines.push('Drop “'+x.q+' = '+x.answer+'” and '+x.left+' come back');
+    // the proof, spot-checked: a station the engine eliminated should have
+    // no qualifying point anywhere in its zone, and one it kept should.
+    let tested=0, wrong=0;
+    // Station cards are read off the station itself, with no region to
+    // sample; only the ones with geometry can be checked this way.
+    for(const c of cs.filter(x=>x.t!=='line'&&x.t!=='namelen').slice(-3)){ const p=prep(c), mk=stopMask(c);
+      for(let k=0;k<12;k++){ const i=(Math.random()*m.stops.length)|0, st=m.stops[i], S=[st[0],st[1]];
+        const rho=strictMode()?0:zoneRadius(st[1]), phi=phiFor(p,S,rho); if(!phi) continue;
+        let hit=false;
+        for(let a=0;a<220&&!hit;a++){ const t=2*Math.PI*Math.random(), rr=rho*Math.sqrt(Math.random());
+          if(phi([S[0]+rr*Math.cos(t),S[1]+rr*Math.sin(t)])>=0) hit=true; }
+        if(phi(S)>=0) hit=true;
+        tested++; if(hit&&!mk[i]) wrong++; } }
+    lines.push('Spot check: '+tested+' station verdicts sampled, '+(wrong?wrong+' disagree — tell Claude':'none disagree'));
+    return lines;
+  },
   refCount(k){ try{ return poiPts(k).length; }catch(e){ return 0; } },
   hideStop(){ return load(hideKey()); },
+  // Six truthful answers from a station chosen at random: a round to look at.
+  demoRound(){
+    const m=M(); if(!m.stops.length) return [];
+    const hi=(Math.random()*m.stops.length)|0, hs=m.stops[hi];
+    const rho=zoneRadius(hs[1]), a=2*Math.PI*Math.random(), rr=rho*Math.sqrt(Math.random());
+    const hp=[hs[0]+rr*Math.cos(a),hs[1]+rr*Math.sin(a)], hz={x:hs[0],y:hs[1],n:hs[2]};
+    const want=[['matching','Park'],['matching','Museum'],['measuring','Rail station'],
+                ['measuring','Sea level'],['radar','1 mile',1609],['matching','Station name length (characters)']];
+    const out=[];
+    for(const [cat,q,distM] of want){
+      const ss=m.stops[(Math.random()*m.stops.length)|0], sp=[ss[0],ss[1]];
+      const info=cat==='radar'?{}:qInfo(cat,q); if(info.nul||info.always) continue;
+      const body={cat,catName:cat,fmt:cat==='matching'?'Is your nearest ___ the same as my ___?':cat==='measuring'?'Compared to me, are you closer to or further from ___?':'Are you within ___ of me?',
+        q,askedBy:'Demo seeker',askedAt:Date.now(),status:'answered',answeredAt:Date.now(),
+        ans:cat==='matching'?['Yes','No']:cat==='measuring'?['Closer','Further']:['Yes','No'],
+        draw:1,keep:1,mult:1,ref:info.ref||null,loc:sp,locHow:'demo',loc2:null,distM:distM||null,photo:'',note:''};
+      const side=info.ref?sideAt(cat,q,sp,{distM:body.distM}):null;
+      if(side&&!side.nul){ body.mine={txt:side.txt}; for(const k of ['n','d','du','v','id']) if(side[k]!=null) body.mine[k]=side[k]; }
+      const sg=suggest(body,hp,hz); if(!sg||!sg.ans) continue;
+      body.answer=sg.ans; out.push(body);
+    }
+    if(out.length) save(hideKey(),hz);
+    return out;
+  },
+  // Which answered questions rule out this station, with what the app would
+  // have answered from it.
+  rulesOutStation(hz){
+    const m=M(); let bi=-1, bd=Infinity;
+    for(let i=0;i<m.stops.length;i++){ const d=Math.hypot(m.stops[i][0]-hz.x,m.stops[i][1]-hz.y); if(d<bd){bd=d;bi=i;} }
+    if(bi<0||bd>50) return [];
+    const out=[];
+    for(const q of questions){ const c=conFromQ(q); if(!c) continue;
+      if(stopMask(c)[bi]) continue;
+      let app=null; try{ const s=suggest(q,[m.stops[bi][0],m.stops[bi][1]],hz); app=s&&s.ans; }catch(e){}
+      out.push({q:q.q,answer:q.answer,app,id:q.id}); }
+    return out;
+  },
+  // When nothing survives, which single answer is the one to doubt.
+  culprits(){
+    const cs=[]; for(const q of questions){ const c=conFromQ(q); if(c) cs.push({q,c}); }
+    if(!cs.length) return [];
+    const m=M(), out=[];
+    for(let k=0;k<cs.length;k++){
+      const keep=new Uint8Array(m.stops.length).fill(1);
+      cs.forEach((x,j)=>{ if(j===k) return; const mk=stopMask(x.c);
+        for(let i=0;i<keep.length;i++) if(!mk[i]) keep[i]=0; });
+      let left=0; for(let i=0;i<keep.length;i++) left+=keep[i];
+      if(left>0) out.push({q:cs[k].q.q,answer:cs[k].q.answer,left});
+    }
+    return out.sort((a,b)=>b.left-a.left).slice(0,3);
+  },
   areaCount(k){ const a=AREA_OF(zoneKey())[k]; if(a) return a.length;
     return (SHAPE_SRC[k]||[]).length; },
   count(){
