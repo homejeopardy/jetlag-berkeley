@@ -5,6 +5,13 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#D7263D">
 <title>Hide + Seek Relay</title>
+<!-- Added to a home screen it behaves like an app, which on an iPhone is
+     also the only way the browser will deliver a notification. -->
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="H+S Relay">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;800&family=Barlow:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
@@ -283,6 +290,7 @@ table.sb th{font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;l
       <button class="chip on" id="mp-stops" type="button">Stops</button>
       <button class="chip" id="mp-circles" type="button">Zones</button>
       <button class="chip" id="mp-map" type="button"></button>
+      <button class="chip on" id="mp-draw" type="button">Drawing</button>
       <button class="chip" id="mp-layers" type="button">Layers</button>
       <button class="chip" id="mp-list" type="button">Stations</button>
       <button class="chip" id="mp-pin" type="button">Drop pin</button>
@@ -748,6 +756,21 @@ function tickTimers(){
     else v.textContent=fmtT(end-now); });
   const bl=document.getElementById('bonusline');
   if(bl&&game&&game.phase!=='found') bl.innerHTML=bonusText(bonusMinutes());
+  // The clock everyone forgets: the end of the hiding period, and the
+  // photo limit on a question the hider is holding.
+  if(game&&game.phase==='hiding'&&game.hidingStartAt){
+    const end=game.hidingStartAt+SIZES[game.size].hide*60000;
+    for(const [k,at] of [['5',end-300000],['0',end]])
+      if(!timerFired['hide'+k]&&now>=at&&now-at<20000){ timerFired['hide'+k]=1;
+        notify(k==='0'?'Hiding period over':'Hiding period ends in 5 minutes',
+          k==='0'?'Seekers are released.':'Get where you are going.','hide'); }
+  }
+  if(isHider()&&game&&SIZES[game.size]) for(const q of questions){
+    if(q.cat!=='photo'||q.status!=='pending') continue;
+    const end=q.askedAt+SIZES[game.size].photo*60000;
+    if(!timerFired['ph'+q.id]&&now>=end-60000&&now<end+20000){ timerFired['ph'+q.id]=1;
+      notify('One minute left on a photo', q.q, 'ph'+q.id); }
+  }
 }
 
 
@@ -918,6 +941,22 @@ function fmtT(ms){ if(ms<0) ms=0; const s=Math.floor(ms/1000); const h=Math.floo
 function fmtClock(ts){ return new Date(ts).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}); }
 function uid(){ return Math.random().toString(36).slice(2,8)+Date.now().toString(36).slice(-4); }
 function mkCode(){ const A='ABCDEFGHJKLMNPQRSTUVWXYZ'; let s=''; for(let i=0;i<4;i++) s+=A[Math.floor(Math.random()*A.length)]; return s; }
+// An alert you will notice with the phone in a pocket: a notification if
+// the browser will give us one, and a buzz and a beep either way.
+let notifyAsked=false;
+function notifyOK(){ return typeof Notification!=='undefined'&&Notification.permission==='granted'; }
+function askNotify(){
+  if(typeof Notification==='undefined') { toast('This browser has no notifications'); return; }
+  Notification.requestPermission().then(()=>{ notifyAsked=true; render(); });
+}
+function notify(title,body,tag){
+  beep();
+  try{ if(navigator.vibrate) navigator.vibrate([130,70,130]); }catch(e){}
+  toast(body?title+' — '+body:title);
+  if(!notifyOK()||document.visibilityState==='visible'&&document.hasFocus()) return;
+  try{ new Notification(title,{body:body||'',tag:tag||title,renotify:true,icon:'data:image/svg+xml,'+
+    encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="12" fill="%23E23B2E"/><text x="32" y="44" font-size="34" text-anchor="middle" fill="white" font-family="sans-serif">H+S</text></svg>')}); }catch(e){}
+}
 function beep(){ try{ const ac=new (window.AudioContext||window.webkitAudioContext)(); const o=ac.createOscillator(), g=ac.createGain(); o.connect(g); g.connect(ac.destination); o.frequency.value=880; g.gain.value=.08; o.start(); o.frequency.setValueAtTime(1175,ac.currentTime+.12); o.stop(ac.currentTime+.25); }catch(e){} if(navigator.vibrate) navigator.vibrate([120,60,120]); }
 function isHider(){ return game && me.role==='hider'; }
 // "2 miles", "800m", "1.5 km" -> metres
@@ -999,11 +1038,16 @@ function onGame(prev){
 }
 function onQuestions(prev,snap){
   const ch=snap.docChanges().filter(c=>!snap.metadata.hasPendingWrites);
-  for(const c of ch){ const d=c.doc.data(); if(c.type==='added'&&d.status==='pending'&&isHider()){ beep(); toast('New question from '+d.askedBy); } if(c.type==='modified'&&d.status!=='pending'&&!isHider()&&d.askedBy!==me.name){ beep(); } if(c.type==='modified'&&d.status!=='pending'&&!isHider()&&d.askedBy===me.name){ beep(); toast('Hider answered: '+(d.answer||d.status)); } }
+  for(const c of ch){ const d=c.doc.data();
+    if(c.type==='added'&&(d.status==='pending'||d.status==='started')&&isHider())
+      notify('Question from '+d.askedBy, qPlain(d), 'q'+c.doc.id);
+    else if(c.type==='modified'&&d.status==='answered'&&!isHider())
+      notify('Answer: '+(d.answer||''), qPlain(d), 'q'+c.doc.id); }
 }
 function onMessages(prev,snap){
   const ch=snap.docChanges().filter(c=>!snap.metadata.hasPendingWrites);
-  for(const c of ch){ const d=c.doc.data(); if(c.type==='added'&&d.from!==me.name){ beep(); toast((d.kind==='curse'?'Curse cast: ':'')+d.title); } }
+  for(const c of ch){ const d=c.doc.data(); if(c.type==='added'&&d.from!==me.name)
+    notify((d.kind==='curse'?'Curse: ':'')+(d.title||'Note'), d.text||'', 'm'+c.doc.id); }
 }
 
 // ---------- writes ----------
@@ -1069,9 +1113,17 @@ async function finishThermo(){
     toast('Asked — the hider can answer now'); tab='feed'; save('hs-tab',tab); render();
   }catch(e){ toast('Could not send: '+(e.code||e.message)); }
 }
+// Everything the hider's side works out stays on the hider's phone. The
+// shared document carries the answer and nothing else: the app's own
+// reading would tell the seekers which place the hider is nearest to,
+// which is the whole thing the question is asking them to pay for.
+function noteLocal(id,v){ const k='hs-mine-'+code; const m=load(k)||{};
+  if(v==null) delete m[id]; else m[id]=v; save(k,m); }
+const localNote=id=>((load('hs-mine-'+code)||{})[id])||null;
 async function answerQ(id,answer,extra){
   refix=null;
-  try{ await db.doc('games/'+code+'/questions/'+id).update(Object.assign({status:'answered',answer,answeredAt:Date.now(),against:'',why:''},extra||{})); }catch(e){ toast('Could not answer: '+(e.code||e.message)); }
+  noteLocal(id, extra&&extra.against ? {against:extra.against} : null);
+  try{ await db.doc('games/'+code+'/questions/'+id).update({status:'answered',answer,answeredAt:Date.now()}); }catch(e){ toast('Could not answer: '+(e.code||e.message)); }
 }
 async function vetoQ(id){ try{ await db.doc('games/'+code+'/questions/'+id).update({status:'vetoed',answer:'Vetoed',answeredAt:Date.now()}); }catch(e){ toast('Could not veto'); } }
 async function sendMessage(kind,title,text,extra){ try{ await db.doc('games/'+code).collection('messages').add(Object.assign({kind,title,text,from:me.name,role:me.role,at:Date.now()},extra||{})); }catch(e){ toast('Send failed'); } }
@@ -1221,6 +1273,7 @@ function lobby(){
     <div class="seg"><button type="button" data-role="hider" class="${me.role==='hider'?'on':''}">Hider</button><button type="button" data-role="seeker" class="${me.role==='seeker'?'on':''}">Seeker</button></div>
   </div>
   ${backendNote()}
+  ${(typeof Notification!=='undefined'&&Notification.permission==='default')?`<div class="card flat"><h3>Alerts</h3><p class="small">Buzz and a notification when a question or an answer arrives — the only way the hider hears a question with the phone in a pocket.</p><button class="btn sm" id="btn-notify">Turn on alerts</button><p class="small muted" style="margin-top:6px">On an iPhone, add this page to the Home Screen first (Share → Add to Home Screen) and open it from the icon; Safari only allows notifications there. Either way the phone still buzzes while the app is open.</p></div>`:''}
   <div class="card"><h2>Join a game</h2>
     <div class="row"><input type="text" id="join-code" class="grow" placeholder="4-letter code" maxlength="4" style="text-transform:uppercase;font-family:'Barlow Condensed';font-weight:800;font-size:22px;letter-spacing:.2em" autocomplete="off"><button class="btn primary" id="btn-join">Join</button></div>
     ${lobbyGames.length?`<h3>Recent games</h3><div class="games">${lobbyGames.map(g=>`<button data-join="${g.id}"><span><span class="code">${g.id}</span> &nbsp;${esc(g.name)}</span><span class="small muted">${SIZES[g.size]?SIZES[g.size].name:''} · ${g.phase}${g.hider?' · hider '+esc(g.hider):''}</span></button>`).join('')}</div>`:''}
@@ -1242,6 +1295,27 @@ function relayFields(){
   const u=relayForm.u.trim(), p=relayForm.p.trim();
   if(!h){ relayMsg='Enter the relay host'; render(); return null; }
   return {h,u,p,port:8084};
+}
+// A finished round, as a file: the questions and answers as they were
+// asked, so a round can be argued about, replayed or sent to someone.
+function saveRound(){
+  const safe=q=>({cat:q.cat,q:q.q,askedBy:q.askedBy,askedAt:q.askedAt,status:q.status,answer:q.answer,
+    answeredAt:q.answeredAt,distM:q.distM,ref:q.ref,line:q.line,mine:q.mine,loc:q.loc,loc2:q.loc2,mult:q.mult});
+  const blob={app:'jetlag-berkeley',saved:new Date().toISOString(),code,
+    game:{name:game.name,size:game.size,zone:game.zone,hider:game.hider,strict:game.strict!==false,
+      hidingStartAt:game.hidingStartAt,seekingStartAt:game.seekingStartAt,foundAt:game.foundAt},
+    questions:questions.map(safe),
+    messages:messages.map(m=>({kind:m.kind,title:m.title,text:m.text,from:m.from,at:m.at})),
+    pins:pins.map(p=>({x:p.x,y:p.y,label:p.label,by:p.by})),
+    crossed:Object.keys(crossed).map(Number)};
+  const text=JSON.stringify(blob,null,1);
+  const name=(game.name||'round').replace(/[^\w- ]+/g,'').trim().replace(/\s+/g,'-')+'-'+code+'.json';
+  try{
+    const url=URL.createObjectURL(new Blob([text],{type:'application/json'}));
+    const a=document.createElement('a'); a.href=url; a.download=name; document.body.appendChild(a); a.click();
+    setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); },1000);
+    toast('Saved '+name);
+  }catch(e){ toast('Could not save the file'); }
 }
 // A round you can poke at on one phone: six questions already answered
 // from a station picked at random, so the map, the panels and the feed all
@@ -1355,9 +1429,9 @@ function refList(q,p){
   if(!p||!ref||ref[0]==='!'||ref==='#sea'||ref==='#line') return '';
   const near=Map3.nearestFew(ref,p,5);
   if(!near.length) return '';
-  return `<details class="small" style="margin-top:6px"><summary>What the app counts as ${esc((REF_NOUN[ref]||q.q.toLowerCase()).replace(/^an? /,''))} near you</summary>
+  return `<details class="small" style="margin-top:6px"><summary>Your five nearest ${esc((REF_NOUN[ref]||q.q.toLowerCase()).replace(/^an? /,''))}, as the app counts them</summary>
     <ol class="small" style="margin:4px 0 0 18px">${near.map(o=>`<li>${esc(o.n)} — ${fmtDist(o.d)}</li>`).join('')}</ol>
-    <p class="small muted">Straight from OpenStreetMap, oddities and all. If the nearest one looks wrong to you, say so out loud before answering — you can also change an answer afterwards.</p></details>`;
+    <p class="small muted">Yours, not theirs — straight from OpenStreetMap, oddities and all. Nothing on this list leaves your phone.</p></details>`;
 }
 function hiderHelp(q){
   if(q.cat==='photo') return {html:''};
@@ -1373,6 +1447,14 @@ function hiderHelp(q){
 }
 // The question as a sentence: both blanks of a matching card are the same
 // thing; a tentacle card's two blanks are its distance and its kind.
+// The question as one line of plain text, for a notification.
+function qPlain(q){
+  const m=q.cat==='tentacle'&&String(q.q).match(/^(.*) within (.*)$/);
+  if(m) return 'Within '+m[2]+', which of the '+m[1].toLowerCase()+'?';
+  if(q.cat==='radar') return 'Are you within '+q.q+' of me?';
+  if(q.cat==='photo') return 'Photo: '+q.q;
+  return String(q.fmt||'___').replace(/___/g,q.q);
+}
 function qSentence(q){
   const m=q.cat==='tentacle'&&String(q.q).match(/^(.*) within (.*)$/);
   if(m) return 'Within <b>'+esc(m[2])+'</b> of me, which of the <b>'+esc(m[1].toLowerCase())+'</b> are you nearest to?';
@@ -1420,7 +1502,7 @@ function qCard(q,mine){
   }
   else { const cut=Map3.cutBy(q);
     body+=`<div class="ans ${q.status==='vetoed'?'veto':''}"><b>${esc(q.answer)}</b>${q.note?' — '+esc(q.note):''}<span class="small muted"> · ${fmtClock(q.answeredAt)}</span>${cut?`<div class="small" style="opacity:.85;margin-top:4px">${esc(cut)}</div>`:''}${photoSrc(q)?`<img src="${photoSrc(q)}" alt="Photo answer">`:(q.photoDoc?`<div class="small muted">Photo on its way\u2026</div>`:'')}
-      ${q.against?`<div class="small" style="color:var(--red)">Answered against the app's own reading (it made it ${esc(q.against)}).</div>`:''}
+      ${(mine&&localNote(q.id))?`<div class="small" style="color:var(--red)">You answered this against the app's own reading (it made it ${esc(localNote(q.id).against)}). Only you can see this line.</div>`:''}
       ${mine&&q.ans&&q.ans.length?`<div class="row" style="margin-top:6px"><button class="btn sm ghost" data-refix="${q.id}">Change this answer</button></div>`:''}</div>`; }
   return body+'</div>';
 }
@@ -1483,7 +1565,8 @@ function gameTab(){
     <h3>Testing</h3>
     <p class="small muted">All of this is local to your phone; nothing is sent.</p>
     <div class="row"><button class="btn sm" id="btn-selfcheck">Run self-check</button>
-      <button class="btn sm" id="btn-demo">Fill a demo round</button></div>
+      <button class="btn sm" id="btn-demo">Fill a demo round</button>
+      <button class="btn sm" id="btn-save">Save this round</button></div>
     ${selfCheckOut?`<pre class="small" style="white-space:pre-wrap;margin-top:8px">${esc(selfCheckOut.join('\n'))}</pre>`:''}
     <label class="f" for="step-range">Step through the answers</label>
     <input type="range" id="step-range" min="0" max="${Math.max(1,Map3.stepMax())}" value="${stepShow==null?Map3.stepMax():stepShow}" style="width:100%">
@@ -1519,6 +1602,8 @@ function wire(){
   on('#step-range','input',e=>{ const v=+e.target.value, max=Map3.stepMax();
     stepShow=v>=max?null:v; Map3.setStep(stepShow); render(); });
   on('#btn-demo','click',demoRound);
+  on('#btn-save','click',saveRound);
+  on('#btn-notify','click',askNotify);
   on('#relay-show','click',e=>{ e.preventDefault(); relayShow=true; relayMsg=''; render(); });
   on('#relay-h','input',relayTyped); on('#relay-u','input',relayTyped); on('#relay-p','input',relayTyped);
   on('#relay-test','click',async()=>{ const c=relayFields(); if(!c) return;
@@ -1561,7 +1646,7 @@ function wire(){
     if(hs&&hs.ans&&hs.ans!==a){
       if(!confirm('From your station the app makes this “'+hs.ans+'”.\n\n'+(hs.why||'')+
         '\n\nAnswering “'+a+'” instead will rule out your own station on everyone\'s map. Send it anyway?')) return;
-      answerQ(id,a,{against:hs.ans,why:hs.why||''}); return;
+      answerQ(id,a,{against:hs.ans}); return;
     }
     answerQ(id,a);
   });
@@ -1636,6 +1721,9 @@ let svg=null, root=null, gStops=null, gDyn=null, gRes=null, gShade=null, shadeKe
 let fgSvg=null, fgRoot=null, dotO=null, dotI=null, dotS=null, dotX=null, dotsAll='', dotKey='', dynCS=[], fgPx=0;
 let sel=null, pinMode=false, zoneMode=false, watchId=null, fix=null;
 let showCircles=!!load('hs-circles');
+// 0 = everything, 1 = only the grey that says where they cannot be,
+// 2 = the plain map and its stations.
+let drawMode=+(load('hs-draw')||0);
 
 const el=(t,a,p)=>{const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);if(p)p.appendChild(e);return e;};
 const zoneKey=()=> (game&&game.zone&&MAPS[game.zone])?game.zone:DEFAULT_ZONE;
@@ -1980,7 +2068,7 @@ function redraw(){
     el('circle',{cx:fix.x,cy:fix.y,r:metres(fix.acc,fix.y),class:'m-me-acc'},gDyn);
     el('circle',{r:7,class:'m-me'},cs(fix.x,fix.y));
   }
-  syncAnswers(); syncDots(); drawMarkers(cs);
+  syncAnswers(); syncDots(); drawMarkers(cs); applyDrawMode();
   fgPx=0; fgSync(px,lmap?lmap.getZoom()>=14:true);
   const keep=survivors(), chip=document.getElementById('mp-count');
   if(chip){
@@ -2118,12 +2206,38 @@ function showStop(i){
   setSel(i);
   const routes=s[3]?`<span class="r">${esc(s[3].split(';').join(' · '))}</span>`:'<span style="opacity:.7">no route data</span>';
   const off=!!crossed[i];
+  const fam=streetFamily(i);
   let act=`<div class="act"><button data-cross="${i}">${off?'Bring back':'Rule out'}</button>`;
+  if(fam.name&&fam.idx.length>1) act+=`<button data-crossfam="${i}">${fam.allOff?'Bring back':'Rule out'} ${esc(fam.name)} (${fam.idx.length})</button>`;
+  act+=`<button data-crossnear="${i}">${'Rule out within ¼ mi'}</button>`;
   if(isHider()) act+=`<button data-sethide="${i}">Hide here</button>`;
   act+='</div>';
   tip(`<b>${esc(s[2]||'Unnamed stop')}</b>${routes}${off?'<div class="r" style="margin-top:2px">ruled out by hand</div>':''}${act}`);
 }
 
+// Stops are named "A & B"; everything sharing a street with this one is
+// its family, so a street can be crossed off in one tap.
+const dbRef=()=>db;
+function streetFamily(i){
+  const m=M(), nm=m.stops[i][2]||'';
+  const parts=nm.split(/\s*&\s*/).map(x=>x.replace(/\s*\(.*\)\s*/,'').trim()).filter(x=>x.length>3);
+  let best={name:'',idx:[]};
+  for(const part of parts){
+    const idx=[]; for(let j=0;j<m.stops.length;j++) if((m.stops[j][2]||'').includes(part)) idx.push(j);
+    if(idx.length>best.idx.length) best={name:part,idx};
+  }
+  best.allOff=best.idx.length>0&&best.idx.every(j=>crossed[j]);
+  return best;
+}
+// Ruling out by hand is shared, like everything else: one phone crossing
+// off a street crosses it off for everyone.
+async function crossMany(idx,off){
+  for(const j of idx){ if(off) crossed[j]=1; else delete crossed[j]; }
+  shadeKey=''; dotKey=''; redraw(); if(panelTab) drawPanel(true);
+  for(const j of idx){
+    try{ await dbRef().doc('games/'+code+'/crossed/'+j).set({out:!!off,by:me.name,at:Date.now()}); }catch(e){}
+  }
+}
 let pend=null;
 function askPin(x,y){
   pend=[Math.round(x),Math.round(y)];
@@ -2189,6 +2303,12 @@ function bind(){
   view.addEventListener('pointerup',up); view.addEventListener('pointercancel',e=>{pts.delete(e.pointerId);drag=null;pinch=null;view.classList.remove('drag');});
   }
   document.getElementById('maptip').addEventListener('click',async e=>{
+    const fam=e.target.dataset.crossfam, nr=e.target.dataset.crossnear;
+    if(fam!==undefined){ const f=streetFamily(+fam); crossMany(f.idx,!f.allOff); tip(null);
+      toast((f.allOff?'Back in play: ':'Ruled out: ')+f.idx.length+' stops on '+f.name); return; }
+    if(nr!==undefined){ const i=+nr, m=M(), st=m.stops[i], R=metres(402,st[1]), idx=[];
+      for(let j=0;j<m.stops.length;j++) if(Math.hypot(m.stops[j][0]-st[0],m.stops[j][1]-st[1])<=R) idx.push(j);
+      crossMany(idx,true); tip(null); toast('Ruled out '+idx.length+' stops within ¼ mile'); return; }
     const sh=e.target.dataset.sethide, dp=e.target.dataset.delpin, cr=e.target.dataset.cross;
     if(cr!==undefined){ const i=+cr, on=!crossed[i];
       try{ await db.doc('games/'+code+'/crossed/'+i).set({out:on,by:me.name,at:Date.now()}); }
@@ -2216,6 +2336,9 @@ function bind(){
     if(code) patch({zone:next}); else { toast('Join a round first'); return; }
     toast(MAPS[next].label);
   });
+  document.getElementById('mp-draw').addEventListener('click',()=>{
+    drawMode=(drawMode+1)%3; save('hs-draw',drawMode); applyDrawMode();
+    toast(drawMode===0?'Everything drawn':drawMode===1?'Only where they cannot be':'Plain map'); });
   document.getElementById('mp-circles').addEventListener('click',e=>{
     showCircles=e.currentTarget.classList.toggle('on'); save('hs-circles',showCircles); shadeKey=''; redraw(); });
   document.getElementById('mp-pin').addEventListener('click',e=>{ pinMode=e.currentTarget.classList.toggle('on'); zoneMode=false; document.getElementById('mp-zone').classList.remove('on'); if(pinMode) toast('Tap the map to place a pin'); });
@@ -3101,6 +3224,16 @@ function putShape(s,parent,fill){
     a['clip-path']='url(#'+id+')'; }
   return el(s.t,a,parent);
 }
+function applyDrawMode(){
+  if(!gAns) return;
+  const hideWork=drawMode>=1, hideAll=drawMode>=2;
+  gAns.style.display=hideWork?'none':'';
+  gCons.style.display=hideWork?'none':'';
+  gShade.style.display=hideAll?'none':'';
+  if(gDyn) gDyn.querySelectorAll('[data-mk]').forEach(e=>{ e.style.display=hideWork?'none':''; });
+  const b=document.getElementById('mp-draw');
+  if(b){ b.textContent=drawMode===0?'Drawing':drawMode===1?'Grey only':'Plain map'; b.classList.toggle('on',drawMode===0); }
+}
 function syncAnswers(){
   if(!gAns) return;
   const cs=cons();
@@ -3133,9 +3266,9 @@ function drawMarkers(at){
   const cs=cons();
   for(let i=0;i<cs.length;i++){ if(conOff[i]) continue; const c=cs[i], col=conColor(i);
     if(c.t==='thermo'){
-      el('circle',{r:4.5,fill:'#fff',stroke:col,'stroke-width':2.5},at(c.a[0],c.a[1]));
-      el('circle',{r:4.5,fill:col,stroke:'#fff','stroke-width':2},at(c.b[0],c.b[1]));
-    } else if(c.x!=null) el('circle',{r:4.5,fill:col,stroke:'#fff','stroke-width':2},at(c.x,c.y));
+      el('circle',{r:4.5,fill:'#fff',stroke:col,'stroke-width':2.5},at(c.a[0],c.a[1],{'data-mk':1}));
+      el('circle',{r:4.5,fill:col,stroke:'#fff','stroke-width':2},at(c.b[0],c.b[1],{'data-mk':1}));
+    } else if(c.x!=null) el('circle',{r:4.5,fill:col,stroke:'#fff','stroke-width':2},at(c.x,c.y,{'data-mk':1}));
   }
 }
 
