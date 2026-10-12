@@ -184,6 +184,24 @@ was matched — rather than a ring around every reference on the map, which
 was 47 overlapping circles for the county line. A thermometer draws its
 bisector thick, with the leg you travelled dashed beside it.
 
+**Alerts.** The phone buzzes and shows a notification when a question lands
+in the hider's inbox, when an answer comes back, when a curse or a note is
+sent, and when the hiding period or a photo's time limit is nearly up —
+with the app in the background, which is where it will be. On an iPhone
+that means adding the page to the Home Screen first; Safari only delivers
+notifications to an installed page, and the manifest and icons are there
+for it. While the app is open on screen it just buzzes and toasts.
+
+**The map, stripped back.** One button cycles the drawing: everything, then
+only the grey that says where the hider cannot be, then the plain map with
+its stations. Ruling out by hand works on a whole street or everything
+within a quarter mile of a stop, not one stop at a time, and it syncs like
+everything else.
+
+**Saving a round.** The Game tab writes the round to a file — the questions,
+the answers, the pins, what was crossed off — for arguing about afterwards
+or replaying later.
+
 The Game tab carries a **Testing** card, because none of this should need
 two people and a car to try. **Run self-check** reports what survives, what
 each answer ruled out, whether your own station is still standing, and spot
@@ -272,6 +290,13 @@ is 19 museums, 50 libraries, 8 cinemas, 12 named peaks, 189 named parks, four
 golf courses and one amusement park on the combined map, against 12, 34, 3, 5
 and 74 when only the play area counted. Eight cities have real ground on it,
 not two.
+
+Nothing worked out from the hider's position is ever written to the shared
+round. That is a rule with teeth: when the warning below was added it also
+recorded *what the app had read from the hider's station* on the question
+document, which told the seekers' phones which place the hider was nearest
+to. The shared document carries the answer and nothing else; the hider's
+own reading, the reference lists and the warnings all stay on their phone.
 
 Every question also shows **what the app counts**: the nearest five of
 whatever it is about, with distances, on both the asking screen and the
