@@ -19,6 +19,11 @@ OUT = ROOT / "maps"
 # US Letter landscape at 96dpi, less a 0.3in margin all round.
 PAGE_W, PAGE_H = 11 * 96, 8.5 * 96
 PAD = 0.3 * 96
+# What is left for the drawing once the page margin, the header rule and the
+# footer have taken theirs. Measured against a real print, not guessed: the
+# sheet used to run onto a second page.
+INK_W, INK_H = PAGE_W - 2 * PAD, PAGE_H - 2 * PAD
+HEADER_H, FOOTER_H = 62, 40
 
 ZONES = {
     "berkeley": ("Berkeley", "¼ mile hiding zone"),
@@ -54,7 +59,7 @@ def main():
         mx, my = (max(xs) - min(xs)) * 0.07, (max(ys) - min(ys)) * 0.07
         x0, y0 = min(xs) - mx, min(ys) - my
         w, h = (max(xs) - min(xs)) + 2 * mx, (max(ys) - min(ys)) + 2 * my
-        iw, ih = PAGE_W - 2 * PAD, PAGE_H - 2 * PAD - 96
+        iw, ih = INK_W, INK_H - HEADER_H - FOOTER_H
         k = min(iw / w, ih / h)
         if w / h < iw / ih:                      # centre it on the sheet
             x0 -= (iw / k - w) / 2; w = iw / k
@@ -71,8 +76,11 @@ def main():
         g = []
         if layers.get("water"):
             g.append(path(layers["water"], fill="#D8E4EC", stroke="none"))
-        for key, col, wdt in (("motorway", "#A8A49A", 2.6), ("primary", "#BFBBB1", 1.5),
-                              ("secondary", "#D0CCC2", 0.9)):
+        # Light to heavy, so a glance reads the hierarchy: the side streets
+        # are there to navigate by, not to compete with the boundary.
+        for key, col, wdt in (("residential", "#D5D1C7", 0.5), ("tertiary", "#C9C5BB", 0.8),
+                              ("secondary", "#BAB6AC", 1.1), ("primary", "#A8A49A", 1.6),
+                              ("motorway", "#948F85", 2.7)):
             if layers.get(key):
                 g.append(path(layers[key], fill="none", stroke=col, **{"stroke-width": str(wdt),
                               "stroke-linejoin": "round", "stroke-linecap": "round"}))
@@ -116,7 +124,7 @@ def main():
 <style>
   @page {{ size: letter landscape; margin: 0.3in; }}
   html,body{{margin:0;background:#fff;color:#15171B;font-family:'Barlow',system-ui,sans-serif}}
-  .sheet{{width:{PAGE_W-2*PAD:.0f}px;margin:0 auto;padding:{PAD:.0f}px 0}}
+  .sheet{{width:{INK_W:.0f}px;margin:0 auto;padding:0;break-inside:avoid}}
   header{{display:flex;align-items:flex-end;gap:14px;border-bottom:2.5px solid #15171B;padding-bottom:6px}}
   h1{{font-family:'Barlow Condensed','Arial Narrow',sans-serif;font-weight:800;text-transform:uppercase;
      font-size:27px;line-height:1;margin:0}}
@@ -130,11 +138,12 @@ def main():
   footer{{display:flex;justify-content:space-between;align-items:flex-end;font-size:11px;color:#44474D;margin-top:4px;gap:16px}}
   footer .note{{text-align:right;line-height:1.5;font-size:10px}}
   .note{{font-size:11px;color:#44474D}}
-  @media screen{{ body{{background:#E9E6DE;padding:18px 0}} .sheet{{background:#fff;box-shadow:0 2px 14px rgba(0,0,0,.18)}} }}
-  @media print{{ .hint{{display:none}} }}
+  @media screen{{ body{{background:#E9E6DE;padding:18px 0}}
+    .sheet{{background:#fff;box-shadow:0 2px 14px rgba(0,0,0,.18);padding:{PAD:.0f}px;width:{PAGE_W:.0f}px}} }}
+  @media print{{ .hint{{display:none}} html,body{{height:auto}} }}
 </style></head>
 <body>
-<p class="hint" style="max-width:{PAGE_W-2*PAD:.0f}px;margin:0 auto 10px;font-size:13px">
+<p class="hint" style="max-width:{PAGE_W:.0f}px;margin:0 auto 10px;font-size:13px">
   Print this at US Letter, landscape, “fit to page” off. One sheet per car.</p>
 <div class="sheet">
   <header>
