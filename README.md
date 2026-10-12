@@ -263,6 +263,15 @@ message under `jlhs/v1/…`, so a phone that joins late gets the current state
 the moment it subscribes, and deleting a document means publishing an empty
 retained payload.
 
+The relay that needs no account is **ntfy.sh**, a public pub/sub service
+that takes a POST and streams it to whoever is listening on that topic. One
+topic per round, plus one the rounds announce themselves on. It keeps twelve
+hours of messages, so a phone that joins late replays the round and catches
+up, and a write too big for one message — a photo — is uploaded as an
+attachment whose address travels in the message instead. Nothing to sign up
+for, nothing to configure, which matters when the other players are not
+going to create accounts.
+
 Which broker matters more than it used to. This was built on the free public
 brokers, and in October 2026 all of them stopped answering: EMQX refuses with
 "server unavailable", HiveMQ and Eclipse never send a CONNACK, mosquitto and
@@ -274,9 +283,9 @@ host, username, password for a broker of your own (a free EMQX Serverless
 deployment, secure WebSocket on port 8084). It is tested before it is saved,
 so a typo says *not authorized* rather than failing silently later, and
 **Copy setup link** produces a link carrying the details in its fragment —
-the other phones open it once and are configured. The public brokers are
-still tried, together rather than one after another, as a long shot behind
-your own.
+the other phones open it once and are configured. The order is: your own relay if one is
+configured, then ntfy.sh, then the public brokers — together rather than one
+after another — then this phone alone.
 
 The trade is unchanged and the app still says so: the four-letter game code
 is the only thing keeping a stranger out, and delivery is best-effort.
