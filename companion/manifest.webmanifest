@@ -1,0 +1,15 @@
+{
+  "name": "Hide + Seek Relay — Berkeley",
+  "short_name": "H+S Relay",
+  "description": "Companion for playing Jet Lag: Hide + Seek in Berkeley and North Oakland.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#EDEAE1",
+  "theme_color": "#15171B",
+  "icons": [
+    {"src": "icon-180.png", "sizes": "180x180", "type": "image/png"},
+    {"src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"}
+  ]
+}
