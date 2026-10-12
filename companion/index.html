@@ -136,6 +136,20 @@ label.f{display:block;font-family:'Barlow Condensed',sans-serif;font-weight:600;
 .msg.curse{border-left:6px solid var(--hider)}
 .bonus{margin-top:4px;font-size:14px;color:var(--ink-2)}
 .bonus b{color:var(--ink)} .bonus span{color:var(--ink-3)}
+/* A photo answer is evidence; it should fill the screen and take a pinch. */
+#lightbox{position:fixed;inset:0;z-index:70;background:#0B0B0D;display:flex;flex-direction:column}
+#lightbox .lbin{flex:1;min-height:0;overflow:auto;-webkit-overflow-scrolling:touch;
+  display:grid;place-items:center;touch-action:pinch-zoom}
+#lbimg{max-width:100%;height:auto;display:block}
+#lightbox .lbbar{display:flex;gap:8px;align-items:center;padding:10px;background:#15171B;color:#F2EFE6}
+#lightbox .lbbar .small{opacity:.7}
+img.shot{cursor:zoom-in}
+.pausebar{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px;margin:8px 0 2px;
+  padding:8px 10px;border:1.5px solid var(--ink);background:var(--yellow);color:#15171B;
+  font-family:'Barlow Condensed',system-ui,sans-serif;font-size:19px;letter-spacing:.01em}
+.pausebar span:last-child{font-family:'Barlow',system-ui,sans-serif;font-size:13px;letter-spacing:0;opacity:.8}
+.card.paused .timer{opacity:.45}
+.msg.pause{border-left:6px solid var(--yellow)}
 .ctimers{display:grid;gap:6px;margin-top:10px}
 .ct{display:flex;align-items:center;gap:8px;border:1.5px solid var(--ink);background:var(--card-2);padding:6px 8px;border-left:6px solid var(--yellow)}
 .ct .ctl{flex:1;font-size:13px}
@@ -316,6 +330,12 @@ table.sb th{font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;l
     <button data-tab="game" id="tab-game">Game</button>
   </div>
 </nav>
+<div id="lightbox" hidden>
+  <div class="lbin"><img id="lbimg" alt="Photo answer, full size"></div>
+  <div class="lbbar"><button class="btn sm" id="lb-x">Close</button>
+    <a class="btn sm" id="lb-full" target="_blank" rel="noopener">Open in a tab</a>
+    <span class="small" id="lb-note"></span></div>
+</div>
 <div id="toast" class="toast" hidden></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/5.10.1/mqtt.min.js"></script>
@@ -2765,6 +2785,7 @@ function build(io){
     return q;
   }
   return {doc:docRef, collection:colRef,
+    putBlob: io.putBlob ? ((p,b,name)=>io.putBlob(p,b,name)) : null,
     waiting(){ return outbox.length; },
     lastError(){ return lastErr; },
     onWaiting(fn){ onOut=fn; },
@@ -2863,6 +2884,17 @@ function ntfyIO(){
     attach(fn){ apply=fn; },
     settle(){ return Promise.all(waits).then(()=>new Promise(r=>setTimeout(r,250))); },
     publish(path,value){ return put(path,value); },
+    // A photo goes up as the camera's own file. Base64 inside a document
+    // would cost a third again in bytes and has to be held in memory twice;
+    // this hands the relay the bytes and keeps only the address.
+    async putBlob(path,blob,name){
+      const r=await fetch(NTFY+ntfyTopic(path),{method:'PUT',
+        headers:{Filename:name||'photo.jpg'},body:blob});
+      if(!r.ok) throw new Error(r.status===413?'the relay will not take a file that big':'relay said '+r.status);
+      const j=await r.json();
+      if(!j||!j.attachment||!j.attachment.url) throw new Error('relay kept no attachment');
+      return j.attachment.url;
+    },
     watchDoc(path){ waits.push(listen(ntfyTopic(path))); },
     watchCollection(base){ waits.push(listen(base==='games'?NTFY_TOPIC+'lobby':ntfyTopic(base))); }
   };
@@ -2883,6 +2915,8 @@ function localIO(){
     attach(fn){ apply=fn; for(const k in data) fn(k,data[k]); },
     settle(){ return Promise.resolve(); },
     publish(path,value){ if(value===null) delete data[path]; else data[path]=value; save(); apply(path,value); return Promise.resolve(); },
+    // Nothing leaves this phone anyway, so the photo cache is the store.
+    putBlob(path){ return Promise.resolve('local:'+path); },
     watchDoc(){}, watchCollection(){}
   };
 }
@@ -3057,11 +3091,20 @@ const minsOf=spec=>+szPlain(spec);
 function bonusCardMins(c){ if(!c||c.kind!=='Time bonus') return 0;
   const v=BONUS_CARDS[c.bonus]; if(v) return v[sizeIdx()];
   const n=parseFloat(String(c.text||'').replace(/[^\d.]/g,'')); return isFinite(n)?n:0; }
+// The hand, the banked curse awards and the hand limit live on the hider's
+// own phone and are never written to the shared round. A seeker reading the
+// relay traffic should learn no more than a seeker sitting on a train: the
+// cards, their values and the running total appear only in the reveal when
+// the round ends.
+function myHand(){ return (code&&load('hs-hand-'+code))||[]; }
+function setHand(h){ if(code) save('hs-hand-'+code,h); render(); }
+function myAwards(){ return (code&&load('hs-awards-'+code))||[]; }
+function setAwards(a){ if(code) save('hs-awards-'+code,a); render(); }
 // Held time-bonus cards count at the end of the round; curse awards are
 // banked the moment they are earned.
 function bonusMinutes(){
-  let held=0; for(const c of (game.hand||[])) held+=bonusCardMins(c);
-  let won=0; for(const a of (game.awards||[])) won+=+a.min||0;
+  let held=0; for(const c of myHand()) held+=bonusCardMins(c);
+  let won=0; for(const a of myAwards()) won+=+a.min||0;
   return {held,won,total:held+won};
 }
 function bonusLine(){
@@ -3070,11 +3113,43 @@ function bonusLine(){
   return `<div class="bonus" id="bonusline">${bonusText(b)}</div>`;
 }
 function bonusText(b){
-  const base=game.phase==='found'?(game.foundAt-game.seekingStartAt):(Date.now()-game.seekingStartAt);
+  const base=elapsed(game.seekingStartAt, game.phase==='found'?game.foundAt:null);
   const parts=[];
   if(b.held) parts.push(b.held+' in hand');
   if(b.won) parts.push(b.won+' from curses');
   return `<b>+${b.total} min</b> time bonus${parts.length?' <span>('+parts.join(', ')+')</span>':''} · <b>${fmtT(base+b.total*60000)}</b> total`;
+}
+// ---------- pausing ----------
+// Either team can stop the clock, because the reason is usually food, a
+// bathroom or a missed train and nobody should have to argue about it.
+// Every elapsed time in the app runs through elapsed(), so one pause
+// freezes the run clock, the hiding countdown and every curse timer at
+// once; the feed keeps the receipt of who stopped it and for how long.
+function tNow(){ return (game&&game.pause)?game.pause.at:Date.now(); }
+function pausedBetween(from,to){
+  if(!game||!from) return 0;
+  let s=0;
+  for(const p of (game.pauses||[])){ const a=Math.max(p.a,from), b=Math.min(p.b,to); if(b>a) s+=b-a; }
+  if(game.pause){ const a=Math.max(game.pause.at,from); if(to>a) s+=to-a; }
+  return s;
+}
+// Time that actually counted, between two moments. `to` defaults to now,
+// or to the moment the clock stopped if the round is paused right now.
+function elapsed(from,to){
+  if(!from) return 0;
+  if(to==null) to=tNow();
+  return Math.max(0,to-from-pausedBetween(from,to));
+}
+function pauseRound(){
+  if(!game||game.pause) return;
+  patch({pause:{at:Date.now(),by:me.name}});
+  sendMessage('pause','Paused by '+me.name,'Every clock is stopped until someone resumes.');
+}
+function resumeRound(){
+  if(!game||!game.pause) return;
+  const p=game.pause, at=Date.now();
+  patch({pause:null,resumeBy:me.name,pauses:[...(game.pauses||[]),{a:p.at,b:at,by:p.by,byR:me.name}]});
+  sendMessage('pause','Resumed by '+me.name,'Paused '+fmtT(at-p.at)+', stopped by '+p.by+'. That time does not count.');
 }
 // Timers live on the game, so every phone counts down the same clock.
 function startTimer(key,by){
@@ -3085,35 +3160,44 @@ function startTimer(key,by){
   timers[id]={l:t.l,start:now,end:now+minsOf(t.m)*60000,by:by||me.name};
   patch({timers});
 }
+// A curse timer is stored as the moment it started and the moment it would
+// end unpaused; what is left is its length minus the time that counted, so
+// a pause holds it where it is without rewriting the card.
+function timerLeft(t){ return (t.end-t.start)-elapsed(t.start); }
 function timersHtml(){
-  const now=Date.now(), ts=Object.entries(game.timers||{}).filter(([,t])=>t.end>now-60000).sort((a,b)=>a[1].end-b[1].end);
+  const ts=Object.entries(game.timers||{}).filter(([,t])=>timerLeft(t)>-60000)
+    .sort((a,b)=>timerLeft(a[1])-timerLeft(b[1]));
   if(!ts.length) return '';
-  return `<div class="ctimers">${ts.map(([id,t])=>`<div class="ct ${t.end<=now?'over':''}" data-end="${t.end}" data-tid="${id}">
-    <span class="ctl">${esc(t.l)}</span><span class="ctv">${t.end<=now?'over':fmtT(t.end-now)}</span>
-    <button class="x" data-stop-timer="${id}" title="Clear">×</button></div>`).join('')}</div>`;
+  return `<div class="ctimers">${ts.map(([id,t])=>{ const L=timerLeft(t);
+    return `<div class="ct ${L<=0?'over':''}" data-tstart="${t.start}" data-tdur="${t.end-t.start}" data-tid="${id}">
+    <span class="ctl">${esc(t.l)}</span><span class="ctv">${L<=0?'over':fmtT(L)}</span>
+    <button class="x" data-stop-timer="${id}" title="Clear">×</button></div>`;}).join('')}</div>`;
 }
 let timerFired={};
 function tickTimers(){
   const now=Date.now();
-  document.querySelectorAll('.ct[data-end]').forEach(e=>{ const end=+e.dataset.end, v=e.querySelector('.ctv');
-    if(end<=now){ if(!e.classList.contains('over')){ e.classList.add('over'); v.textContent='over'; }
-      const id=e.dataset.tid; if(!timerFired[id]&&now-end<5000){ timerFired[id]=1; beep(); toast(e.querySelector('.ctl').textContent.split(' — ')[0]+' is over'); } }
-    else v.textContent=fmtT(end-now); });
+  document.querySelectorAll('.ct[data-tstart]').forEach(e=>{
+    const L=(+e.dataset.tdur)-elapsed(+e.dataset.tstart), v=e.querySelector('.ctv');
+    if(L<=0){ if(!e.classList.contains('over')){ e.classList.add('over'); v.textContent='over'; }
+      const id=e.dataset.tid; if(!timerFired[id]&&L>-5000){ timerFired[id]=1; beep(); toast(e.querySelector('.ctl').textContent.split(' — ')[0]+' is over'); } }
+    else v.textContent=fmtT(L); });
+  const pf=document.getElementById('pausefor');
+  if(pf&&game&&game.pause) pf.textContent=fmtT(now-game.pause.at);
   const bl=document.getElementById('bonusline');
   if(bl&&game&&game.phase!=='found') bl.innerHTML=bonusText(bonusMinutes());
   // The clock everyone forgets: the end of the hiding period, and the
   // photo limit on a question the hider is holding.
-  if(game&&game.phase==='hiding'&&game.hidingStartAt){
-    const end=game.hidingStartAt+SIZES[game.size].hide*60000;
-    for(const [k,at] of [['5',end-300000],['0',end]])
-      if(!timerFired['hide'+k]&&now>=at&&now-at<20000){ timerFired['hide'+k]=1;
+  if(game&&game.phase==='hiding'&&game.hidingStartAt&&!game.pause){
+    const left=SIZES[game.size].hide*60000-elapsed(game.hidingStartAt);
+    for(const [k,at] of [['5',300000],['0',0]])
+      if(!timerFired['hide'+k]&&left<=at&&left>at-20000){ timerFired['hide'+k]=1;
         notify(k==='0'?'Hiding period over':'Hiding period ends in 5 minutes',
           k==='0'?'Seekers are released.':'Get where you are going.','hide'); }
   }
-  if(isHider()&&game&&SIZES[game.size]) for(const q of questions){
+  if(isHider()&&game&&SIZES[game.size]&&!game.pause) for(const q of questions){
     if(q.cat!=='photo'||q.status!=='pending') continue;
-    const end=q.askedAt+SIZES[game.size].photo*60000;
-    if(!timerFired['ph'+q.id]&&now>=end-60000&&now<end+20000){ timerFired['ph'+q.id]=1;
+    const left=SIZES[game.size].photo*60000-elapsed(q.askedAt);
+    if(!timerFired['ph'+q.id]&&left<=60000&&left>-20000){ timerFired['ph'+q.id]=1;
       notify('One minute left on a photo', q.q, 'ph'+q.id); }
   }
 }
@@ -3362,7 +3446,9 @@ function subscribeLobby(){
   if(lobbyUnsub) lobbyUnsub();
   lobbyUnsub=db.collection('games').orderBy('createdAt','desc').limit(25).onSnapshot(snap=>{ lobbyGames=snap.docs.map(d=>({id:d.id,...d.data()})); if(!game) render(); }, e=>console.warn('lobby',e));
 }
-function leave(){ unsubs.forEach(u=>u()); unsubs=[]; game=null; questions=[]; messages=[]; pins=[]; photos={}; crossed={}; code=null; Map3.reset(); save('hs-code',null); $('#tabs').hidden=true; render(); }
+function leave(){ unsubs.forEach(u=>u()); unsubs=[]; game=null; questions=[]; messages=[]; pins=[]; photos={}; crossed={};
+  for(const k in photoURL){ try{ URL.revokeObjectURL(photoURL[k]); }catch(e){} delete photoURL[k]; }
+  code=null; Map3.reset(); save('hs-code',null); $('#tabs').hidden=true; render(); }
 async function join(c,silent){
   c=c.toUpperCase().trim(); if(!c) return;
   const ref=db.doc('games/'+c);
@@ -3377,7 +3463,10 @@ async function join(c,silent){
     for(const d of s.docs){ const v=d.data(); if(v&&v.out) c[d.id]=1; }
     crossed=c; Map3.syncPins(); render(); }, e=>console.warn(e)));
   unsubs.push(ref.collection('photos').limit(40).onSnapshot(s=>{ let n=0;
-    for(const d of s.docs){ if(!photos[d.id]) n++; photos[d.id]=(d.data()||{}).d; }
+    for(const d of s.docs){ const v=d.data()||{}, src=v.d||v.u;
+      if(!src) continue;
+      if(photos[d.id]!==src){ photos[d.id]=src; n++; }
+      cachePhoto(d.id,src); }
     if(n) render(); }, e=>console.warn(e)));
   unsubs.push(ref.collection('pins').orderBy('at','asc').limit(100).onSnapshot(s=>{ pins=s.docs.map(d=>({id:d.id,...d.data()})); Map3.syncPins(); }, e=>console.warn(e)));
   // register player
@@ -3386,6 +3475,19 @@ async function join(c,silent){
 }
 function onGame(prev){
   if(prev && prev.phase!==game.phase){ if(game.phase==='seeking') toast(isHider()?'Seekers are on the move.':'Seeking has started — ask away.'); if(game.phase==='endgame') toast('Endgame: seekers are in the zone.'); if(game.phase==='found') toast('Hider found! Round over.'); beep(); }
+  // A pause has to reach the pocket of whoever did not press it, or one
+  // team sits watching a clock the other team has already stopped.
+  if(prev && !!prev.pause!==!!game.pause){
+    if(game.pause){ if(game.pause.by!==me.name)
+        notify('Round paused','Paused by '+(game.pause.by||'someone')+' — every clock is stopped.','pause'); }
+    else if(game.resumeBy!==me.name){
+      const last=(game.pauses||[])[(game.pauses||[]).length-1];
+      notify('Round resumed',last?('Stopped for '+fmtT(last.b-last.a)+'. The clocks are running again.'):'The clocks are running again.','pause');
+    }
+  }
+  // Only the hider's phone knows the time bonus, so only it can publish the
+  // reveal — including when a seeker is the one who ends the round.
+  if(game.phase==='found'&&isHider()&&!game.bonusAtFound) patch({bonusAtFound:bonusMinutes()});
 }
 function onQuestions(prev,snap){
   const ch=snap.docChanges().filter(c=>!snap.metadata.hasPendingWrites);
@@ -3404,7 +3506,7 @@ function onMessages(prev,snap){
 // ---------- writes ----------
 async function createGame(name,size){
   let c=mkCode(); for(let i=0;i<5;i++){ const s=await db.doc('games/'+c).get(); if(!s.exists) break; c=mkCode(); }
-  const g={name:name||('Game '+c),size,zone:DEFAULT_ZONE,phase:'setup',createdAt:Date.now(),hider:me.role==='hider'?me.name:'',players:{[me.name]:me.role},hidingStartAt:null,seekingStartAt:null,endgameAt:null,foundAt:null,hand:[],note:'',strict:true};
+  const g={name:name||('Game '+c),size,zone:DEFAULT_ZONE,phase:'setup',createdAt:Date.now(),hider:me.role==='hider'?me.name:'',players:{[me.name]:me.role},hidingStartAt:null,seekingStartAt:null,endgameAt:null,foundAt:null,pause:null,pauses:[],note:'',strict:true};
   await db.doc('games/'+c).set(g); join(c);
 }
 async function patch(data){ if(!code) return; try{ await db.doc('games/'+code).update(data); }catch(e){ toast('Could not save: '+(e.code||e.message)); } }
@@ -3471,17 +3573,58 @@ async function finishThermo(){
 function noteLocal(id,v){ const k='hs-mine-'+code; const m=load(k)||{};
   if(v==null) delete m[id]; else m[id]=v; save(k,m); }
 const localNote=id=>((load('hs-mine-'+code)||{})[id])||null;
+const PRIVATE_TO_HIDER=['against','why'];
 async function answerQ(id,answer,extra){
   refix=null;
   noteLocal(id, extra&&extra.against ? {against:extra.against} : null);
-  try{ await db.doc('games/'+code+'/questions/'+id).update({status:'answered',answer,answeredAt:Date.now()}); }catch(e){ toast('Could not answer: '+(e.code||e.message)); }
+  const shared={status:'answered',answer,answeredAt:Date.now()};
+  for(const k in (extra||{})) if(PRIVATE_TO_HIDER.indexOf(k)<0) shared[k]=extra[k];
+  try{ await db.doc('games/'+code+'/questions/'+id).update(shared); }catch(e){ toast('Could not answer: '+(e.code||e.message)); }
 }
 async function vetoQ(id){ try{ await db.doc('games/'+code+'/questions/'+id).update({status:'vetoed',answer:'Vetoed',answeredAt:Date.now()}); }catch(e){ toast('Could not veto'); } }
 async function sendMessage(kind,title,text,extra){ try{ await db.doc('games/'+code).collection('messages').add(Object.assign({kind,title,text,from:me.name,role:me.role,at:Date.now()},extra||{})); }catch(e){ toast('Send failed'); } }
-// A photo has to cross a public MQTT broker, which takes small messages and
-// nothing else, so it is re-encoded down to something that fits rather than
-// being sent as the multi-megabyte file the camera produced. The artifact
-// runtime has a real asset store, and is used instead when it is there.
+// The artifact runtime has a real asset store and is used when it is there.
+// Photos are sent at the size the camera took them, which is what the
+// seekers want when they are counting windows on a building. The relay
+// keeps an attachment for a few hours and the round outlives that, so
+// every phone that sees a photo keeps its own copy and the feed still
+// has it tomorrow.
+const PDB=(()=>{
+  let p=null;
+  function open(){ if(p) return p;
+    p=new Promise((res,rej)=>{ let r; try{ r=indexedDB.open('hs-photos',1); }catch(e){ rej(e); return; }
+      r.onupgradeneeded=()=>{ try{ r.result.createObjectStore('p'); }catch(e){} };
+      r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); });
+    return p; }
+  const tx=(mode,fn)=>open().then(d=>new Promise((res,rej)=>{
+    const t=d.transaction('p',mode), q=fn(t.objectStore('p'));
+    t.oncomplete=()=>res(q&&q.result); t.onerror=()=>rej(t.error); }));
+  return { get:k=>tx('readonly',st=>st.get(k)).catch(()=>null),
+           put:(k,v)=>tx('readwrite',st=>st.put(v,k)).catch(()=>{}) };
+})();
+const photoURL={};          // question id -> object URL for the kept copy
+const photoBusy={};
+async function keepPhoto(qid,blob){
+  if(photoURL[qid]) URL.revokeObjectURL(photoURL[qid]);
+  photoURL[qid]=URL.createObjectURL(blob);
+  await PDB.put(code+'/'+qid,blob);
+}
+// Called for every photo the round knows about: take the local copy if
+// there is one, otherwise fetch it off the relay once and keep it.
+async function cachePhoto(qid,src){
+  if(photoURL[qid]||photoBusy[qid]||!src) return;
+  photoBusy[qid]=1;
+  try{
+    let b=await PDB.get(code+'/'+qid);
+    if(!b&&!/^(data|local):/.test(src)){
+      const r=await fetch(src); if(!r.ok) throw new Error('gone');
+      b=await r.blob(); await PDB.put(code+'/'+qid,b);
+    }
+    if(b){ photoURL[qid]=URL.createObjectURL(b); render(); }
+  }catch(e){ /* the attachment has expired; the sender still has it */ }
+  finally{ photoBusy[qid]=0; }
+}
+// Only for the fallback, when the relay will not take the real file.
 const PHOTO_MAX_PX=1280, PHOTO_BUDGET=110*1024;
 function shrink(file){
   return new Promise((resolve,reject)=>{
@@ -3510,15 +3653,29 @@ function shrink(file){
     img.src=url;
   });
 }
+function kb(b){ return b>=1048576?(b/1048576).toFixed(1)+' MB':Math.round(b/1024)+' kB'; }
 async function uploadPhoto(file,qid){
   try{
-    toast('Preparing photo…');
-    if(assets){ const r=await assets.upload(file); await answerQ(qid,'Photo sent',{photo:r.id}); toast('Sent'); return; }
+    if(assets){ toast('Preparing photo…'); const r=await assets.upload(file);
+      await answerQ(qid,'Photo sent',{photo:r.id}); toast('Sent'); return; }
+    // Full resolution first: the file as the camera wrote it.
+    if(db.putBlob){
+      toast('Sending '+kb(file.size)+' at full size…');
+      try{
+        const url=await db.putBlob('games/'+code+'/photos/'+qid,file,'photo.jpg');
+        await keepPhoto(qid,file);
+        photos[qid]=url;
+        await db.doc('games/'+code+'/photos/'+qid).set({u:url,at:Date.now(),bytes:file.size});
+        await answerQ(qid,'Photo sent',{photoDoc:qid,photoBytes:file.size});
+        toast('Sent at full size · '+kb(file.size));
+        return;
+      }catch(e){ toast('Full size would not go ('+(e.message||'no answer')+') — sending a smaller one'); }
+    }
     const {url,w,h}=await shrink(file);
     await db.doc('games/'+code+'/photos/'+qid).set({d:url,at:Date.now()});
     photos[qid]=url;
-    await answerQ(qid,'Photo sent',{photoDoc:qid,photoW:w,photoH:h});
-    toast('Sent');
+    await answerQ(qid,'Photo sent',{photoDoc:qid,photoW:w,photoH:h,photoSmall:1});
+    toast('Sent at reduced size');
   }catch(e){ toast('Could not send the photo: '+(e.message||e.code||'unknown')); }
 }
 
@@ -3683,7 +3840,9 @@ function saveRound(){
     answeredAt:q.answeredAt,distM:q.distM,ref:q.ref,line:q.line,mine:q.mine,loc:q.loc,loc2:q.loc2,mult:q.mult});
   const blob={app:'jetlag-berkeley',saved:new Date().toISOString(),code,
     game:{name:game.name,size:game.size,zone:game.zone,hider:game.hider,strict:game.strict!==false,
-      hidingStartAt:game.hidingStartAt,seekingStartAt:game.seekingStartAt,foundAt:game.foundAt},
+      hidingStartAt:game.hidingStartAt,seekingStartAt:game.seekingStartAt,foundAt:game.foundAt,
+      pauses:game.pauses||[],pausedSeek:game.pausedSeek||0,bonusAtFound:game.bonusAtFound||null},
+    mine:isHider()?{hand:myHand(),awards:myAwards(),handmax:handLimit()}:null,
     questions:questions.map(safe),
     messages:messages.map(m=>({kind:m.kind,title:m.title,text:m.text,from:m.from,at:m.at})),
     pins:pins.map(p=>({x:p.x,y:p.y,label:p.label,by:p.by})),
@@ -3708,13 +3867,12 @@ async function demoRound(){
   toast('Demo questions added — open the Map tab'); tab='map'; save('hs-tab',tab); render();
 }
 function timerText(){
-  const now=Date.now();
-  if(game.phase==='hiding'){ const end=game.hidingStartAt+SIZES[game.size].hide*60000; return fmtT(end-now); }
-  if(game.phase==='seeking'||game.phase==='endgame') return fmtT(now-game.seekingStartAt);
-  if(game.phase==='found') return fmtT(game.foundAt-game.seekingStartAt);
+  if(game.phase==='hiding') return fmtT(SIZES[game.size].hide*60000-elapsed(game.hidingStartAt));
+  if(game.phase==='seeking'||game.phase==='endgame') return fmtT(elapsed(game.seekingStartAt));
+  if(game.phase==='found') return fmtT(elapsed(game.seekingStartAt,game.foundAt));
   return '--:--';
 }
-function timerText2(){ if(game.phase==='endgame') return fmtT(Date.now()-game.endgameAt); return ''; }
+function timerText2(){ if(game.phase==='endgame') return fmtT(elapsed(game.endgameAt)); return ''; }
 // What is still waiting to go out, and the round as this phone last saw
 // it — a relay that forgets, or dies, no longer takes the game with it.
 let waitingN=0, waitingErr='';
@@ -3722,6 +3880,7 @@ function backupKey(){ return 'hs-backup-'+code; }
 function saveBackup(){
   if(!code||!game) return;
   const b={at:Date.now(),code,game,
+    mine:{hand:myHand(),awards:myAwards(),handmax:handLimit()},
     questions:questions.map(q=>Object.assign({},q)),
     messages:messages.map(m=>Object.assign({},m)),
     pins:pins.map(p=>Object.assign({},p)),
@@ -3737,10 +3896,19 @@ function backupDocs(b){
   for(const i of b.crossed||[]) out.push(['games/'+b.code+'/crossed/'+i,{out:true,by:'restore',at:Date.now()}]);
   return out;
 }
+// The private half of a backup never goes to the relay; it is written
+// straight back into this phone's own storage.
+function restoreMine(b){
+  if(!b||!b.mine||!code) return;
+  if(b.mine.hand) save('hs-hand-'+code,b.mine.hand);
+  if(b.mine.awards) save('hs-awards-'+code,b.mine.awards);
+  if(b.mine.handmax) save('hs-handmax-'+code,b.mine.handmax);
+}
 function restoreBackup(){
   const b=loadBackup(); if(!b){ toast('Nothing saved on this phone'); return; }
   if(!confirm('Send this phone\'s copy of the round back to the relay? '+
     (b.questions||[]).length+' questions, saved '+fmtClock(b.at)+'.')) return;
+  restoreMine(b);
   db.resend(backupDocs(b)); toast('Sending the round back to the relay');
 }
 function waitingChip(){
@@ -3758,11 +3926,15 @@ function statusCard(){
   else if(game.phase==='seeking') ctl=`<button class="btn" id="btn-endgame">We're in the hiding zone</button> <button class="btn danger" id="btn-found">Found!</button>`;
   else if(game.phase==='endgame') ctl=`<button class="btn danger" id="btn-found">Found!</button>`;
   else ctl=`<button class="btn" id="btn-leave">Back to lobby</button>`;
-  const warn=game.phase==='hiding'&&(game.hidingStartAt+S.hide*60000-Date.now())<120000;
-  return `<div class="card"><div class="phase">${label}</div>
+  if(game.pause) ctl=`<button class="btn primary" id="btn-resume">Resume the round</button>`+(game.phase==='found'?' '+ctl:'');
+  else if(game.phase==='hiding'||game.phase==='seeking'||game.phase==='endgame')
+    ctl+=` <button class="btn" id="btn-pause">Pause</button>`;
+  const pbar=game.pause?`<div class="pausebar"><b>Paused</b> by ${esc(game.pause.by||'someone')} · <span id="pausefor">${fmtT(Date.now()-game.pause.at)}</span><span>Every clock is stopped. This time will not count.</span></div>`:'';
+  const warn=game.phase==='hiding'&&!game.pause&&(S.hide*60000-elapsed(game.hidingStartAt))<120000;
+  return `<div class="card${game.pause?' paused':''}"><div class="phase">${label}</div>${pbar}
     <div class="row" style="align-items:flex-end"><div class="timer ${warn?'warn':''}" id="timer">${timerText()}</div>${game.phase==='endgame'?`<div class="muted small">endgame <span id="timer2">${timerText2()}</span></div>`:''}</div>
     ${bonusLine()}${timersHtml()}
-    <div class="stat"><div><b>${esc(game.hider||'?')}</b><span>hider</span></div><div><b>${S.name}</b><span>${S.zone} zone</span></div>${isHider()?`<div><b>${(game.hand||[]).length}</b><span>cards in hand</span></div>`:''}<div><b>${questions.length}</b><span>questions</span></div>${narrowChip()}</div>
+    <div class="stat"><div><b>${esc(game.hider||'?')}</b><span>hider</span></div><div><b>${S.name}</b><span>${S.zone} zone</span></div>${isHider()?`<div><b>${myHand().length}</b><span>cards in hand</span></div>`:''}<div><b>${questions.length}</b><span>questions</span></div>${narrowChip()}</div>
     <div class="row" style="margin-top:12px">${ctl}</div></div>`;
 }
 // Shared "where are you" control. `which` is 'ask' or 'finish'.
@@ -3881,7 +4053,9 @@ function qSentence(q){
   if(adm) return 'Are you in the same <b>'+esc(adm[1])+'</b> as me?';
   return esc(q.fmt).replace(/___/g,'<b>'+esc(q.q)+'</b>');
 }
-const photoSrc=q=>q.photo?'/_blob/'+q.photo:(q.photoDoc?photos[q.photoDoc]:null);
+// The kept copy wins: it is the one that still works once the relay has
+// forgotten the attachment.
+const photoSrc=q=>q.photo?'/_blob/'+q.photo:(q.photoDoc?(photoURL[q.photoDoc]||photos[q.photoDoc]):null);
 function qCard(q,mine){
   const pending=q.status==='pending';
   const started=q.status==='started';
@@ -3915,7 +4089,7 @@ function qCard(q,mine){
       <div class="row" style="margin-top:6px"><button class="btn sm ghost" data-refix-cancel="1">Keep ${esc(q.answer)}</button></div>`;
   }
   else { const cut=Map3.cutBy(q);
-    body+=`<div class="ans ${q.status==='vetoed'?'veto':''}"><b>${esc(q.answer)}</b>${q.note?' — '+esc(q.note):''}<span class="small muted"> · ${fmtClock(q.answeredAt)}</span>${cut?`<div class="small" style="opacity:.85;margin-top:4px">${esc(cut)}</div>`:''}${photoSrc(q)?`<img src="${photoSrc(q)}" alt="Photo answer">`:(q.photoDoc?`<div class="small muted">Photo on its way\u2026</div>`:'')}
+    body+=`<div class="ans ${q.status==='vetoed'?'veto':''}"><b>${esc(q.answer)}</b>${q.note?' — '+esc(q.note):''}<span class="small muted"> · ${fmtClock(q.answeredAt)}</span>${cut?`<div class="small" style="opacity:.85;margin-top:4px">${esc(cut)}</div>`:''}${photoSrc(q)?`<img src="${photoSrc(q)}" alt="Photo answer" class="shot" data-shot="${esc(q.id)}">${q.photoSmall?'<div class="small muted">Sent at reduced size — the relay would not take the full file.</div>':''}`:(q.photoDoc?`<div class="small muted">Photo on its way\u2026</div>`:'')}
       ${(mine&&localNote(q.id))?`<div class="small" style="color:var(--red)">You answered this against the app's own reading (it made it ${esc(localNote(q.id).against)}). Only you can see this line.</div>`:''}
       ${mine&&q.ans&&q.ans.length?`<div class="row" style="margin-top:6px"><button class="btn sm ghost" data-refix="${q.id}">Change this answer</button></div>`:''}</div>`; }
   return body+'</div>';
@@ -3931,24 +4105,24 @@ function feed(){
 const MULT_WORD=['','','double','triple','quadruple'];
 function askedBefore(catId,text){ return questions.filter(q=>q.cat===catId&&q.q===text&&q.status!=='randomized').length; }
 function multOf(catId,text){ return Math.min(askedBefore(catId,text)+1,4); }
-function handLimit(){ return (game&&game.handMax)||6; }
+function handLimit(){ return (code&&load('hs-handmax-'+code))||6; }
 function curseActs(m){
   const k=m.curse; if(!k) return '';
   let h='';
   const t=CURSE_TIMER[k];
   if(t&&!t.auto) h+=`<button class="btn sm" data-start-timer="${k}">Start the ${minsOf(t.m)}-minute timer</button>`;
-  if(CURSE_AWARD[k]&&isHider()){ const done=(game.awards||[]).some(a=>a.msg===m.id);
+  if(CURSE_AWARD[k]&&isHider()){ const done=myAwards().some(a=>a.msg===m.id);
     h+=done?`<span class="small muted">+${minsOf(CURSE_AWARD[k])} min banked</span>`
       :`<button class="btn sm" data-award="${k}|${m.id}">They broke it — bank +${minsOf(CURSE_AWARD[k])} min</button>`; }
   return h?`<div class="row" style="margin-top:8px;gap:8px;flex-wrap:wrap">${h}</div>`:'';
 }
 function hand(){
-  const h=game.hand||[];
+  const h=myHand();
   // The hider's deck is private information — seekers see neither the cards
   // nor how many there are.
   if(!isHider()) return `<div class="card"><h2>The hider's hand</h2><p class="muted">Hidden. What the hider is holding — and how much of it — is theirs to know. You find out when they play something.</p></div>`+curseDeck();
   const lim=handLimit(), full=h.length>=lim;
-  return `<div class="card"><h2>Your hand · ${h.length}/${lim}</h2><p class="small muted">Log what you keep after each draw so the seekers can see your card count (not the cards). Six is the limit; the “Draw 1, expand maximum hand size by 1” powerup raises it for the rest of the round.</p>
+  return `<div class="card"><h2>Your hand · ${h.length}/${lim}</h2><p class="small muted">Log what you keep after each draw. None of it leaves this phone — not the cards, not how many, not the minutes — until the round ends and the total is revealed. Six is the limit; the “Draw 1, expand maximum hand size by 1” powerup raises it for the rest of the round.</p>
     <div class="row" style="align-items:center;gap:8px"><span class="small muted">Hand limit</span><div class="seg" id="sel-handmax">${[6,7,8].map(n=>`<button type="button" data-handmax="${n}" class="${lim===n?'on':''}">${n}</button>`).join('')}</div></div>
     <div class="hand">${h.map(c=>`<div class="hcard"${c.bonus?` style="border-left:6px solid ${BONUS_HEX[c.bonus]}"`:''}><b>${esc(c.kind)}</b><span class="small">${c.bonus?'+'+bonusCardMins(c)+' min':esc(c.text)}</span>${c.curse?`<button class="btn sm cast" data-cast="${esc(c.id)}">cast</button>`:''}<button class="x" data-discard="${esc(c.id)}">discard</button></div>`).join('')}</div>
     <h3>Add a card</h3>
@@ -3998,7 +4172,7 @@ function gameTab(){
     <h3>Colours on this phone</h3>${themePicker()}
     <h3>Round note</h3><textarea id="game-note" rows="2" placeholder="House rules, meeting point, transit passes…">${esc(game.note||'')}</textarea><button class="btn sm" id="btn-note" style="margin-top:6px">Save note</button>
     <div class="row" style="margin-top:14px"><button class="btn sm" id="btn-switch">Switch name / role</button><button class="btn sm" id="btn-leave">Leave game</button><button class="btn sm danger" id="btn-delete">Delete round</button></div></div>
-    ${past.length?`<div class="card"><h2>Scoreboard</h2><table class="sb"><tr><th>Round</th><th>Hider</th><th>Hidden</th><th>Bonus</th><th>Score</th></tr>${past.map(g=>{ const bm=(g.bonusAtFound&&g.bonusAtFound.total)||0, base=g.foundAt-g.seekingStartAt;
+    ${past.length?`<div class="card"><h2>Scoreboard</h2><table class="sb"><tr><th>Round</th><th>Hider</th><th>Hidden</th><th>Bonus</th><th>Score</th></tr>${past.map(g=>{ const bm=(g.bonusAtFound&&g.bonusAtFound.total)||0, base=g.foundAt-g.seekingStartAt-(g.pausedSeek||0);
       return `<tr><td>${esc(g.name)}</td><td>${esc(g.hider)}</td><td>${fmtT(base)}</td><td>${bm?'+'+bm+' min':'—'}</td><td><b>${fmtT(base+bm*60000)}</b></td></tr>`; }).join('')}</table></div>`:''}`+rulesNotes();
 }
 
@@ -4020,7 +4194,20 @@ function wire(){
   on('#btn-start-hiding','click',()=>{ if(!game.hider){ toast('Pick the hider in the Game tab first'); tab='game'; save('hs-tab',tab); render(); return; } patch({phase:'hiding',hidingStartAt:Date.now()}); });
   on('#btn-start-seeking','click',()=>patch({phase:'seeking',seekingStartAt:Date.now()}));
   on('#btn-endgame','click',()=>patch({phase:'endgame',endgameAt:Date.now()}));
-  on('#btn-found','click',()=>{ if(confirm('Found means a seeker is within 6\u00bd feet (2 m) of the hider AND has actually spotted them \u2014 being in the right building is not enough.\n\nEnd the round?')) patch({phase:'found',foundAt:Date.now(),bonusAtFound:bonusMinutes()}); });
+  on('[data-shot]','click',e=>{
+    const src=e.currentTarget.getAttribute('src'); if(!src) return;
+    const q=questions.find(x=>x.id===e.currentTarget.dataset.shot);
+    $('#lbimg').src=src; $('#lb-full').href=src;
+    $('#lb-note').textContent=q&&q.photoBytes?kb(q.photoBytes)+' · full size':'';
+    $('#lightbox').hidden=false; });
+  on('#lb-x','click',()=>{ $('#lightbox').hidden=true; $('#lbimg').src=''; });
+  on('#btn-pause','click',pauseRound);
+  on('#btn-resume','click',resumeRound);
+  on('#btn-found','click',()=>{ if(confirm('Found means a seeker is within 6\u00bd feet (2 m) of the hider AND has actually spotted them \u2014 being in the right building is not enough.\n\nEnd the round?')) { const at=Date.now();
+    const d={phase:'found',foundAt:at,pausedSeek:pausedBetween(game.seekingStartAt,at)};
+    if(game.pause){ d.pause=null; d.pauses=[...(game.pauses||[]),{a:game.pause.at,b:at,by:game.pause.by,byR:me.name}]; }
+    if(isHider()) d.bonusAtFound=bonusMinutes();
+    patch(d); } });
   on('[data-strict]','click',e=>{ patch({strict:e.currentTarget.dataset.strict==='1'}); });
   on('#btn-share','click',()=>{ shareOpen=true; render(); });
   on('#btn-share-x','click',()=>{ shareOpen=false; render(); });
@@ -4034,6 +4221,8 @@ function wire(){
     try{ const b=JSON.parse(await f.text());
       if(!b||!b.game||!b.code) throw new Error('not a saved round');
       if(!confirm('Load “'+(b.game.name||b.code)+'” into the relay as round '+b.code+'? '+(b.questions||[]).length+' questions.')) return;
+      if(b.mine){ save('hs-hand-'+b.code,b.mine.hand||[]); save('hs-awards-'+b.code,b.mine.awards||[]);
+        if(b.mine.handmax) save('hs-handmax-'+b.code,b.mine.handmax); }
       db.resend(backupDocs({code:b.code,game:b.game,questions:(b.questions||[]).map((q,i)=>Object.assign({id:'r'+i},q)),
         messages:(b.messages||[]).map((m,i)=>Object.assign({id:'m'+i},m)),pins:[],crossed:b.crossed||[]}));
       toast('Loading '+b.code+' — join that code to see it');
@@ -4107,33 +4296,33 @@ function wire(){
     $('#msg-title').value=''; $('#msg-text').value=''; if($('#msg-curse')) $('#msg-curse').value=''; toast('Sent to seekers'); });
   on('[data-stop-timer]','click',e=>{ const id=e.currentTarget.dataset.stopTimer; const timers=Object.assign({},game.timers||{}); delete timers[id]; patch({timers}); });
   on('[data-start-timer]','click',e=>{ startTimer(e.currentTarget.dataset.startTimer); toast('Timer started on every phone'); });
-  on('[data-award]','click',e=>{ const [key,mid]=e.currentTarget.dataset.award.split('|'); const aw=game.awards||[];
+  on('[data-award]','click',e=>{ const [key,mid]=e.currentTarget.dataset.award.split('|'); const aw=myAwards();
     if(aw.some(a=>a.msg===mid)){ toast('Already awarded'); return; }
     const min=minsOf(CURSE_AWARD[key]);
-    patch({awards:[...aw,{curse:key,min,msg:mid,at:Date.now()}]}); toast('+'+min+' min banked'); });
+    setAwards([...aw,{curse:key,min,msg:mid,at:Date.now()}]); toast('+'+min+' min banked — they will not see it'); });
   on('#card-kind','change',()=>{ const k=$('#card-kind').value;
     $('#card-curse').hidden=k!=='Curse'; $('#card-text').hidden=k!=='Powerup';
     $('#card-bonus').hidden=k!=='Time bonus'; $('#btn-card').hidden=k==='Time bonus'; });
   if($('#card-kind')){ $('#card-text').hidden=true; $('#card-curse').hidden=true; $('#btn-card').hidden=true; }
-  on('[data-bonus-card]','click',e=>{ const h=game.hand||[];
+  on('[data-bonus-card]','click',e=>{ const h=myHand();
     if(h.length>=handLimit()){ toast('Hand is full \u2014 discard or play something first'); return; }
     const k=e.currentTarget.dataset.bonusCard;
-    patch({hand:[...h,{id:uid(),kind:'Time bonus',bonus:k,text:'+'+BONUS_CARDS[k][sizeIdx()]+' min'}]}); });
+    setHand([...h,{id:uid(),kind:'Time bonus',bonus:k,text:'+'+BONUS_CARDS[k][sizeIdx()]+' min'}]); });
   on('#btn-card','click',()=>{ const kind=$('#card-kind').value;
-    const h=game.hand||[];
+    const h=myHand();
     if(h.length>=handLimit()){ toast('Hand is full \u2014 discard or play something first'); return; }
     let text='', curse='';
     if(kind==='Curse'){ curse=$('#card-curse')?$('#card-curse').value:'';
       if(!curse){ toast('Pick which curse'); return; }
       text=CURSE_BY[curse].n; }
     else { text=$('#card-text').value.trim(); if(!text){ toast('What is the card?'); return; } }
-    patch({hand:[...h,{id:uid(),kind,text,curse}]}); });
-  on('[data-handmax]','click',e=>{ patch({handMax:+e.currentTarget.dataset.handmax}); });
+    setHand([...h,{id:uid(),kind,text,curse}]); });
+  on('[data-handmax]','click',e=>{ if(code) save('hs-handmax-'+code,+e.currentTarget.dataset.handmax); render(); });
   on('[data-cast]','click',e=>{ const id=e.currentTarget.dataset.cast;
-    const card=(game.hand||[]).find(c=>c.id===id); if(!card||!card.curse) return;
+    const card=myHand().find(c=>c.id===id); if(!card||!card.curse) return;
     const c=CURSE_BY[card.curse]; if(!c) return;
     sendMessage('curse','Curse of the '+c.n, szPlain(c.t)+'\n\nCasting cost: '+szPlain(c.c),{curse:c.k});
-    patch({hand:(game.hand||[]).filter(x=>x.id!==id)});
+    setHand(myHand().filter(x=>x.id!==id));
     if(CURSE_TIMER[c.k]&&CURSE_TIMER[c.k].auto) setTimeout(()=>startTimer(c.k),400);
     toast('Cast \u2014 the seekers have the full text'); });
   on('#msg-curse','change',()=>{ const k=$('#msg-curse').value; if(!k) return;
@@ -4146,7 +4335,7 @@ function wire(){
       el.hidden=!!q&&!((c.n+' '+c.t+' '+c.c).toLowerCase().includes(q)); }); });
   on('[data-theme-pick]','click',e=>{ const t=e.currentTarget.dataset.themePick;
     save('hs-theme',t); applyTheme(t); render(); });
-  on('[data-discard]','click',e=>{ const id=e.currentTarget.dataset.discard; patch({hand:(game.hand||[]).filter(c=>c.id!==id)}); });
+  on('[data-discard]','click',e=>{ const id=e.currentTarget.dataset.discard; setHand(myHand().filter(c=>c.id!==id)); });
 }
 // ---------- map ----------
 // One SVG, rebuilt only when the game's zone changes. Everything that moves
