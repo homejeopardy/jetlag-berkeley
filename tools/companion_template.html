@@ -447,6 +447,78 @@ function mqttIO(client){
   };
 }
 
+// --- ntfy.sh: a relay with nothing to sign up for ------------------------
+// Every free MQTT broker stopped accepting connections, and the people in
+// this game are not going to create accounts. ntfy.sh is a public pub/sub
+// service that takes a POST and streams it to whoever is listening on that
+// topic, with no key and no signup, and keeps 12 hours of messages so a
+// phone that joins late catches up. One topic per game, plus one the
+// rounds announce themselves on.
+const NTFY='https://ntfy.sh/', NTFY_WS='wss://ntfy.sh/', NTFY_TOPIC='jlhs1-';
+const NTFY_MAX=3800;            // bigger than this and ntfy makes it an attachment anyway
+function ntfyTopic(path){
+  const m=/^games\/([A-Za-z0-9]+)/.exec(path);
+  return m?NTFY_TOPIC+m[1].toUpperCase():NTFY_TOPIC+'misc';
+}
+function ntfyIO(){
+  const open={}, seen=new Set(); let apply=null, ready=null;
+  // A write too big for one message — a photo — is uploaded as an
+  // attachment and the message carries its address.
+  async function put(path,value){
+    const body=JSON.stringify({p:path,v:value});
+    const topics=[ntfyTopic(path)];
+    if(/^games\/[A-Za-z0-9]+$/.test(path)) topics.push(NTFY_TOPIC+'lobby');
+    for(const t of topics){
+      if(body.length<=NTFY_MAX){ await fetch(NTFY+t,{method:'POST',body}); continue; }
+      const r=await fetch(NTFY+t,{method:'PUT',headers:{Filename:'doc.json'},
+        body:new Blob([JSON.stringify(value)],{type:'application/json'})});
+      const j=await r.json();
+      if(j&&j.attachment&&j.attachment.url) await fetch(NTFY+t,{method:'POST',body:JSON.stringify({p:path,a:j.attachment.url})});
+    }
+  }
+  async function take(m){
+    if(!m||m.event!=='message'||!m.message||seen.has(m.id)) return;
+    seen.add(m.id);
+    let d=null; try{ d=JSON.parse(m.message); }catch(e){ return; }
+    if(!d||!d.p) return;
+    if(d.a){ try{ d={p:d.p,v:await (await fetch(d.a)).json()}; }catch(e){ return; } }
+    if(apply) apply(d.p, d.v===undefined?null:d.v);
+  }
+  function listen(topic){
+    if(open[topic]) return open[topic];
+    // History over HTTP, so there is a moment we know the catch-up is done;
+    // the socket carries the same history (ignored as duplicates) and then
+    // everything that happens from now on.
+    const hist=fetch(NTFY+topic+'/json?poll=1&since=all').then(r=>r.text()).then(async t=>{
+      for(const line of t.split('\n')){ if(!line.trim()) continue;
+        try{ await take(JSON.parse(line)); }catch(e){} }
+    }).catch(()=>{});
+    const connect=()=>{
+      let ws; try{ ws=new WebSocket(NTFY_WS+topic+'/ws?since=all'); }catch(e){ return; }
+      ws.onmessage=e=>{ try{ take(JSON.parse(e.data)); }catch(err){} };
+      // Phones sleep and lose the socket; come back rather than go quiet.
+      ws.onclose=()=>{ if(open[topic]) setTimeout(connect,2500); };
+      open[topic]=ws;
+    };
+    connect();
+    return hist;
+  }
+  const waits=[];
+  return {
+    attach(fn){ apply=fn; },
+    settle(){ return Promise.all(waits).then(()=>new Promise(r=>setTimeout(r,250))); },
+    publish(path,value){ put(path,value).catch(()=>{}); },
+    watchDoc(path){ waits.push(listen(ntfyTopic(path))); },
+    watchCollection(base){ waits.push(listen(base==='games'?NTFY_TOPIC+'lobby':ntfyTopic(base))); }
+  };
+}
+// Is it reachable at all? One tiny GET decides whether to offer it.
+async function ntfyUp(){
+  try{ const c=new AbortController(); setTimeout(()=>c.abort(),5000);
+    const r=await fetch(NTFY+NTFY_TOPIC+'ping/json?poll=1&since=1s',{signal:c.signal});
+    return r.ok; }catch(e){ return false; }
+}
+
 // --- local: this device only ---------------------------------------------
 function localIO(){
   const KEY='hs-local-db'; let data={}, apply=null;
@@ -474,10 +546,10 @@ function tryBroker(url,auth,ms){
   });
 }
 let lastError='';
-function connectMqtt(){
+function connectMqtt(skipOwn){
   return (async()=>{
     if(!window.mqtt) return null;
-    const r=relayCfg();
+    const r=skipOwn?null:relayCfg();
     if(r){ const c=await tryBroker(relayUrl(r),r,7000); if(c){ c.__own=true; return c; } }
     // The public ones are tried together rather than one after another: they
     // are a long shot, and nobody should wait out three timeouts in a row.
@@ -493,7 +565,13 @@ return { async open(){
   if(window.claude&&claude.use){
     try{ const d=await claude.use('db'); if(d) return {kind:'artifact',db:d}; }catch(e){}
   }
-  const c=await connectMqtt();
+  // Your own broker first, then the one that needs no account, then the
+  // public brokers as a long shot, then this phone alone.
+  const r=relayCfg();
+  if(r&&window.mqtt){ const c=await tryBroker(relayUrl(r),r,7000);
+    if(c) return {kind:'mqtt',db:build(mqttIO(c)),detail:r.h,own:true}; }
+  if(await ntfyUp()) return {kind:'ntfy',db:build(ntfyIO()),detail:'ntfy.sh'};
+  const c=await connectMqtt(true);
   if(c) return {kind:'mqtt',db:build(mqttIO(c)),detail:c.__url.split('/')[2],own:!!c.__own};
   return {kind:'local',db:build(localIO()),detail:lastError};
 }, cfg:relayCfg, url:relayUrl,
@@ -1074,6 +1152,9 @@ function narrowChip(){
 function backendNote(){
   const cfg=Store.cfg();
   if(backend==='artifact') return `<div class="card flat"><h3>Sync</h3><p class="small">Through Claude, private to your account. Everyone needs to open this page signed in to the same account.</p></div>`;
+  if(backend==='ntfy') return `<div class="card flat"><h3>Sync <span class="pill seeker">connected</span></h3>
+    <p class="small">Through ntfy.sh, a public relay with nothing to sign up for. Everyone who opens this page is on it — the four-letter code is the only thing keeping a stranger out of your round, so keep pins and notes non-sensitive. It remembers twelve hours, which is longer than any round.</p>
+    ${relayCard(cfg)}</div>`;
   if(backend==='mqtt') return `<div class="card flat"><h3>Sync <span class="pill seeker">connected</span></h3>
     <p class="small">${backendOwn?'Through your own relay':'Through a public message broker'} (${esc(backendDetail)}). The four-letter code is the only thing keeping a stranger out, so keep pins and notes non-sensitive.</p>
     ${relayCard(cfg)}</div>`;
