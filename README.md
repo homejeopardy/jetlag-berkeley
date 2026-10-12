@@ -113,6 +113,14 @@ searching. A counter says how many stations are left, a Zones control
 outlines each surviving zone separately, and tapping a stop lets you rule it
 out by hand for the deductions the app cannot make.
 
+New rounds read answers **station by station** — sharper, and how people
+actually play. The Game tab switches to the rulebook reading. The rest of
+this section explains the difference, and it is a real one: in one played
+round, read by the book 25 stations survived; read station by station,
+nothing did, because one answer was wrong. The app says so now instead of
+showing an empty map — it names the answers that, dropped, would bring the
+map back.
+
 The rulebook decides how much an answer rules out, and it is explicit:
 *"radars are asking about your location, not your hiding zone. If the radar
 would encompass part of your hiding zone, but not your location at the time
@@ -167,6 +175,22 @@ Basemaps cycle through Street, Dark, Terrain, Satellite and Paper; Paper is
 the hand-drawn basemap the app has always carried, and it is also what you
 get if Leaflet never loads, which is the case worth designing for on a phone
 with no signal at the start of a round.
+
+Stations that are out go grey on the map, not just the ground around them,
+and the Stops button cycles through every station, only the ones still
+possible, and none. Measuring questions draw the thing they measure to —
+the county line as a line, places as points, one ring at the distance that
+was matched — rather than a ring around every reference on the map, which
+was 47 overlapping circles for the county line. A thermometer draws its
+bisector thick, with the leg you travelled dashed beside it.
+
+The Game tab carries a **Testing** card, because none of this should need
+two people and a car to try. **Run self-check** reports what survives, what
+each answer ruled out, whether your own station is still standing, and spot
+checks the exact engine against brute-force sampling of the hiding zones.
+**Fill a demo round** picks a station at random and answers six questions
+truthfully from it, so the map, the panels and the feed have something in
+them. A slider steps back through the answers one at a time.
 
 Two panels read the map back to you. **Layers** lists every answer that has
 geometry, each in its own colour, drawn as the line it actually cut along: a
@@ -242,6 +266,24 @@ Reference features are whatever falls inside the game map, because the
 rulebook says so: *"if locations are not within a map's boundaries, players
 must operate as if they do not exist"*, and the question comes back **null** —
 it still counts, the hider still draws, and it tells the seekers nothing.
+The map here is the whole drawn map, not the dashed play boundary: a peak
+you can see on screen counts, which is what the people playing expect. That
+is 19 museums, 50 libraries, 8 cinemas, 12 named peaks, 189 named parks, four
+golf courses and one amusement park on the combined map, against 12, 34, 3, 5
+and 74 when only the play area counted. Eight cities have real ground on it,
+not two.
+
+Every question also shows **what the app counts**: the nearest five of
+whatever it is about, with distances, on both the asking screen and the
+answering one. That exists because of a real round. The hider at Spruce &
+Grizzly Peak answered *yes, same nearest movie theatre* — reasonably, since
+both of them would have said downtown Berkeley — while the app's nearest
+cinema to them was the *Lawrence Hall of Science 3D Theater*, which
+OpenStreetMap tags as a cinema. Their own station was ruled out and nothing
+said why. Now the list is visible before anyone answers, the app warns when
+an answer disagrees with what it reads from the hider's own station, and
+the hider gets a red card naming the answer that ruled their station out,
+with a button to change it.
 
 Distances are the imperial edition's: a quarter-mile hiding zone for small
 and medium games, half a mile for large, hiding periods of 30, 60 and 180
