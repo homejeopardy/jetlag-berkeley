@@ -198,6 +198,18 @@ its stations. Ruling out by hand works on a whole street or everything
 within a quarter mile of a stop, not one stop at a time, and it syncs like
 everything else.
 
+**Nothing is lost to a dropped signal.** Every write lands on your own phone
+first and goes into an outbox; the app says how many are waiting and sends
+them when the connection comes back. You can run a whole round in the hills
+with no bars — asking, answering, the map narrowing — and it syncs when you
+drive out. Each phone also keeps the round as it last saw it, and can push
+that copy back to the relay: the free relay forgets after twelve hours, and
+a round that outlives it is one button, not a lost evening.
+
+**Joining.** The Game tab shows the round's code as a QR code; a phone
+camera opens it, sets the relay up from the link and joins. Nobody types
+four letters in a moving car.
+
 **Saving a round.** The Game tab writes the round to a file — the questions,
 the answers, the pins, what was crossed off — for arguing about afterwards
 or replaying later.
@@ -385,6 +397,17 @@ anything banked from curses, and the total score. The scoreboard adds it in.
 Colours are a per-phone choice on the Game tab: Hide + Seek, Jet Lag Night,
 Sunset, or Classic.
 
+### The paper map
+
+`maps/print-berkeley.html` and `maps/print-berkeley-north-oakland.html` are
+one sheet each, US Letter landscape: the play boundary as the heaviest line
+on the page, BART and Amtrak, the main roads, the water, and every hiding
+station as a dot. No parks, no labels for anything nobody will ask about —
+it is the map they hold up on the show, for the car that would rather not
+stare at a phone. `python3 tools/build_print.py` rebuilds both; the strokes
+are screen-space widths so it stays legible at any crop, and it prints in
+black and white.
+
 ## Building
 
 The repository ships the OSM extract it was built from, so a build needs no
@@ -395,6 +418,7 @@ pip install shapely
 python3 tools/make_zone.py        # boundary polygons -> data/zone.json
 python3 tools/build_map.py --all  # the two map pages
 python3 tools/build_companion.py  # the companion, with both maps baked in
+python3 tools/build_print.py      # the one-sheet paper maps
 ```
 
 To refresh against current OpenStreetMap data:
