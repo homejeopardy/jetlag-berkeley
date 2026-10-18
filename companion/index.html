@@ -2966,6 +2966,9 @@ return { async open(){
   if(c) return {kind:'mqtt',db:build(mqttIO(c)),detail:c.__url.split('/')[2],own:!!c.__own};
   return {kind:'local',db:build(localIO()),detail:lastError};
 }, cfg:relayCfg, url:relayUrl, linkCode:joinFromLink,
+  // Where the relay lives, for the readable alerts the app sends alongside
+  // the round's own data.
+  ntfy:{url:NTFY,prefix:NTFY_TOPIC},
   // Try a relay's details without disturbing the one in use.
   async test(c){ if(!window.mqtt) return 'no MQTT library'; lastError='';
     const k=await tryBroker(relayUrl(c),c,8000); if(k){ try{k.end(true);}catch(e){} return 'OK'; } return lastError||'no answer'; },
@@ -3146,12 +3149,14 @@ function pauseRound(){
   if(!game||game.pause) return;
   patch({pause:{at:Date.now(),by:me.name}});
   sendMessage('pause','Paused by '+me.name,'Every clock is stopped until someone resumes.');
+  say('both','Round paused','Paused by '+me.name+'. Every clock is stopped.','double_vertical_bar');
 }
 function resumeRound(){
   if(!game||!game.pause) return;
   const p=game.pause, at=Date.now();
   patch({pause:null,resumeBy:me.name,pauses:[...(game.pauses||[]),{a:p.at,b:at,by:p.by,byR:me.name}]});
   sendMessage('pause','Resumed by '+me.name,'Paused '+fmtT(at-p.at)+', stopped by '+p.by+'. That time does not count.');
+  say('both','Round resumed','Stopped for '+fmtT(at-p.at)+'. The clocks are running again.','arrow_forward');
 }
 // Timers live on the game, so every phone counts down the same clock.
 function startTimer(key,by){
@@ -3406,6 +3411,41 @@ function askNotify(){
   Notification.requestPermission().then(p=>{ notifyAsked=true;
     toast(p==='granted'?'Alerts on — try the test button':'Alerts were '+p); render(); });
 }
+// ---------- the pocket problem ----------
+// A web app that iOS has suspended is not running, so it cannot raise a
+// notification however well the service worker is wired: the relay
+// connection is gone with it. The only thing that reaches a locked phone is
+// a real push from an app that iOS keeps alive, and ntfy is one that needs
+// no account. The round already publishes to ntfy; these are the same events
+// written for a person rather than for the app, on their own topics so
+// anyone who subscribes gets readable alerts instead of a stream of JSON.
+//
+// Two topics, by audience, because one shared topic would buzz the seekers
+// with their own questions and the hider with their own answers, and an alert
+// people learn to ignore is worse than none. Each phone is shown only its
+// own topic to subscribe to.
+const NTFY_SAY_MAX=3500;
+const SAY=Store.ntfy;
+function sayTopic(who){ return code?(SAY.prefix+code.toUpperCase()+'-'+(who==='hider'?'hider':'seek')):''; }
+function pushOn(){ return !!(game&&game.push); }
+// Nothing here may carry anything the shared round does not already carry:
+// no time bonus, no hider's reasoning about what they are near, no
+// positions. The question as asked and the answer as given, and no more.
+function say(who,title,message,tags){
+  if(!pushOn()||!code) return;
+  const list=who==='both'?['hider','seek']:[who];
+  for(const w of list){
+    const body={topic:sayTopic(w),title:String(title||'Hide + Seek'),
+      message:String(message||'').slice(0,NTFY_SAY_MAX),priority:4};
+    if(tags) body.tags=[].concat(tags);
+    try{ fetch(SAY.url,{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(body),keepalive:true})
+      .then(r=>{ if(!r.ok) pushErr='relay said '+r.status; else pushErr=''; })
+      .catch(e=>{ pushErr=(e&&e.message)||'could not send'; }); }
+    catch(e){ pushErr=(e&&e.message)||'could not send'; }
+  }
+}
+let pushErr='';
 // A notification you asked for, so it shows even with the app in front —
 // otherwise there is no way to tell "switched off" from "working fine".
 async function testNotify(){
@@ -3541,7 +3581,11 @@ function onMessages(prev,snap){
 // ---------- writes ----------
 async function createGame(name,size){
   let c=mkCode(); for(let i=0;i<5;i++){ const s=await db.doc('games/'+c).get(); if(!s.exists) break; c=mkCode(); }
-  const g={name:name||('Game '+c),size,zone:DEFAULT_ZONE,phase:'setup',createdAt:Date.now(),hider:me.role==='hider'?me.name:'',players:{[me.name]:me.role},hidingStartAt:null,seekingStartAt:null,endgameAt:null,foundAt:null,pause:null,pauses:[],note:'',strict:true};
+  const g={name:name||('Game '+c),size,zone:DEFAULT_ZONE,phase:'setup',createdAt:Date.now(),hider:me.role==='hider'?me.name:'',players:{[me.name]:me.role},hidingStartAt:null,seekingStartAt:null,endgameAt:null,foundAt:null,pause:null,pauses:[],note:'',strict:true,
+    // On by default only when the round's own data already goes through
+    // ntfy.sh: then a readable copy of the same events adds no exposure that
+    // the round did not already have. On a private relay it starts off.
+    push:backend==='ntfy'};
   await db.doc('games/'+c).set(g); join(c);
 }
 async function patch(data){ if(!code) return; try{ await db.doc('games/'+code).update(data); }catch(e){ toast('Could not save: '+(e.code||e.message)); } }
@@ -3579,6 +3623,8 @@ async function sendQuestion(){
     loc:askState.loc||null,locHow:askState.locHow||'',loc2:null,distM:distM};
   try{
     await db.doc('games/'+code).collection('questions').add(body);
+    say('hider', (cat.two?'Thermometer started by ':'Question from ')+me.name,
+      qPlain({cat:cat.id,q:text,fmt:cat.fmt}), 'grey_question');
     askState={cat:null,q:null,custom:'',loc:null,locHow:'',line:null,stn:null};
     toast(cat.two?'Thermometer started — the hider has your starting point':'Sent to the hider');
     // Stay on Ask for a thermometer: the running card there is how you
@@ -3614,10 +3660,19 @@ async function answerQ(id,answer,extra){
   noteLocal(id, extra&&extra.against ? {against:extra.against} : null);
   const shared={status:'answered',answer,answeredAt:Date.now()};
   for(const k in (extra||{})) if(PRIVATE_TO_HIDER.indexOf(k)<0) shared[k]=extra[k];
-  try{ await db.doc('games/'+code+'/questions/'+id).update(shared); }catch(e){ toast('Could not answer: '+(e.code||e.message)); }
+  try{ await db.doc('games/'+code+'/questions/'+id).update(shared);
+    const q=questions.find(x=>x.id===id);
+    say('seek','Answer: '+answer, q?qPlain(q):'', 'bulb');
+  }catch(e){ toast('Could not answer: '+(e.code||e.message)); }
 }
-async function vetoQ(id){ try{ await db.doc('games/'+code+'/questions/'+id).update({status:'vetoed',answer:'Vetoed',answeredAt:Date.now()}); }catch(e){ toast('Could not veto'); } }
-async function sendMessage(kind,title,text,extra){ try{ await db.doc('games/'+code).collection('messages').add(Object.assign({kind,title,text,from:me.name,role:me.role,at:Date.now()},extra||{})); }catch(e){ toast('Send failed'); } }
+async function vetoQ(id){ try{ await db.doc('games/'+code+'/questions/'+id).update({status:'vetoed',answer:'Vetoed',answeredAt:Date.now()});
+  const q=questions.find(x=>x.id===id);
+  say('seek','Vetoed', q?qPlain(q):'', 'no_entry'); }catch(e){ toast('Could not veto'); } }
+async function sendMessage(kind,title,text,extra){ try{ await db.doc('games/'+code).collection('messages').add(Object.assign({kind,title,text,from:me.name,role:me.role,at:Date.now()},extra||{}));
+  // A pause concerns everyone; a curse or a note is aimed at the other side.
+  if(kind!=='pause') say(me.role==='hider'?'seek':'hider', (kind==='curse'?'Curse: ':'')+title, text,
+    kind==='curse'?'skull':'speech_balloon');
+}catch(e){ toast('Send failed'); } }
 // The artifact runtime has a real asset store and is used when it is there.
 // Photos are sent at the size the camera took them, which is what the
 // seekers want when they are counting windows on a building. The relay
@@ -3837,6 +3892,21 @@ function shareCard(){
     <div style="margin:10px auto">${qrSvg(joinLink(),240)}</div>
     <p class="small">Point a phone camera at this. It opens the app, sets the relay up and joins the round — nothing to type.</p>
     <div class="row" style="justify-content:center"><button class="btn sm" id="btn-copylink">Copy the link</button><button class="btn sm ghost" id="btn-share-x">Done</button></div></div>`;
+}
+// Subscribing is per phone and per role, so each one is shown only its own
+// topic: scan it, and that is the whole setup.
+function pushCard(){
+  const who=isHider()?'hider':'seek';
+  const topic=sayTopic(who), url=SAY.url+topic;
+  return `<h3>Alerts with the phone locked</h3>
+  <div class="row" style="align-items:center;gap:8px"><span class="small muted">Send them</span>
+    <div class="seg" id="sel-push"><button type="button" data-push="1" class="${pushOn()?'on':''}">On</button><button type="button" data-push="0" class="${pushOn()?'':'on'}">Off</button></div></div>
+  ${pushOn()?`<p class="small">Once iOS suspends this app it stops running and nothing can reach you until you open it again. The ntfy app (free, no account) stays awake and will buzz a locked phone. Install it, subscribe to the topic below, and leave the app alone.</p>
+  <div style="text-align:center;margin:10px auto">${qrSvg(url,200)}</div>
+  <p class="small" style="text-align:center">Your topic as ${isHider()?'the hider':'a seeker'}:<br><b style="font-family:'Barlow Condensed';letter-spacing:.06em;font-size:19px">${esc(topic)}</b></p>
+  <div class="row" style="justify-content:center"><button class="btn sm" id="btn-copytopic">Copy the topic</button></div>
+  <p class="small muted">Scan it with the phone's camera to open the topic, or type the name into ntfy's “subscribe”. ${isHider()?'You get the questions as they are asked.':'You get the hider’s answers, and their curses.'} Both sides get pauses and the start and end of the round.${pushErr?' <b>Last send error: '+esc(pushErr)+'</b>':''}</p>`
+  :`<p class="small">Off: nothing readable is published for this round. With it on, each phone can subscribe in the free ntfy app and be buzzed while locked — the only thing that reaches a suspended web app. ${backend==='ntfy'?'':'This round\u2019s data is on your own relay, so turning this on would send a readable copy of the questions and answers through ntfy.sh as well.'}</p>`}`;
 }
 // Shown wherever it is needed until the permission is actually granted.
 function alertsCard(){
@@ -4201,6 +4271,7 @@ function gameTab(){
     <p class="small">One sheet, US Letter, landscape: the boundary, the rail lines and every hiding station, for the car that would rather not stare at a phone.
       <a href="../maps/print-berkeley.html" target="_blank" rel="noopener">Berkeley</a> ·
       <a href="../maps/print-berkeley-north-oakland.html" target="_blank" rel="noopener">Berkeley + N. Oakland</a></p>
+    ${pushCard()}
     <h3>Alerts</h3>
     <p class="small">Permission: <b>${esc(notifyState())}</b> · service worker: <b>${esc(swState)}</b>${notifyErr?` · last error: <b>${esc(notifyErr)}</b>`:''}</p>
     <p class="small muted">iOS only shows a notification that came from the service worker, so both of those have to be in order. If the permission says “default”, the button to grant it is at the top of this screen.</p>
@@ -4241,8 +4312,10 @@ function wire(){
   on('#btn-join','click',()=>{ if(!me.name){ toast('Enter your name first'); return; } join($('#join-code').value); });
   on('[data-join]','click',e=>{ if(!me.name){ toast('Enter your name first'); return; } join(e.currentTarget.dataset.join); });
   on('nav.tabs button','click',e=>{ tab=e.currentTarget.dataset.tab; save('hs-tab',tab); render(); });
-  on('#btn-start-hiding','click',()=>{ if(!game.hider){ toast('Pick the hider in the Game tab first'); tab='game'; save('hs-tab',tab); render(); return; } patch({phase:'hiding',hidingStartAt:Date.now()}); });
-  on('#btn-start-seeking','click',()=>patch({phase:'seeking',seekingStartAt:Date.now()}));
+  on('#btn-start-hiding','click',()=>{ if(!game.hider){ toast('Pick the hider in the Game tab first'); tab='game'; save('hs-tab',tab); render(); return; } patch({phase:'hiding',hidingStartAt:Date.now()});
+    say('both','Hiding period has started',SIZES[game.size].hide+' minutes until the seekers are released.','hourglass'); });
+  on('#btn-start-seeking','click',()=>{ patch({phase:'seeking',seekingStartAt:Date.now()});
+    say('both','Seekers are released','The hiding period is over. The clock is running.','runner'); });
   on('#btn-endgame','click',()=>patch({phase:'endgame',endgameAt:Date.now()}));
   on('[data-shot]','click',e=>{
     const src=e.currentTarget.getAttribute('src'); if(!src) return;
@@ -4257,7 +4330,8 @@ function wire(){
     const d={phase:'found',foundAt:at,pausedSeek:pausedBetween(game.seekingStartAt,at)};
     if(game.pause){ d.pause=null; d.pauses=[...(game.pauses||[]),{a:game.pause.at,b:at,by:game.pause.by,byR:me.name}]; }
     if(isHider()) d.bonusAtFound=bonusMinutes();
-    patch(d); } });
+    patch(d);
+    say('both','Hider found','The round is over.','checkered_flag'); } });
   on('[data-strict]','click',e=>{ patch({strict:e.currentTarget.dataset.strict==='1'}); });
   on('#btn-share','click',()=>{ shareOpen=true; render(); });
   on('#btn-share-x','click',()=>{ shareOpen=false; render(); });
@@ -4285,6 +4359,9 @@ function wire(){
   on('#btn-save','click',saveRound);
   on('#btn-notify','click',askNotify);
   on('#btn-testnotify','click',testNotify);
+  on('[data-push]','click',e=>{ patch({push:e.currentTarget.dataset.push==='1'}); });
+  on('#btn-copytopic','click',()=>{ const t=sayTopic(isHider()?'hider':'seek');
+    navigator.clipboard.writeText(t).then(()=>toast('Copied '+t),()=>toast(t)); });
   on('#relay-show','click',e=>{ e.preventDefault(); relayShow=true; relayMsg=''; render(); });
   on('#relay-h','input',relayTyped); on('#relay-u','input',relayTyped); on('#relay-p','input',relayTyped);
   on('#relay-test','click',async()=>{ const c=relayFields(); if(!c) return;
