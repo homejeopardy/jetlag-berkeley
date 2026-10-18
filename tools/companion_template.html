@@ -1596,6 +1596,13 @@ function shareCard(){
     <p class="small">Point a phone camera at this. It opens the app, sets the relay up and joins the round — nothing to type.</p>
     <div class="row" style="justify-content:center"><button class="btn sm" id="btn-copylink">Copy the link</button><button class="btn sm ghost" id="btn-share-x">Done</button></div></div>`;
 }
+// The half of the setup that can be done before a round exists: installing
+// the app. The topic itself only exists once there is a round to name.
+function pushLobbyCard(){
+  return `<div class="card flat"><h3>Alerts with the phone locked</h3>
+  <p class="small">Once iOS suspends this app it stops running, and nothing can reach you until you open it again. For a buzz on a locked phone, install <a href="https://ntfy.sh/" target="_blank" rel="noopener">ntfy</a> — free, no account — and leave it alone.</p>
+  <p class="small muted">Each round has its own topic, so once you have joined one, open the Game tab and scan the code there. Worth installing now: it is the only part that takes more than a few seconds.</p></div>`;
+}
 // Subscribing is per phone and per role, so each one is shown only its own
 // topic: scan it, and that is the whole setup.
 function pushCard(){
@@ -1608,7 +1615,7 @@ function pushCard(){
   <div style="text-align:center;margin:10px auto">${qrSvg(url,200)}</div>
   <p class="small" style="text-align:center">Your topic as ${isHider()?'the hider':'a seeker'}:<br><b style="font-family:'Barlow Condensed';letter-spacing:.06em;font-size:19px">${esc(topic)}</b></p>
   <div class="row" style="justify-content:center"><button class="btn sm" id="btn-copytopic">Copy the topic</button></div>
-  <p class="small muted">Scan it with the phone's camera to open the topic, or type the name into ntfy's “subscribe”. ${isHider()?'You get the questions as they are asked.':'You get the hider’s answers, and their curses.'} Both sides get pauses and the start and end of the round.${pushErr?' <b>Last send error: '+esc(pushErr)+'</b>':''}</p>`
+  <p class="small muted">Scan it with the phone's camera to open the topic, or type the name into ntfy's “subscribe”. Each round has its own topic, so everyone subscribes again at the start of a new one — a leaked name then costs you one round rather than all of them. ${isHider()?'You get the questions as they are asked.':'You get the hider’s answers, and their curses.'} Both sides get pauses and the start and end of the round.${pushErr?' <b>Last send error: '+esc(pushErr)+'</b>':''}</p>`
   :`<p class="small">Off: nothing readable is published for this round. With it on, each phone can subscribe in the free ntfy app and be buzzed while locked — the only thing that reaches a suspended web app. ${backend==='ntfy'?'':'This round\u2019s data is on your own relay, so turning this on would send a readable copy of the questions and answers through ntfy.sh as well.'}</p>`}`;
 }
 // Shown wherever it is needed until the permission is actually granted.
@@ -1630,6 +1637,7 @@ function lobby(){
   </div>
   ${backendNote()}
   ${alertsCard()}
+  ${pushLobbyCard()}
   <div class="card"><h2>Join a game</h2>
     <div class="row"><input type="text" id="join-code" class="grow" placeholder="4-letter code" maxlength="4" style="text-transform:uppercase;font-family:'Barlow Condensed';font-weight:800;font-size:22px;letter-spacing:.2em" autocomplete="off"><button class="btn primary" id="btn-join">Join</button></div>
     ${lobbyGames.length?`<h3>Recent games</h3><div class="games">${lobbyGames.map(g=>`<button data-join="${g.id}"><span><span class="code">${g.id}</span> &nbsp;${esc(g.name)}</span><span class="small muted">${SIZES[g.size]?SIZES[g.size].name:''} · ${g.phase}${g.hider?' · hider '+esc(g.hider):''}</span></button>`).join('')}</div>`:''}
